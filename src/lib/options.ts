@@ -63,10 +63,39 @@ export function leadScore(c: { start_date: string | null; english_level: string 
 // Real booking page, shared manually after the profile is reviewed.
 export const BOOKING_LINK = "https://calendar.app.google/E41BXUEy1DELT7WY6";
 
-export const CALL_STATUS_LABELS = { none: "No call requested", requested: "Requested — pending review", confirmed: "Confirmed" } as const;
+export const CALL_MINUTES = 20;
+
+export type CallStage = "none" | "requested" | "reviewed" | "confirmed" | "declined";
+
+export const CALL_STAGE_LABELS: Record<CallStage, string> = {
+  none: "No times requested",
+  requested: "Requested — pending review",
+  reviewed: "Profile reviewed",
+  confirmed: "Confirmed",
+  declined: "Not a fit / later",
+};
+
+export function callStage(c: {
+  call_status: string;
+  requested_call_times: string[];
+  call_reviewed_at: string | null;
+  call_declined_at: string | null;
+}): CallStage {
+  if (c.call_declined_at) return "declined";
+  if (c.call_status === "confirmed") return "confirmed";
+  if (c.call_reviewed_at) return "reviewed";
+  return c.requested_call_times.length ? "requested" : "none";
+}
+
+export const REVIEW_CHECKLIST = [
+  { key: "english", label: "English level confirmed" },
+  { key: "course", label: "Course fits the profile" },
+  { key: "documents", label: "Documents uploaded" },
+  { key: "start", label: "Start date is realistic" },
+];
 
 // Times candidates can request (Malta time). Requests are reviewed, not booked.
-const CALL_HOURS = { tz: "Europe/Malta", weekdays: [1, 2, 3, 4, 5], from: 10, to: 17, stepMinutes: 30, days: 21, minHoursAhead: 24 };
+const CALL_HOURS = { tz: "Europe/Malta", weekdays: [1, 2, 3, 4, 5], from: 10, to: 17, stepMinutes: CALL_MINUTES, days: 21, minHoursAhead: 24 };
 
 // UTC instant for a wall-clock time in CALL_HOURS.tz (Date.UTC handles day overflow).
 function zonedTime(y: number, m: number, d: number, h: number, min: number) {

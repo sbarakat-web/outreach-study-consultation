@@ -12,7 +12,7 @@ export function Layout() {
     <div className="min-h-dvh">
       <header className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-4 sm:px-6">
         <Link to="/" aria-label="Outreach — home" className="shrink-0">
-          <img src="/logo.png" alt="Outreach — The People Company" width={1724} height={350} className="h-9 w-auto sm:h-11" />
+          <img src="/logo.png" alt="Outreach — Study in Malta" width={1102} height={180} className="h-8 w-auto sm:h-10" />
         </Link>
         <nav className="flex items-center gap-1">
           {session ? (

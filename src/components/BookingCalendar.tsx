@@ -1,39 +1,32 @@
 import { useMemo, useState } from "react";
-import { CalendarCheck, CalendarPlus, ChevronLeft, ChevronRight, Clock, Download, Hourglass } from "lucide-react";
+import { CalendarCheck, CalendarPlus, Check, ChevronLeft, ChevronRight, Download, Info, X } from "lucide-react";
 import { supabase } from "../lib/supabase";
-import { callTimes, formatSlot } from "../lib/options";
+import { CALL_MINUTES, callStage, callTimes, formatSlot } from "../lib/options";
+import type { Consultation } from "../lib/types";
 import { Alert, Button } from "./ui";
 
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-const CALL_MINUTES = 30;
+const MAX_CHOICES = 3;
+const MIN_CHOICES = 2;
+const ORDINAL = ["1st choice", "2nd choice", "3rd choice"];
 
 // Local calendar day key, so times group by the candidate's own date.
 const dayKey = (d: Date) => `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
 const monthStart = (d: Date) => new Date(d.getFullYear(), d.getMonth(), 1);
 const timeOf = (d: Date) => d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+const longDate = (iso: string) => formatSlot(iso, { weekday: "long", month: "long" });
 
 /**
- * Candidate picks a preferred call time. This is a request only: an advisor reviews
- * the profile and confirms the call manually, so nothing is reserved here.
+ * Candidate picks 2–3 preferred call times. This is a request only: an advisor
+ * reviews the profile and confirms one time manually, so nothing is reserved here.
  */
-export function BookingCalendar({
-  consultationId,
-  course,
-  requestedAt,
-  callStatus,
-  onRequested,
-}: {
-  consultationId: string;
-  course: string;
-  requestedAt: string | null;
-  callStatus: "none" | "requested" | "confirmed";
-  onRequested: () => void;
-}) {
-  const [editing, setEditing] = useState(callStatus === "none");
+export function BookingCalendar({ c, onRequested }: { c: Consultation; onRequested: () => void }) {
+  const stage = callStage(c);
+  const [editing, setEditing] = useState(stage === "none");
   const times = useMemo(() => callTimes(), []);
   const [month, setMonth] = useState(() => monthStart(times[0] ?? new Date()));
   const [day, setDay] = useState<string | null>(() => (times[0] ? dayKey(times[0]) : null));
-  const [picked, setPicked] = useState<Date | null>(null);
+  const [picked, setPicked] = useState<Date[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
@@ -57,50 +50,59 @@ export function BookingCalendar({
 
   const firstMonth = times[0] ? monthStart(times[0]) : month;
   const lastMonth = times.length ? monthStart(times[times.length - 1]) : month;
+  const pickedDays = new Set(picked.map(dayKey));
+  const isPicked = (t: Date) => picked.some((p) => p.getTime() === t.getTime());
 
-  const request = async () => {
-    if (!picked) return;
+  const toggle = (t: Date) => {
+    setError("");
+    setPicked((p) => (isPicked(t) ? p.filter((x) => x.getTime() !== t.getTime()) : p.length < MAX_CHOICES ? [...p, t] : p));
+  };
+
+  const send = async () => {
+    if (picked.length < MIN_CHOICES) return setError(`Please pick at least ${MIN_CHOICES} times so we can find one that works.`);
     setError("");
     setSaving(true);
-    const { error } = await supabase.rpc("request_call", { p_consultation_id: consultationId, p_at: picked.toISOString() });
+    const { error } = await supabase.rpc("request_call_times", {
+      p_consultation_id: c.id,
+      p_times: picked.map((t) => t.toISOString()),
+    });
     setSaving(false);
     if (error) {
       setError(
         error.message.includes("ALREADY_CONFIRMED")
           ? "Your call is already confirmed. Contact your advisor to change it."
           : error.message.includes("INVALID_TIME")
-            ? "Please pick a time at least one day ahead."
+            ? "Please pick times at least one day ahead."
             : error.message,
       );
       return;
     }
+    // Instant alert to the team; best-effort.
+    supabase.functions.invoke("call-request-alert", { body: { consultation_id: c.id } }).catch(() => {});
     setEditing(false);
-    setPicked(null);
+    setPicked([]);
     onRequested();
   };
 
-  if (requestedAt && !editing) {
-    return callStatus === "confirmed" ? (
-      <ConfirmedCall at={requestedAt} course={course} />
-    ) : (
-      <RequestedCall at={requestedAt} onChange={() => setEditing(true)} />
-    );
+  if (!editing && stage !== "none") {
+    return <CallStatus c={c} stage={stage} onChange={() => setEditing(true)} />;
   }
 
   const dayTimes = day ? byDay.get(day) ?? [] : [];
   const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const full = picked.length >= MAX_CHOICES;
 
   return (
     <div className="rounded-2xl border-2 border-brand-blue/20 bg-white">
       <div className="border-b border-slate-100 px-4 py-3 sm:px-5">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h3 className="flex items-center gap-2 font-black">
-            <CalendarCheck className="h-5 w-5 text-brand-blue" /> Choose a preferred time for your free call
+            <CalendarCheck className="h-5 w-5 text-brand-blue" /> Pick 2 or 3 times for your free {CALL_MINUTES}-minute call
           </h3>
           <span className="text-xs text-slate-500">Your time zone: {tz}</span>
         </div>
         <p className="mt-1 text-sm text-slate-500">
-          We’ll review your profile first, then confirm the call with you on WhatsApp or by email.
+          We’ll review your profile and confirm one of them with you. We usually confirm within 24 hours.
         </p>
       </div>
 
@@ -145,10 +147,7 @@ export function BookingCalendar({
                   disabled={!available}
                   aria-pressed={selected}
                   aria-label={`${d.toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" })}${available ? "" : ", not available"}`}
-                  onClick={() => {
-                    setDay(k);
-                    setPicked(null);
-                  }}
+                  onClick={() => setDay(k)}
                   className={`relative aspect-square rounded-xl text-sm transition outline-none focus-visible:ring-2 focus-visible:ring-brand-blue ${
                     selected
                       ? "bg-navy font-black text-white"
@@ -158,7 +157,13 @@ export function BookingCalendar({
                   }`}
                 >
                   {d.getDate()}
-                  {available && !selected && <span className="absolute bottom-1.5 left-1/2 h-1 w-1 -translate-x-1/2 rounded-full bg-brand-blue" />}
+                  {available && (
+                    <span
+                      className={`absolute bottom-1.5 left-1/2 h-1 w-1 -translate-x-1/2 rounded-full ${
+                        pickedDays.has(k) ? "h-1.5 w-1.5 bg-brand-red" : selected ? "bg-white" : "bg-brand-blue"
+                      }`}
+                    />
+                  )}
                 </button>
               );
             })}
@@ -172,21 +177,23 @@ export function BookingCalendar({
                 {dayTimes[0].toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" })}
               </p>
               <div className="grid max-h-72 grid-cols-3 gap-2 overflow-y-auto pr-1 md:grid-cols-2">
-                {dayTimes.map((t) => (
-                  <button
-                    key={t.toISOString()}
-                    type="button"
-                    aria-pressed={picked?.getTime() === t.getTime()}
-                    onClick={() => setPicked(t)}
-                    className={`rounded-xl border-2 py-2.5 text-sm font-bold transition outline-none focus-visible:ring-2 focus-visible:ring-brand-blue ${
-                      picked?.getTime() === t.getTime()
-                        ? "border-brand-blue bg-brand-blue text-white"
-                        : "border-slate-100 bg-mist hover:border-brand-blue/40"
-                    }`}
-                  >
-                    {timeOf(t)}
-                  </button>
-                ))}
+                {dayTimes.map((t) => {
+                  const on = isPicked(t);
+                  return (
+                    <button
+                      key={t.toISOString()}
+                      type="button"
+                      aria-pressed={on}
+                      disabled={!on && full}
+                      onClick={() => toggle(t)}
+                      className={`rounded-xl border-2 py-2.5 text-sm font-bold transition outline-none focus-visible:ring-2 focus-visible:ring-brand-blue disabled:opacity-40 ${
+                        on ? "border-brand-blue bg-brand-blue text-white" : "border-slate-100 bg-mist hover:border-brand-blue/40"
+                      }`}
+                    >
+                      {timeOf(t)}
+                    </button>
+                  );
+                })}
               </div>
             </>
           ) : (
@@ -195,53 +202,104 @@ export function BookingCalendar({
         </div>
       </div>
 
-      {(picked || error || requestedAt) && (
-        <div className="space-y-3 border-t border-slate-100 px-4 py-3 sm:px-5">
-          {error && <Alert>{error}</Alert>}
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            {picked ? (
-              <p className="flex items-center gap-2 text-sm">
-                <Clock className="h-4 w-4 text-brand-blue" />
-                <strong>{formatSlot(picked.toISOString(), { weekday: "long", month: "long" })}</strong>
-              </p>
-            ) : (
-              <span />
-            )}
-            <div className="flex gap-2">
-              {requestedAt && (
-                <Button variant="ghost" onClick={() => setEditing(false)}>
-                  Keep my request
-                </Button>
-              )}
-              {picked && (
-                <Button onClick={request} loading={saving}>
-                  Request this time
-                </Button>
-              )}
-            </div>
-          </div>
+      <div className="space-y-3 border-t border-slate-100 px-4 py-4 sm:px-5">
+        <p className="text-xs font-bold uppercase tracking-wider text-slate-500">
+          Your choices ({picked.length}/{MAX_CHOICES})
+        </p>
+        {picked.length === 0 ? (
+          <p className="text-sm text-slate-500">Choose times on different days if you can — it helps us confirm faster.</p>
+        ) : (
+          <ol className="flex flex-wrap gap-2">
+            {picked.map((t, i) => (
+              <li key={t.toISOString()} className="flex items-center gap-2 rounded-full bg-brand-blue/10 py-1.5 pl-3 pr-1.5 text-sm">
+                <span className="text-xs font-bold text-brand-blue">{ORDINAL[i]}</span>
+                <span className="font-bold">{formatSlot(t.toISOString())}</span>
+                <button
+                  type="button"
+                  aria-label={`Remove ${formatSlot(t.toISOString())}`}
+                  onClick={() => toggle(t)}
+                  className="grid h-6 w-6 place-items-center rounded-full hover:bg-white"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </li>
+            ))}
+          </ol>
+        )}
+        {error && <Alert>{error}</Alert>}
+        <div className="flex flex-wrap justify-end gap-2">
+          {stage !== "none" && (
+            <Button variant="ghost" onClick={() => setEditing(false)}>
+              Keep my current request
+            </Button>
+          )}
+          <Button onClick={send} loading={saving} disabled={picked.length < MIN_CHOICES}>
+            Send my preferred times
+          </Button>
         </div>
-      )}
+      </div>
     </div>
   );
 }
 
-function RequestedCall({ at, onChange }: { at: string; onChange: () => void }) {
+const STEPS = ["Requested", "Profile reviewed", "Confirmed"];
+
+function Timeline({ reached }: { reached: number }) {
   return (
-    <div className="rounded-2xl bg-amber-50 px-4 py-4 ring-1 ring-amber-200 sm:px-5">
+    <ol className="grid grid-cols-3 gap-2" aria-label="Call status">
+      {STEPS.map((label, i) => (
+        <li key={label} className="space-y-1.5">
+          <span className={`block h-1.5 rounded-full ${i <= reached ? "bg-emerald-500" : "bg-slate-200"}`} />
+          <span className={`flex items-center gap-1 text-xs font-bold ${i <= reached ? "text-navy" : "text-slate-400"}`}>
+            {i <= reached && <Check className="h-3.5 w-3.5 text-emerald-600" />}
+            {label}
+          </span>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+function CallStatus({ c, stage, onChange }: { c: Consultation; stage: ReturnType<typeof callStage>; onChange: () => void }) {
+  if (stage === "declined") {
+    return (
+      <div className="flex items-start gap-3 rounded-2xl bg-mist px-4 py-4 sm:px-5">
+        <Info className="mt-0.5 h-5 w-5 shrink-0 text-slate-500" />
+        <p className="text-sm text-slate-600">
+          Thank you for your interest. Your advisor will contact you about the best next step for your profile.
+        </p>
+      </div>
+    );
+  }
+
+  if (stage === "confirmed" && c.preferred_call_at) {
+    return (
+      <div className="space-y-4 rounded-2xl bg-emerald-50 px-4 py-4 ring-1 ring-emerald-200 sm:px-5">
+        <Timeline reached={2} />
+        <ConfirmedCall at={c.preferred_call_at} course={c.desired_course || "your studies"} />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4 rounded-2xl bg-amber-50 px-4 py-4 ring-1 ring-amber-200 sm:px-5">
+      <Timeline reached={stage === "reviewed" ? 1 : 0} />
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="flex items-start gap-3">
-          <Hourglass className="mt-0.5 h-6 w-6 shrink-0 text-amber-600" />
-          <div>
-            <p className="text-xs font-bold uppercase tracking-wider text-amber-700">Requested · pending review</p>
-            <p className="text-lg font-black">{formatSlot(at, { weekday: "long", month: "long" })}</p>
-            <p className="text-sm text-slate-600">
-              We’re reviewing your profile and will confirm your call with you on WhatsApp or by email.
-            </p>
-          </div>
+        <div>
+          <p className="text-xs font-bold uppercase tracking-wider text-amber-700">
+            {stage === "reviewed" ? "Profile reviewed · confirming your time" : "Requested · pending review"}
+          </p>
+          <ol className="mt-1 space-y-0.5">
+            {c.requested_call_times.map((t, i) => (
+              <li key={t} className="text-sm">
+                <span className="text-slate-500">{ORDINAL[i]}:</span> <strong>{longDate(t)}</strong>
+              </li>
+            ))}
+          </ol>
+          <p className="mt-2 text-sm text-slate-600">We usually confirm within 24 hours, on WhatsApp or by email.</p>
         </div>
         <Button variant="ghost" onClick={onChange}>
-          Change time
+          Change times
         </Button>
       </div>
     </div>
@@ -286,12 +344,12 @@ function ConfirmedCall({ at, course }: { at: string; course: string }) {
   };
 
   return (
-    <div className="rounded-2xl bg-emerald-50 px-4 py-4 ring-1 ring-emerald-200 sm:px-5">
+    <div>
       <div className="flex items-start gap-3">
         <CalendarCheck className="mt-0.5 h-6 w-6 shrink-0 text-emerald-600" />
         <div>
           <p className="text-xs font-bold uppercase tracking-wider text-emerald-700">Your free call is confirmed</p>
-          <p className="text-lg font-black">{formatSlot(at, { weekday: "long", month: "long" })}</p>
+          <p className="text-lg font-black">{longDate(at)}</p>
           <p className="text-sm text-slate-600">{CALL_MINUTES} minutes · your advisor will call you on WhatsApp</p>
         </div>
       </div>

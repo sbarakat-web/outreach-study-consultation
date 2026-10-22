@@ -51,7 +51,7 @@ export function Dashboard() {
       {justApplied && (
         <Alert tone="success">
           <span className="flex items-center gap-2">
-            <CheckCircle2 className="h-4 w-4 shrink-0" /> Your application is created. Next step: choose a preferred time for your free call below.
+            <CheckCircle2 className="h-4 w-4 shrink-0" /> Your application is created. Next step: pick 2 or 3 times for your free call below.
           </span>
         </Alert>
       )}
@@ -124,13 +124,7 @@ function RequestCard({ c, docs, onChange, userId }: { c: Consultation; docs: Doc
         </div>
 
         {!lost && (
-          <BookingCalendar
-            consultationId={c.id}
-            course={c.desired_course || "your studies"}
-            requestedAt={c.preferred_call_at}
-            callStatus={c.call_status}
-            onRequested={onChange}
-          />
+          <BookingCalendar c={c} onRequested={onChange} />
         )}
 
         {!lost && (

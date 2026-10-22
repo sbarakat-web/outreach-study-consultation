@@ -29,8 +29,12 @@ export interface Consultation {
   message: string | null;
   status: Status;
   admin_notes: string | null;
-  preferred_call_at: string | null;
+  preferred_call_at: string | null; // confirmed call time
   call_status: "none" | "requested" | "confirmed";
+  requested_call_times: string[];
+  review_checklist: Record<string, boolean>;
+  call_reviewed_at: string | null;
+  call_declined_at: string | null;
   tracking: Record<string, string>;
   created_at: string;
   updated_at: string;
