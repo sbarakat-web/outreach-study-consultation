@@ -4,7 +4,8 @@ import { supabase } from "../../lib/supabase";
 import { BOOKING_LINK, CALL_STAGE_LABELS, callStage, noReply24h, waLink } from "../../lib/options";
 import type { Consultation } from "../../lib/types";
 import { Alert, Button } from "../../components/ui";
-import { bookingMessage, confirmAndNotify, maltaTime, notifyCandidate, suggestTime, toLocalInput } from "./calls";
+import { bookingMessage, confirmAndNotify, maltaTime, notifyCandidate, suggestTime } from "./calls";
+import { SlotPicker } from "./SlotPicker";
 
 /**
  * Admin call workflow, kept simple: suggest a time (the candidate's own choice by default),
@@ -15,7 +16,8 @@ export function CallPanel({ c, onSaved }: { c: Consultation; onSaved: () => void
   const [msg, setMsg] = useState<{ tone: "error" | "success"; text: string } | null>(null);
   const [busy, setBusy] = useState<"" | "suggest" | "confirm" | "booking">("");
   const requested = c.requested_call_times[0];
-  const [at, setAt] = useState(toLocalInput(c.suggested_call_at ?? requested ?? null));
+  // ISO time; the slot picker fills it with the best free time from Google Calendar.
+  const [at, setAt] = useState("");
   const [editing, setEditing] = useState(false);
   // Changing the candidate's own time sends the "can we move your call?" version of the email.
   const reschedule = !!requested && !!at && Math.abs(new Date(at).getTime() - new Date(requested).getTime()) > 60_000;
@@ -24,7 +26,7 @@ export function CallPanel({ c, onSaved }: { c: Consultation; onSaved: () => void
     if (!at) return setMsg({ tone: "error", text: "Pick a time first." });
     const waTab = c.whatsapp ? window.open("about:blank", "_blank") : null;
     setBusy("suggest");
-    const r = await suggestTime(c, new Date(at).toISOString(), waTab);
+    const r = await suggestTime(c, at, waTab);
     setBusy("");
     if (r.error) return setMsg({ tone: "error", text: r.error });
     setMsg({ tone: "success", text: `Sent${r.emailed ? " by email" : ""}${waTab ? " + WhatsApp" : ""}. Waiting for ${c.full_name.split(" ")[0]} to confirm — you’ll get an email when they do.` });
@@ -58,17 +60,16 @@ export function CallPanel({ c, onSaved }: { c: Consultation; onSaved: () => void
 
   const picker = (
     <div className="space-y-2">
-      <div className="flex flex-col gap-2 sm:flex-row">
-        <input type="datetime-local" className="field w-auto py-2" value={at} onChange={(e) => setAt(e.target.value)} aria-label="Suggested call time" />
-        <Button loading={busy === "suggest"} onClick={send}>
-          <Send className="h-4 w-4" /> {reschedule ? "Send reschedule request" : "Send for confirmation"}
-        </Button>
-      </div>
+      <SlotPicker value={at} onChange={setAt} preferred={requested} />
+      <Button loading={busy === "suggest"} onClick={send} disabled={!at}>
+        <Send className="h-4 w-4" /> {reschedule ? "Send reschedule request" : "Send for confirmation"}
+        {at && <span className="font-normal opacity-80">· {maltaTime(at)}</span>}
+      </Button>
       <p className="text-xs text-slate-500">
         {reschedule
           ? "Email + WhatsApp: “Can we move your call?” — shows their time crossed out and the new one."
           : "Email + WhatsApp: “Good news, your time is available” with a “Yes, confirm” button."}{" "}
-        In their language · your local time.
+        In their language.
       </p>
     </div>
   );

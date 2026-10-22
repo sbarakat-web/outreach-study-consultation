@@ -576,6 +576,11 @@ function RequestRow({
               {google ? "Mark confirmed + Meet" : "Mark confirmed"}
             </button>
           </>
+        ) : clash ? (
+          // Their time is busy in Google Calendar: pick a free slot in the lead panel instead.
+          <Link to={`/admin?lead=${c.id}`} className="inline-flex items-center justify-center gap-2 font-bold text-brand hover:bg-brand/5">
+            <CalendarCheck className="h-4 w-4" /> Pick a free time
+          </Link>
         ) : (
           <button disabled={busy} onClick={() => onSuggest(at)} className="inline-flex items-center justify-center gap-2 font-bold text-brand hover:bg-brand/5 disabled:opacity-50">
             <Send className="h-4 w-4" /> Send for confirmation

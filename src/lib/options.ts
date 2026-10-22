@@ -154,14 +154,14 @@ function zonedTime(y: number, m: number, d: number, h: number, min: number) {
   return new Date(guess - (shown - guess));
 }
 
-export function callTimes(now = new Date()): Date[] {
+export function callTimes(now = new Date(), minHoursAhead = CALL_HOURS.minHoursAhead): Date[] {
   const today = Object.fromEntries(
     new Intl.DateTimeFormat("en-US", { timeZone: CALL_HOURS.tz, year: "numeric", month: "numeric", day: "numeric" })
       .formatToParts(now)
       .map((p) => [p.type, p.value]),
   );
   const [y, m, d] = [+today.year, +today.month - 1, +today.day];
-  const earliest = now.getTime() + CALL_HOURS.minHoursAhead * 3600_000;
+  const earliest = now.getTime() + minHoursAhead * 3600_000;
   const out: Date[] = [];
   for (let i = 0; i <= CALL_HOURS.days; i++) {
     if (!CALL_HOURS.weekdays.includes(new Date(Date.UTC(y, m, d + i)).getUTCDay())) continue;
