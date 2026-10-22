@@ -1,18 +1,11 @@
 import { useState } from "react";
 import { CalendarCheck, Check, MessageCircle } from "lucide-react";
 import { supabase } from "../../lib/supabase";
-import { BOOKING_LINK, CALL_STAGE_LABELS, REVIEW_CHECKLIST, callStage, formatSlot, waLink } from "../../lib/options";
+import { BOOKING_LINK, CALL_STAGE_LABELS, REVIEW_CHECKLIST, callStage, waLink } from "../../lib/options";
 import type { Consultation } from "../../lib/types";
 import { Alert, Button } from "../../components/ui";
 
-const maltaTime = (iso: string) => formatSlot(iso, { weekday: "long", month: "long", timeZone: "Europe/Malta" });
-
-// datetime-local value in the admin's own time zone
-const toLocalInput = (iso: string | null) => {
-  if (!iso) return "";
-  const d = new Date(iso);
-  return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
-};
+import { bookingMessage as bookingText, confirmCall, googleEventUrl, maltaTime, toLocalInput } from "./calls";
 
 /** Admin call workflow: review checklist, confirm a requested time, or reply on WhatsApp. */
 export function CallPanel({ c, documents, onSaved }: { c: Consultation; documents: number; onSaved: () => void }) {
@@ -40,19 +33,17 @@ export function CallPanel({ c, documents, onSaved }: { c: Consultation; document
     if (error) setMsg({ tone: "error", text: error.message });
   };
 
-  const confirmAt = (iso: string) =>
-    update(
-      {
-        call_status: "confirmed",
-        preferred_call_at: iso,
-        call_reviewed_at: c.call_reviewed_at ?? new Date().toISOString(),
-        call_declined_at: null,
-        ...(["new", "contacted", "qualified"].includes(c.status) ? { status: "consultation_booked" as const } : {}),
-      },
-      `Confirmed for ${maltaTime(iso)} (Malta). The candidate sees it in their dashboard, and it is now in the online-session queue.`,
-    );
+  const confirmAt = async (iso: string) => {
+    const { error } = await confirmCall(c, iso);
+    if (error) return setMsg({ tone: "error", text: error.message });
+    setMsg({
+      tone: "success",
+      text: `Confirmed for ${maltaTime(iso)} (Malta). The candidate sees it in their dashboard, and it is now in the online-session queue.`,
+    });
+    onSaved();
+  };
 
-  const bookingMessage = `Hi ${first}, this is Outreach. Thank you for your application for ${course} — we've reviewed your profile and would love to talk. Please confirm your free call here: ${BOOKING_LINK}`;
+  const bookingMessage = bookingText(c);
 
   const validProposals = proposals.filter(Boolean).map((v) => new Date(v).toISOString());
   const proposeMessage = `Hi ${first}, this is Outreach about your application for ${course}. Your requested times are not available, sorry! Would one of these work for you (Malta time)?\n${validProposals
@@ -100,9 +91,16 @@ export function CallPanel({ c, documents, onSaved }: { c: Consultation; document
                 <span>
                   <span className="text-slate-400">{i + 1}.</span> <strong>{maltaTime(t)}</strong>
                 </span>
-                <Button variant="secondary" className="min-h-9 px-4" onClick={() => confirmAt(t)}>
-                  Confirm
-                </Button>
+                <span className="flex gap-1.5">
+                  <a href={googleEventUrl(c, t)} target="_blank" rel="noreferrer" title="Add to my Google Calendar">
+                    <Button variant="ghost" className="min-h-9 px-3">
+                      <CalendarCheck className="h-4 w-4" />
+                    </Button>
+                  </a>
+                  <Button variant="secondary" className="min-h-9 px-4" onClick={() => confirmAt(t)}>
+                    Confirm
+                  </Button>
+                </span>
               </li>
             ))}
           </ul>
