@@ -4,7 +4,7 @@ import { CheckCircle2, FileText, KeyRound, Plus, Upload } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
 import { ENGLISH_LEVELS, STATUSES, STUDY_PATHS, labelFor, statusLabel } from "../lib/options";
-import { slotOf, type Consultation, type DocumentRow } from "../lib/types";
+import type { Consultation, DocumentRow } from "../lib/types";
 import { Alert, Button, Card, Spinner, StatusBadge } from "../components/ui";
 import { BookingCalendar } from "../components/BookingCalendar";
 
@@ -22,7 +22,7 @@ export function Dashboard() {
     const [c, d] = await Promise.all([
       supabase
         .from("consultations")
-        .select("*, slots(id, starts_at, duration_minutes)")
+        .select("*")
         .or(`user_id.eq.${session!.user.id},email.eq."${(session!.user.email ?? "").toLowerCase()}"`)
         .order("created_at", { ascending: false }),
       supabase.from("documents").select("*").eq("user_id", session!.user.id).order("created_at"),
@@ -51,7 +51,7 @@ export function Dashboard() {
       {justApplied && (
         <Alert tone="success">
           <span className="flex items-center gap-2">
-            <CheckCircle2 className="h-4 w-4 shrink-0" /> Your application is created. Next step: book your free call below.
+            <CheckCircle2 className="h-4 w-4 shrink-0" /> Your application is created. Next step: choose a preferred time for your free call below.
           </span>
         </Alert>
       )}
@@ -77,7 +77,6 @@ export function Dashboard() {
 function RequestCard({ c, docs, onChange, userId }: { c: Consultation; docs: DocumentRow[]; onChange: () => void; userId: string }) {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
-  const slot = slotOf(c);
   const reached = MILESTONES.indexOf(c.status);
   const lost = c.status === "lost";
 
@@ -125,7 +124,13 @@ function RequestCard({ c, docs, onChange, userId }: { c: Consultation; docs: Doc
         </div>
 
         {!lost && (
-          <BookingCalendar consultationId={c.id} course={c.desired_course || "your studies"} slot={slot} onBooked={onChange} />
+          <BookingCalendar
+            consultationId={c.id}
+            course={c.desired_course || "your studies"}
+            requestedAt={c.preferred_call_at}
+            callStatus={c.call_status}
+            onRequested={onChange}
+          />
         )}
 
         {!lost && (

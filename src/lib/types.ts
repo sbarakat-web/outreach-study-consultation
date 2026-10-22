@@ -11,13 +11,6 @@ export type Status =
   | "enrolled"
   | "lost";
 
-export interface Slot {
-  id: string;
-  starts_at: string;
-  duration_minutes: number;
-  consultation_id: string | null;
-}
-
 export interface Consultation {
   id: string;
   user_id: string | null;
@@ -36,17 +29,12 @@ export interface Consultation {
   message: string | null;
   status: Status;
   admin_notes: string | null;
+  preferred_call_at: string | null;
+  call_status: "none" | "requested" | "confirmed";
   tracking: Record<string, string>;
   created_at: string;
   updated_at: string;
-  // One-to-one embed: PostgREST may return an object or a one-item array.
-  slots?: BookedSlot | BookedSlot[] | null;
 }
-
-export type BookedSlot = Pick<Slot, "id" | "starts_at" | "duration_minutes">;
-
-export const slotOf = (c: Consultation): BookedSlot | undefined =>
-  (Array.isArray(c.slots) ? c.slots[0] : c.slots) ?? undefined;
 
 export interface DocumentRow {
   id: string;

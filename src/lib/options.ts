@@ -47,17 +47,64 @@ export function parseCourseParam(v: string | null) {
   return COURSE_ALIASES[key] ?? PROGRAMMES.find((p) => p.toLowerCase() === key);
 }
 
-// Lead score (CRM rules): start soon, B2+, booked a call, uploaded documents.
-export function leadScore(c: { start_date: string | null; english_level: string | null; hasSlot: boolean; documents: number }) {
+// Lead score (CRM rules): start soon, B2+, requested a call, uploaded documents.
+export function leadScore(c: { start_date: string | null; english_level: string | null; callRequested: boolean; documents: number }) {
   const parts: [string, number][] = [];
   if (c.start_date === START_OPTIONS[0]) parts.push(["Starts within 3 months", 20]);
   else if (c.start_date === START_OPTIONS[1]) parts.push(["Starts in 3–6 months", 10]);
   if (c.english_level === "b2_plus") parts.push(["B2 or above", 10]);
-  if (c.hasSlot) parts.push(["Booked a call", 15]);
+  if (c.callRequested) parts.push(["Requested a call", 15]);
   if (c.documents > 0) parts.push(["Uploaded documents", 20]);
   const score = parts.reduce((n, [, p]) => n + p, 0);
   const tier = score >= 35 ? "hot" : score >= 20 ? "warm" : "cold";
   return { score, tier, parts } as const;
+}
+
+// Real booking page, shared manually after the profile is reviewed.
+export const BOOKING_LINK = "https://calendar.app.google/E41BXUEy1DELT7WY6";
+
+export const CALL_STATUS_LABELS = { none: "No call requested", requested: "Requested — pending review", confirmed: "Confirmed" } as const;
+
+// Times candidates can request (Malta time). Requests are reviewed, not booked.
+const CALL_HOURS = { tz: "Europe/Malta", weekdays: [1, 2, 3, 4, 5], from: 10, to: 17, stepMinutes: 30, days: 21, minHoursAhead: 24 };
+
+// UTC instant for a wall-clock time in CALL_HOURS.tz (Date.UTC handles day overflow).
+function zonedTime(y: number, m: number, d: number, h: number, min: number) {
+  const guess = Date.UTC(y, m, d, h, min);
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat("en-US", {
+      timeZone: CALL_HOURS.tz,
+      hourCycle: "h23",
+      year: "numeric",
+      month: "numeric",
+      day: "numeric",
+      hour: "numeric",
+      minute: "numeric",
+    })
+      .formatToParts(new Date(guess))
+      .map((p) => [p.type, p.value]),
+  );
+  const shown = Date.UTC(+parts.year, +parts.month - 1, +parts.day, +parts.hour, +parts.minute);
+  return new Date(guess - (shown - guess));
+}
+
+export function callTimes(now = new Date()): Date[] {
+  const today = Object.fromEntries(
+    new Intl.DateTimeFormat("en-US", { timeZone: CALL_HOURS.tz, year: "numeric", month: "numeric", day: "numeric" })
+      .formatToParts(now)
+      .map((p) => [p.type, p.value]),
+  );
+  const [y, m, d] = [+today.year, +today.month - 1, +today.day];
+  const earliest = now.getTime() + CALL_HOURS.minHoursAhead * 3600_000;
+  const out: Date[] = [];
+  for (let i = 0; i <= CALL_HOURS.days; i++) {
+    if (!CALL_HOURS.weekdays.includes(new Date(Date.UTC(y, m, d + i)).getUTCDay())) continue;
+    for (let t = CALL_HOURS.from * 60; t < CALL_HOURS.to * 60; t += CALL_HOURS.stepMinutes) {
+      const at = zonedTime(y, m, d + i, Math.floor(t / 60), t % 60);
+      if (at.getTime() >= earliest) out.push(at);
+    }
+  }
+  return out;
 }
 
 export const STATUSES: { value: Status; label: string }[] = [

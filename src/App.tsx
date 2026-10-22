@@ -10,7 +10,6 @@ import { ResetPassword } from "./pages/ResetPassword";
 import { Dashboard } from "./pages/Dashboard";
 import { AdminLayout } from "./pages/admin/AdminLayout";
 import { Requests } from "./pages/admin/Requests";
-import { Slots } from "./pages/admin/Slots";
 import { Team } from "./pages/admin/Team";
 
 export function App() {
@@ -50,7 +49,6 @@ export function App() {
               }
             >
               <Route index element={<Requests />} />
-              <Route path="slots" element={<Slots />} />
               <Route path="team" element={<Team />} />
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />
