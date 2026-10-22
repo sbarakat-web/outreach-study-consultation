@@ -206,12 +206,13 @@ function StartSessionLink({ c }: { c: Row }) {
 const isBookedLead = (c: Row) =>
   c.call_status === "confirmed" && !c.call_declined_at && !["interviewed", "no_longer_interested"].includes(c.session_outcome ?? "");
 
-// Confirmed time, otherwise the candidate's first choice.
-const callTimeOf = (c: Row) => (c.call_status === "confirmed" ? c.preferred_call_at : c.requested_call_times[0]) ?? null;
+// Confirmed time, otherwise the suggested time, otherwise the candidate's first choice.
+const callTimeOf = (c: Row) => (c.call_status === "confirmed" ? c.preferred_call_at : c.suggested_call_at ?? c.requested_call_times[0]) ?? null;
 
 const STAGE_BADGE = {
   requested: ["Requested", "bg-amber-100 text-amber-800"],
   reviewed: ["Reviewed", "bg-amber-100 text-amber-800"],
+  suggested: ["Awaiting confirm", "bg-sky-100 text-sky-800"],
   confirmed: ["Confirmed", "bg-emerald-100 text-emerald-800"],
   declined: ["Not a fit", "bg-slate-100 text-slate-500"],
 } as const;

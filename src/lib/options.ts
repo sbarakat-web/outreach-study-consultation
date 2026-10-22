@@ -66,12 +66,13 @@ export const BOOKING_LINK = "https://calendar.app.google/FpLsWb5W5Q73v6JE7";
 
 export const CALL_MINUTES = 20;
 
-export type CallStage = "none" | "requested" | "reviewed" | "confirmed" | "declined";
+export type CallStage = "none" | "requested" | "reviewed" | "suggested" | "confirmed" | "declined";
 
 export const CALL_STAGE_LABELS: Record<CallStage, string> = {
   none: "No times requested",
   requested: "Requested — pending review",
   reviewed: "Profile reviewed",
+  suggested: "Waiting for candidate",
   confirmed: "Confirmed",
   declined: "Not a fit / later",
 };
@@ -81,9 +82,11 @@ export function callStage(c: {
   requested_call_times: string[];
   call_reviewed_at: string | null;
   call_declined_at: string | null;
+  suggested_call_at?: string | null;
 }): CallStage {
   if (c.call_declined_at) return "declined";
   if (c.call_status === "confirmed") return "confirmed";
+  if (c.suggested_call_at) return "suggested";
   if (c.call_reviewed_at) return "reviewed";
   return c.requested_call_times.length ? "requested" : "none";
 }

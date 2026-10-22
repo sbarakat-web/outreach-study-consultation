@@ -8,25 +8,24 @@ import {
   Download,
   ExternalLink,
   Link2,
-  Mail,
-  MessageCircle,
   Play,
   Printer,
   RefreshCcw,
+  Send,
 } from "lucide-react";
 import { supabase } from "../../lib/supabase";
 import { useAuth } from "../../lib/auth";
-import { callStage, waLink } from "../../lib/options";
+import { callStage } from "../../lib/options";
 import type { Consultation, Task } from "../../lib/types";
 import { Alert, Button, Card, Spinner } from "../../components/ui";
 import {
-  bookingMessage,
   confirmAndNotify,
   fillTab,
   googleApi,
   googleWeekUrl,
   maltaTime,
   notifyCandidate,
+  suggestTime,
 } from "./calls";
 import { isBookedForSession, sessionHref } from "./SessionPanel";
 
@@ -41,6 +40,8 @@ const startOfWeek = (d: Date) => {
 };
 const timeOf = (iso: string) => new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 const sameDay = (a: Date, b: Date) => a.toDateString() === b.toDateString();
+// Time waiting on someone: the one sent to the candidate, else the one they asked for.
+const pendingAt = (c: Consultation) => c.suggested_call_at ?? c.requested_call_times[0] ?? null;
 const sourceOf = (c: Consultation) => c.tracking?.utm_source || (c.tracking?.ref ? "referral" : "direct");
 
 type Kind = "booked" | "requested" | "done";
@@ -116,8 +117,8 @@ export function CalendarPage() {
   const toConfirm = useMemo(
     () =>
       (items ?? [])
-        .filter((c) => matches(c) && ["requested", "reviewed"].includes(callStage(c)) && c.requested_call_times.length)
-        .sort((a, b) => a.requested_call_times[0].localeCompare(b.requested_call_times[0])),
+        .filter((c) => matches(c) && ["requested", "reviewed", "suggested"].includes(callStage(c)) && pendingAt(c))
+        .sort((a, b) => pendingAt(a)!.localeCompare(pendingAt(b)!)),
     [items, source],
   );
   const rebook = (items ?? []).filter((c) => matches(c) && c.session_outcome === "no_attendance" && c.call_status === "none");
@@ -130,7 +131,7 @@ export function CalendarPage() {
     for (const c of items ?? []) {
       if (!matches(c)) continue;
       if (c.call_status === "confirmed" && c.preferred_call_at) out.push({ c, at: c.preferred_call_at, kind: isBookedForSession(c) ? "booked" : "done" });
-      else if (c.call_status !== "none" && c.requested_call_times[0]) out.push({ c, at: c.requested_call_times[0], kind: "requested" });
+      else if (c.call_status !== "none" && pendingAt(c)) out.push({ c, at: pendingAt(c)!, kind: "requested" });
     }
     return out.filter((e) => kindFilter === "all" || e.kind === kindFilter).sort((a, b) => a.at.localeCompare(b.at));
   }, [items, source, kindFilter]);
@@ -152,6 +153,16 @@ export function CalendarPage() {
         r.googleError ? ` · Google: ${r.googleError}` : ""
       }. Now in the online-session queue.`,
     );
+    load();
+  };
+
+  const suggest = async (c: Consultation, iso: string) => {
+    const waTab = c.whatsapp ? window.open("about:blank", "_blank") : null;
+    setWorking(c.id);
+    const r = await suggestTime(c, iso, waTab);
+    setWorking(null);
+    if (r.error) return setError(r.error);
+    setFlash(`${maltaTime(iso)} (Malta) sent to ${c.full_name}${r.emailed ? " by email" : ""}${waTab ? " + WhatsApp" : ""}. Waiting for their confirmation.`);
     load();
   };
 
@@ -299,9 +310,7 @@ export function CalendarPage() {
           <div>
             <h2 className="text-lg font-black">To confirm ({toConfirm.length})</h2>
             <p className="text-xs text-slate-500">
-              {googleReady
-                ? "Confirm creates the Google event with a Meet link, invites the candidate, emails them and opens WhatsApp."
-                : "Send the candidate your Google booking link (email or WhatsApp). Once they have booked, confirm here — they are emailed and join the online-session queue."}
+              Send the time by email + WhatsApp; the candidate confirms with one click and you get an email. If they reply YES on WhatsApp, use “Mark confirmed”.
             </p>
           </div>
           {toConfirm.length === 0 ? (
@@ -314,8 +323,9 @@ export function CalendarPage() {
                   c={c}
                   google={googleReady}
                   busy={working === c.id}
-                  clash={clashes(c.requested_call_times[0])}
+                  clash={clashes(pendingAt(c)!)}
                   onConfirm={(iso) => confirm(c, iso)}
+                  onSuggest={(iso) => suggest(c, iso)}
                 />
               ))}
             </ul>
@@ -490,56 +500,53 @@ function RequestRow({
   busy,
   clash,
   onConfirm,
+  onSuggest,
 }: {
   c: Consultation;
   google: boolean;
   busy: boolean;
   clash: boolean;
   onConfirm: (iso: string) => void;
+  onSuggest: (iso: string) => void;
 }) {
-  const [sent, setSent] = useState<"" | "sending" | "sent" | "failed">("");
-  const at = c.requested_call_times[0];
-  const emailLink = async () => {
-    setSent("sending");
-    const r = await notifyCandidate("booking-link", c.id);
-    setSent(r.data?.ok ? "sent" : "failed");
-  };
+  const waiting = !!c.suggested_call_at;
+  const at = pendingAt(c)!;
   return (
-    <li className="rounded-2xl border border-slate-200 px-4 py-3 text-sm">
+    <li className={`rounded-2xl border px-4 py-3 text-sm ${waiting ? "border-sky-200 bg-sky-50/50" : "border-slate-200"}`}>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <Link to={`/admin?lead=${c.id}`} className="font-black text-navy hover:text-brand">
             {c.full_name}
           </Link>
           {c.session_outcome === "no_attendance" && <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-800">Rebook</span>}
+          {waiting && <span className="ml-2 rounded-full bg-sky-100 px-2 py-0.5 text-[11px] font-bold text-sky-800">Waiting for candidate</span>}
           <p className="text-xs text-slate-500">
             {c.desired_course || "No course yet"} · {sourceOf(c)}
           </p>
           <p className="mt-1">
-            Asked for: <strong>{maltaTime(at)}</strong> <span className="text-xs text-slate-400">(Malta)</span>
+            {waiting ? "Sent:" : "Asked for:"} <strong>{maltaTime(at)}</strong> <span className="text-xs text-slate-400">(Malta)</span>
             {clash && (
               <span className="ml-2 inline-flex items-center gap-1 rounded-full bg-brand-red/10 px-2 py-0.5 text-[11px] font-bold text-brand-red">
                 <AlertTriangle className="h-3 w-3" /> Clash / busy
               </span>
             )}
           </p>
-          {sent === "sent" && <p className="mt-1 text-xs font-bold text-emerald-700">Booking link emailed.</p>}
-          {sent === "failed" && <p className="mt-1 text-xs font-bold text-brand-red">Email not sent — check Resend.</p>}
         </div>
         <div className="flex flex-wrap gap-1.5">
-          <Button variant="secondary" className="min-h-9 px-3" loading={sent === "sending"} onClick={emailLink}>
-            <Mail className="h-4 w-4" /> Email booking link
-          </Button>
-          {c.whatsapp && (
-            <a href={waLink(c.whatsapp, bookingMessage(c))} target="_blank" rel="noreferrer" title="WhatsApp booking link">
-              <Button variant="secondary" className="min-h-9 px-3">
-                <MessageCircle className="h-4 w-4" />
+          {waiting ? (
+            <>
+              <Button variant="secondary" className="min-h-9 px-3" loading={busy} onClick={() => onSuggest(at)} title="Send the same time again">
+                <Send className="h-4 w-4" /> Resend
               </Button>
-            </a>
+              <Button className="min-h-9 px-4" loading={busy} onClick={() => onConfirm(at)}>
+                {google ? "Mark confirmed + Meet" : "Mark confirmed"}
+              </Button>
+            </>
+          ) : (
+            <Button className="min-h-9 px-4" loading={busy} onClick={() => onSuggest(at)}>
+              <Send className="h-4 w-4" /> Send for confirmation
+            </Button>
           )}
-          <Button className="min-h-9 px-4" loading={busy} onClick={() => onConfirm(at)}>
-            {google ? "Confirm + Meet" : "Confirm"}
-          </Button>
         </div>
       </div>
     </li>

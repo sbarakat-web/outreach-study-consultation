@@ -35,6 +35,9 @@ export interface Consultation {
   review_checklist: Record<string, boolean>;
   call_reviewed_at: string | null;
   call_declined_at: string | null;
+  suggested_call_at: string | null; // time sent to the candidate, waiting for their confirmation
+  call_suggested_at: string | null;
+  call_confirm_token: string | null;
   referral_code: string;
   session_outcome: "interviewed" | "no_attendance" | "no_longer_interested" | null;
   session_outcome_at: string | null;

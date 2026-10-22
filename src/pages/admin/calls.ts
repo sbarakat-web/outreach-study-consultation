@@ -31,8 +31,8 @@ export async function confirmCall(c: Consultation, iso: string) {
 export const googleApi = (action: string, body: Record<string, unknown> = {}) =>
   supabase.functions.invoke("google-calendar", { body: { action, ...body } });
 
-export const notifyCandidate = (type: "call-confirmed" | "rebook" | "booking-link", consultationId: string) =>
-  supabase.functions.invoke("notify", { body: { type, consultationId } });
+export const notifyCandidate = (type: "call-confirmed" | "rebook" | "booking-link" | "suggest-time", consultationId: string, at?: string) =>
+  supabase.functions.invoke("notify", { body: { type, consultationId, at } });
 
 /** Send the WhatsApp link to a tab opened synchronously in the click handler (or close it). */
 export const fillTab = (tab: Window | null, url?: string | null) => {
@@ -71,6 +71,17 @@ export async function confirmAndNotify(c: Consultation, iso: string, opts: { goo
   const n = await notifyCandidate("call-confirmed", c.id);
   fillTab(opts.waTab, n.data?.waUrl);
   return { meetUrl, emailed: !!n.data?.ok, googleError };
+}
+
+/**
+ * Send the candidate a suggested time (email + WhatsApp) with a one-click confirm link.
+ * The call stays unconfirmed until they click it (or you mark it confirmed).
+ */
+export async function suggestTime(c: Consultation, iso: string, waTab: Window | null) {
+  const r = await notifyCandidate("suggest-time", c.id, iso);
+  const error = r.data?.error ?? (r.error ? r.error.message : undefined);
+  fillTab(waTab, error ? null : r.data?.waUrl);
+  return { error, emailed: !!r.data?.ok };
 }
 
 /** Admins + session presenters, for adviser pickers. */

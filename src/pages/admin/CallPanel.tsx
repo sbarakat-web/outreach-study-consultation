@@ -1,42 +1,70 @@
 import { useState } from "react";
-import { CalendarCheck, Mail, MessageCircle } from "lucide-react";
+import { CalendarCheck, Clock, Mail, MessageCircle, Send } from "lucide-react";
 import { supabase } from "../../lib/supabase";
 import { BOOKING_LINK, CALL_STAGE_LABELS, callStage, waLink } from "../../lib/options";
 import type { Consultation } from "../../lib/types";
 import { Alert, Button } from "../../components/ui";
-import { bookingMessage, confirmAndNotify, maltaTime, notifyCandidate } from "./calls";
+import { bookingMessage, confirmAndNotify, maltaTime, notifyCandidate, suggestTime, toLocalInput } from "./calls";
 
 /**
- * Admin call workflow, kept simple: see the time the candidate asked for, send them the
- * real Google booking link (email or WhatsApp), then confirm once they have booked.
+ * Admin call workflow, kept simple: suggest a time (the candidate's own choice by default),
+ * send it by email + WhatsApp, and wait for the candidate's one-click confirmation.
  */
 export function CallPanel({ c, onSaved }: { c: Consultation; onSaved: () => void }) {
   const stage = callStage(c);
   const [msg, setMsg] = useState<{ tone: "error" | "success"; text: string } | null>(null);
-  const [sending, setSending] = useState(false);
+  const [busy, setBusy] = useState<"" | "suggest" | "confirm" | "booking">("");
   const requested = c.requested_call_times[0];
+  const [at, setAt] = useState(toLocalInput(c.suggested_call_at ?? requested ?? null));
+  const [editing, setEditing] = useState(false);
 
-  const sendBookingEmail = async () => {
-    setSending(true);
-    const r = await notifyCandidate("booking-link", c.id);
-    setSending(false);
-    setMsg(r.data?.ok ? { tone: "success", text: `Booking link emailed to ${c.email}.` } : { tone: "error", text: "Email not sent — check the Resend key in Supabase." });
+  const send = async () => {
+    if (!at) return setMsg({ tone: "error", text: "Pick a time first." });
+    const waTab = c.whatsapp ? window.open("about:blank", "_blank") : null;
+    setBusy("suggest");
+    const r = await suggestTime(c, new Date(at).toISOString(), waTab);
+    setBusy("");
+    if (r.error) return setMsg({ tone: "error", text: r.error });
+    setMsg({ tone: "success", text: `Sent${r.emailed ? " by email" : ""}${waTab ? " + WhatsApp" : ""}. Waiting for ${c.full_name.split(" ")[0]} to confirm — you’ll get an email when they do.` });
+    setEditing(false);
+    onSaved();
   };
 
-  const confirm = async (iso: string) => {
+  const markConfirmed = async (iso: string) => {
     const waTab = c.whatsapp ? window.open("about:blank", "_blank") : null;
+    setBusy("confirm");
     const r = await confirmAndNotify(c, iso, { google: true, waTab });
+    setBusy("");
     if (r.error) return setMsg({ tone: "error", text: r.error });
     setMsg({ tone: "success", text: `Confirmed for ${maltaTime(iso)} (Malta)${r.emailed ? " · email sent" : ""}. Now in the online-session queue.` });
     onSaved();
   };
 
+  const sendBookingEmail = async () => {
+    setBusy("booking");
+    const r = await notifyCandidate("booking-link", c.id);
+    setBusy("");
+    setMsg(r.data?.ok ? { tone: "success", text: `Booking link emailed to ${c.email}.` } : { tone: "error", text: "Email not sent — check the Resend key in Supabase." });
+  };
+
   const undo = async () => {
-    const { error } = await supabase.from("consultations").update({ call_status: "requested", preferred_call_at: null }).eq("id", c.id);
+    const { error } = await supabase.from("consultations").update({ call_status: "requested", preferred_call_at: null, suggested_call_at: null }).eq("id", c.id);
     if (error) return setMsg({ tone: "error", text: error.message });
     setMsg({ tone: "success", text: "Confirmation undone." });
     onSaved();
   };
+
+  const picker = (
+    <div className="space-y-2">
+      <div className="flex flex-col gap-2 sm:flex-row">
+        <input type="datetime-local" className="field w-auto py-2" value={at} onChange={(e) => setAt(e.target.value)} aria-label="Suggested call time" />
+        <Button loading={busy === "suggest"} onClick={send}>
+          <Send className="h-4 w-4" /> Send for confirmation
+        </Button>
+      </div>
+      <p className="text-xs text-slate-500">Emails and WhatsApps the candidate this time with a “Yes, confirm” button. Your local time.</p>
+    </div>
+  );
 
   return (
     <div className="space-y-3 rounded-2xl bg-mist px-4 py-4 text-sm">
@@ -46,7 +74,13 @@ export function CallPanel({ c, onSaved }: { c: Consultation; onSaved: () => void
         </span>
         <span
           className={`rounded-full px-2.5 py-1 text-xs font-bold ${
-            stage === "confirmed" ? "bg-emerald-100 text-emerald-800" : stage === "none" || stage === "declined" ? "bg-white text-slate-500" : "bg-amber-100 text-amber-800"
+            stage === "confirmed"
+              ? "bg-emerald-100 text-emerald-800"
+              : stage === "suggested"
+                ? "bg-sky-100 text-sky-800"
+                : stage === "none" || stage === "declined"
+                  ? "bg-white text-slate-500"
+                  : "bg-amber-100 text-amber-800"
           }`}
         >
           {CALL_STAGE_LABELS[stage]}
@@ -54,46 +88,64 @@ export function CallPanel({ c, onSaved }: { c: Consultation; onSaved: () => void
       </div>
 
       {stage === "confirmed" && c.preferred_call_at ? (
-        <p>
-          Confirmed: <strong>{maltaTime(c.preferred_call_at)}</strong> (Malta)
-        </p>
-      ) : requested ? (
-        <p>
-          Candidate asked for <strong>{maltaTime(requested)}</strong> (Malta)
-        </p>
-      ) : (
-        <p className="text-slate-500">The candidate hasn’t picked a time yet.</p>
-      )}
-
-      {stage !== "confirmed" && (
         <>
-          <div className="flex flex-wrap gap-2">
-            <Button variant="secondary" loading={sending} onClick={sendBookingEmail}>
-              <Mail className="h-4 w-4" /> Email booking link
-            </Button>
-            {c.whatsapp && (
-              <a href={waLink(c.whatsapp, bookingMessage(c))} target="_blank" rel="noreferrer">
-                <Button variant="secondary">
-                  <MessageCircle className="h-4 w-4" /> WhatsApp booking link
-                </Button>
-              </a>
-            )}
-            {requested && <Button onClick={() => confirm(requested)}>Confirm this time</Button>}
-          </div>
-          <p className="text-xs text-slate-500">
-            The candidate books the real call on{" "}
-            <a href={BOOKING_LINK} target="_blank" rel="noreferrer" className="font-bold text-brand hover:underline">
-              your Google booking page
-            </a>
-            . Confirm here once it’s booked so they join the online-session queue.
+          <p>
+            Confirmed: <strong>{maltaTime(c.preferred_call_at)}</strong> (Malta)
           </p>
+          <Button variant="ghost" onClick={undo}>
+            Undo confirmation
+          </Button>
         </>
-      )}
-
-      {stage === "confirmed" && (
-        <Button variant="ghost" onClick={undo}>
-          Undo confirmation
-        </Button>
+      ) : stage === "suggested" && c.suggested_call_at ? (
+        <>
+          <div className="flex items-start gap-2 rounded-xl bg-white px-3 py-3 ring-1 ring-sky-200">
+            <Clock className="mt-0.5 h-4 w-4 shrink-0 text-sky-600" />
+            <p>
+              Sent <strong>{maltaTime(c.suggested_call_at)}</strong> (Malta)
+              {c.call_suggested_at && <span className="text-slate-500"> · {new Date(c.call_suggested_at).toLocaleString([], { dateStyle: "medium", timeStyle: "short" })}</span>}
+              <br />
+              <span className="text-slate-500">Waiting for the candidate to confirm.</span>
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="secondary" loading={busy === "confirm"} onClick={() => markConfirmed(c.suggested_call_at!)}>
+              Mark confirmed (replied YES)
+            </Button>
+            <Button variant="ghost" onClick={() => setEditing((v) => !v)}>
+              Change time / resend
+            </Button>
+          </div>
+          {editing && picker}
+        </>
+      ) : (
+        <>
+          {requested ? (
+            <p>
+              Candidate asked for <strong>{maltaTime(requested)}</strong> (Malta)
+            </p>
+          ) : (
+            <p className="text-slate-500">The candidate hasn’t picked a time yet — you can still suggest one.</p>
+          )}
+          {picker}
+          <details className="text-xs text-slate-500">
+            <summary className="cursor-pointer font-bold">Or send the Google booking page</summary>
+            <div className="mt-2 flex flex-wrap gap-2">
+              <Button variant="secondary" className="min-h-9" loading={busy === "booking"} onClick={sendBookingEmail}>
+                <Mail className="h-4 w-4" /> Email booking link
+              </Button>
+              {c.whatsapp && (
+                <a href={waLink(c.whatsapp, bookingMessage(c))} target="_blank" rel="noreferrer">
+                  <Button variant="secondary" className="min-h-9">
+                    <MessageCircle className="h-4 w-4" /> WhatsApp
+                  </Button>
+                </a>
+              )}
+              <a href={BOOKING_LINK} target="_blank" rel="noreferrer" className="self-center font-bold text-brand hover:underline">
+                Open booking page
+              </a>
+            </div>
+          </details>
+        </>
       )}
 
       {msg && <Alert tone={msg.tone}>{msg.text}</Alert>}

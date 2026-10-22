@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { CalendarCheck, CalendarPlus, Check, ChevronLeft, ChevronRight, Download, Info } from "lucide-react";
+import { Link } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { CALL_MINUTES, callStage, callTimes, formatSlot } from "../lib/options";
 import type { Consultation } from "../lib/types";
@@ -280,6 +281,29 @@ function CallStatus({ c, stage, onChange }: { c: Consultation; stage: ReturnType
       <div className="space-y-4 rounded-2xl bg-emerald-50 px-4 py-4 ring-1 ring-emerald-200 sm:px-5">
         <Timeline reached={2} />
         <ConfirmedCall at={c.preferred_call_at} course={c.desired_course || "your studies"} />
+      </div>
+    );
+  }
+
+  if (stage === "suggested" && c.suggested_call_at) {
+    return (
+      <div className="space-y-4 rounded-2xl bg-brand/5 px-4 py-4 ring-1 ring-brand/20 sm:px-5">
+        <Timeline reached={1} />
+        <div>
+          <p className="text-xs font-bold uppercase tracking-wider text-brand">{t("call.suggestedTitle")}</p>
+          <p className="mt-1 text-sm text-slate-600">{t("call.suggestedText")}</p>
+          <p className="mt-1 text-lg font-black text-navy">{longDate(c.suggested_call_at)}</p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {c.call_confirm_token && (
+            <Link to={`/confirm-call?t=${c.call_confirm_token}`}>
+              <Button>{t("call.confirmBtn")}</Button>
+            </Link>
+          )}
+          <Button variant="ghost" onClick={onChange}>
+            {t("call.otherTime")}
+          </Button>
+        </div>
       </div>
     );
   }
