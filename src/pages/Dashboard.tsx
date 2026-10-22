@@ -76,7 +76,7 @@ export function CandidateLayout() {
   const progress = requiredProgress(c, myDocs);
   const navClass = ({ isActive }: { isActive: boolean }) =>
     `flex items-center justify-between gap-2 whitespace-nowrap rounded-xl px-3 py-2.5 text-sm font-bold transition ${
-      isActive ? "bg-navy text-white" : "text-navy hover:bg-white"
+      isActive ? "bg-brand text-white" : "text-navy hover:bg-white"
     }`;
 
   return (
@@ -141,9 +141,9 @@ export function CallPage() {
           {!lost && <BookingCalendar c={c} onRequested={reload} />}
 
           {!lost && progress.done < progress.total && (
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-brand-blue/5 px-4 py-3">
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-brand/5 px-4 py-3">
               <p className="flex items-center gap-2 text-sm">
-                <FileText className="h-4 w-4 text-brand-blue" />
+                <FileText className="h-4 w-4 text-brand" />
                 <span>
                   <strong>
                     {progress.done} of {progress.total}
@@ -161,7 +161,7 @@ export function CallPage() {
             <ol className="grid grid-cols-3 gap-2 sm:grid-cols-6" aria-label="Progress">
               {MILESTONES.map((m, i) => (
                 <li key={m} className="space-y-1">
-                  <span className={`block h-1.5 rounded-full ${i <= reached ? "bg-brand-blue" : "bg-slate-200"}`} />
+                  <span className={`block h-1.5 rounded-full ${i <= reached ? "bg-brand" : "bg-slate-200"}`} />
                   <span className={`block text-[10px] font-medium leading-tight ${i <= reached ? "text-navy" : "text-slate-400"}`}>
                     {STATUSES.find((s) => s.value === m)!.label}
                   </span>
@@ -299,7 +299,7 @@ function DocumentSlot({
             <p className="text-xs text-slate-500">{type.hint}</p>
           </div>
         </div>
-        <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-full bg-white px-3 py-1.5 text-sm font-bold text-brand-blue ring-1 ring-slate-200 hover:bg-brand-blue/5 focus-within:ring-2 focus-within:ring-brand-blue">
+        <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-full bg-white px-3 py-1.5 text-sm font-bold text-brand ring-1 ring-slate-200 hover:bg-brand/5 focus-within:ring-2 focus-within:ring-brand">
           <Upload className="h-4 w-4" /> {uploading ? "Uploading…" : done ? "Add file" : "Upload"}
           <input
             type="file"

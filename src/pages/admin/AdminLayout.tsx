@@ -15,7 +15,7 @@ export function AdminLayout() {
             to={t.to}
             end={t.end}
             className={({ isActive }) =>
-              `whitespace-nowrap rounded-full px-4 py-2 text-sm font-bold transition ${isActive ? "bg-navy text-white" : "text-navy hover:bg-navy/5"}`
+              `whitespace-nowrap rounded-full px-4 py-2 text-sm font-bold transition ${isActive ? "bg-brand text-white" : "text-navy hover:bg-brand/5"}`
             }
           >
             {t.label}

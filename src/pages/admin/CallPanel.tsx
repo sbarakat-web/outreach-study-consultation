@@ -68,7 +68,7 @@ export function CallPanel({ c, documents, onSaved }: { c: Consultation; document
     <div className="space-y-4 rounded-2xl bg-mist px-4 py-4 text-sm">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <span className="flex items-center gap-2 font-extrabold">
-          <CalendarCheck className="h-4 w-4 text-brand-blue" /> Call
+          <CalendarCheck className="h-4 w-4 text-brand" /> Call
         </span>
         <span
           className={`rounded-full px-2.5 py-1 text-xs font-bold ${
@@ -118,7 +118,7 @@ export function CallPanel({ c, documents, onSaved }: { c: Consultation; document
           <div className="space-y-1.5">
             {REVIEW_CHECKLIST.map((item) => (
               <label key={item.key} className="flex items-center gap-2">
-                <input type="checkbox" className="h-4 w-4 accent-navy" checked={!!checklist[item.key]} onChange={() => toggleCheck(item.key)} />
+                <input type="checkbox" className="h-4 w-4 accent-brand" checked={!!checklist[item.key]} onChange={() => toggleCheck(item.key)} />
                 {item.label}
                 {item.key === "documents" && <span className="text-xs text-slate-400">({documents} uploaded)</span>}
               </label>

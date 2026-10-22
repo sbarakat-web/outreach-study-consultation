@@ -101,8 +101,8 @@ export function Requests() {
             <ul className="divide-y divide-slate-100">
               {upcoming.map(({ c, at }) => (
                 <li key={c.id}>
-                  <button onClick={() => setOpenId(c.id)} className="flex w-full items-center gap-3 py-2.5 text-left text-sm hover:text-brand-blue">
-                    <CalendarCheck className="h-4 w-4 shrink-0 text-brand-blue" />
+                  <button onClick={() => setOpenId(c.id)} className="flex w-full items-center gap-3 py-2.5 text-left text-sm hover:text-brand">
+                    <CalendarCheck className="h-4 w-4 shrink-0 text-brand" />
                     <span className="w-44 shrink-0 font-bold">{formatSlot(at)}</span>
                     <span className="truncate">{c.full_name}</span>
                     <CallBadge c={c} />
@@ -159,7 +159,7 @@ export function Requests() {
                 {filtered.map((c) => (
                   <tr key={c.id} onClick={() => setOpenId(c.id)} className="cursor-pointer hover:bg-mist">
                     <td className="px-5 py-3">
-                      <button className="text-left font-bold hover:text-brand-blue" onClick={() => setOpenId(c.id)}>
+                      <button className="text-left font-bold hover:text-brand" onClick={() => setOpenId(c.id)}>
                         {c.full_name}
                       </button>
                       <div className="text-xs text-slate-500">{c.country ?? c.email}</div>
@@ -291,7 +291,7 @@ function Detail({ c, onClose, onSaved }: { c: Row; onClose: () => void; onSaved:
             </h2>
             <p className="text-sm text-slate-500">{c.user_id ? "Has an account" : "No linked account yet"}</p>
           </div>
-          <button aria-label="Close" onClick={onClose} className="grid h-10 w-10 place-items-center rounded-full bg-navy/5 hover:bg-navy/10">
+          <button aria-label="Close" onClick={onClose} className="grid h-10 w-10 place-items-center rounded-full bg-brand/5 hover:bg-brand/10">
             <X className="h-5 w-5" />
           </button>
         </div>

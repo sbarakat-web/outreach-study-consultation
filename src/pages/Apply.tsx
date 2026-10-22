@@ -183,7 +183,7 @@ export function Apply() {
       <Card>
         <div className="px-5 pb-8 pt-6 sm:px-9 sm:pb-9 sm:pt-8">
           <div className="mb-7 text-center">
-            <p className="text-xs font-extrabold uppercase tracking-[0.2em] text-brand-blue">Step {stepIndex + 1} of 2</p>
+            <p className="text-xs font-extrabold uppercase tracking-[0.2em] text-brand">Step {stepIndex + 1} of 2</p>
             <h1 className="mt-2 text-2xl font-black leading-tight sm:text-3xl">
               {d.stage === "choose" ? "Choose your English path" : "Tell us about you"}
             </h1>
@@ -195,7 +195,7 @@ export function Apply() {
             <ol className="mx-auto mt-5 grid max-w-xs grid-cols-2 gap-2">
               {["English level", "Your details"].map((label, i) => (
                 <li key={label} className="space-y-1">
-                  <span className={`block h-1.5 rounded-full transition-colors ${i <= stepIndex ? "bg-navy" : "bg-slate-200"}`} />
+                  <span className={`block h-1.5 rounded-full transition-colors ${i <= stepIndex ? "bg-brand" : "bg-slate-200"}`} />
                   <span
                     className={`block text-center text-[10px] font-medium ${i <= stepIndex ? "text-navy" : "text-slate-400"}`}
                     aria-current={i === stepIndex ? "step" : undefined}
@@ -211,7 +211,7 @@ export function Apply() {
             {d.stage === "choose" && (
               <div className="space-y-4">
                 <div className="rounded-2xl bg-mist p-5 text-center sm:p-6">
-                  <span className="inline-grid h-12 w-12 place-items-center rounded-full bg-brand-violet text-lg font-black text-white">B2</span>
+                  <span className="inline-grid h-12 w-12 place-items-center rounded-full bg-brand text-lg font-black text-white">B2</span>
                   <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-slate-600 sm:text-base">
                     Diploma, Bachelor’s and Master’s programmes require <strong className="text-navy">B2 English</strong>. If you are
                     not at B2 yet, we’ll help you begin with an English course.
@@ -239,7 +239,7 @@ export function Apply() {
             {d.stage === "form" && (
               <form onSubmit={submit} className="space-y-4">
                 {d.path === "higher_education" && (
-                  <div className="rounded-xl border border-brand-violet/20 bg-brand-violet/5 p-4 text-sm font-medium leading-relaxed sm:text-base">
+                  <div className="rounded-xl border border-brand/20 bg-brand/5 p-4 text-sm font-medium leading-relaxed sm:text-base">
                     You already have the required English level — these are the programmes we offer.
                   </div>
                 )}
@@ -314,7 +314,7 @@ export function Apply() {
                 </div>
                 <Field label="Course *" id="course">
                   {d.path === "english" ? (
-                    <input id="course" readOnly className="field bg-mist font-bold text-brand-blue" value={d.course} />
+                    <input id="course" readOnly className="field bg-mist font-bold text-brand" value={d.course} />
                   ) : (
                     <select id="course" required className="field" value={d.course} onChange={(e) => set("course", e.target.value)}>
                       <option value="">Select a programme</option>
@@ -335,8 +335,8 @@ export function Apply() {
                         type="button"
                         aria-pressed={d.start === o}
                         onClick={() => set("start", d.start === o ? "" : o)}
-                        className={`rounded-full border-2 px-4 py-2 text-sm font-bold transition outline-none focus-visible:ring-2 focus-visible:ring-brand-blue ${
-                          d.start === o ? "border-brand-blue bg-brand-blue text-white" : "border-slate-200 bg-white text-navy hover:border-slate-300"
+                        className={`rounded-full border-2 px-4 py-2 text-sm font-bold transition outline-none focus-visible:ring-2 focus-visible:ring-brand ${
+                          d.start === o ? "border-brand bg-brand text-white" : "border-slate-200 bg-white text-navy hover:border-slate-300"
                         }`}
                       >
                         {o}
@@ -354,12 +354,13 @@ export function Apply() {
                     onChange={(e) => set("notes", e.target.value)}
                   />
                 </Field>
-                <div className="rounded-xl bg-brand-blue/5 p-3 text-xs leading-relaxed text-navy">
-                  <strong>What happens next?</strong> Your application is saved straight away. We’ll email you a sign-in link to open your
-                  personal dashboard, where you can book a free call and upload documents. No password needed.
+                <div className="rounded-xl bg-brand/5 p-3 text-xs leading-relaxed text-navy">
+                  <strong>What happens next?</strong> Your application is saved straight away. You’ll receive one email with your
+                  sign-in code to open your personal dashboard, where you can book a free call and upload documents. No password
+                  needed.
                 </div>
                 <label className="flex items-start gap-3 text-sm text-slate-600">
-                  <input type="checkbox" className="mt-0.5 h-4 w-4 accent-navy" checked={consent} onChange={(e) => setConsent(e.target.checked)} />
+                  <input type="checkbox" className="mt-0.5 h-4 w-4 accent-brand" checked={consent} onChange={(e) => setConsent(e.target.checked)} />
                   I agree that Outreach can contact me by email and WhatsApp about my application.
                 </label>
                 {error && <Alert>{error}</Alert>}
@@ -371,7 +372,7 @@ export function Apply() {
                     <ArrowLeft className="h-4 w-4" /> Change English path
                   </Button>
                   {!session && (
-                    <Link to="/login?next=/dashboard" className="self-center text-sm font-bold text-brand-blue hover:underline">
+                    <Link to="/login?next=/dashboard" className="self-center text-sm font-bold text-brand hover:underline">
                       Already applied? Open Dashboard
                     </Link>
                   )}
@@ -398,17 +399,17 @@ function PathButton({
   accent: "red" | "violet";
   onClick: () => void;
 }) {
-  const color = accent === "red" ? "text-brand-red bg-brand-red/10" : "text-brand-violet bg-brand-violet/10";
+  const color = accent === "red" ? "text-brand-red bg-brand-red/10" : "text-brand bg-brand/10";
   return (
     <button
       type="button"
       onClick={onClick}
-      className="group flex h-full flex-col items-start gap-3 rounded-2xl border-2 border-slate-100 bg-white p-5 text-left shadow-sm transition outline-none hover:-translate-y-0.5 hover:border-brand-blue hover:shadow-lg focus-visible:ring-2 focus-visible:ring-brand-blue"
+      className="group flex h-full flex-col items-start gap-3 rounded-2xl border-2 border-slate-100 bg-white p-5 text-left shadow-sm transition outline-none hover:-translate-y-0.5 hover:border-brand hover:shadow-lg focus-visible:ring-2 focus-visible:ring-brand"
     >
       <span className={`grid h-11 w-11 place-items-center rounded-xl ${color}`}>{icon}</span>
       <span className="text-lg font-black text-navy">{title}</span>
       <span className="text-sm leading-relaxed text-slate-500">{text}</span>
-      <span className="mt-auto inline-flex items-center gap-1 text-sm font-extrabold text-brand-blue">
+      <span className="mt-auto inline-flex items-center gap-1 text-sm font-extrabold text-brand">
         Continue <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
       </span>
     </button>
@@ -441,7 +442,7 @@ function Done({ name, email, course, onSignedIn }: { name: string; email: string
           </div>
           <div className="rounded-2xl bg-mist p-5">
             <h2 className="mb-3 font-black">Open your personal dashboard</h2>
-            <EmailCode email={email} autoSend onSignedIn={onSignedIn} />
+            <EmailCode email={email} autoSend data={{ full_name: name, course }} onSignedIn={onSignedIn} />
           </div>
           {whatsappNumber && (
             <a

@@ -83,11 +83,11 @@ export function BookingCalendar({ c, onRequested }: { c: Consultation; onRequest
   const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
   return (
-    <div className="rounded-2xl border-2 border-brand-blue/20 bg-white">
+    <div className="rounded-2xl border-2 border-brand/20 bg-white">
       <div className="border-b border-slate-100 px-4 py-3 sm:px-5">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h3 className="flex items-center gap-2 font-black">
-            <CalendarCheck className="h-5 w-5 text-brand-blue" /> Pick a time for your free {CALL_MINUTES}-minute call
+            <CalendarCheck className="h-5 w-5 text-brand" /> Pick a time for your free {CALL_MINUTES}-minute call
           </h3>
           <span className="text-xs text-slate-500">Your time zone: {tz}</span>
         </div>
@@ -138,11 +138,11 @@ export function BookingCalendar({ c, onRequested }: { c: Consultation; onRequest
                   aria-pressed={selected}
                   aria-label={`${d.toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" })}${available ? "" : ", not available"}`}
                   onClick={() => setDay(k)}
-                  className={`relative aspect-square rounded-xl text-sm transition outline-none focus-visible:ring-2 focus-visible:ring-brand-blue ${
+                  className={`relative aspect-square rounded-xl text-sm transition outline-none focus-visible:ring-2 focus-visible:ring-brand ${
                     selected
-                      ? "bg-navy font-black text-white"
+                      ? "bg-brand font-black text-white"
                       : available
-                        ? "bg-brand-blue/10 font-extrabold text-navy hover:bg-brand-blue/20"
+                        ? "bg-brand/10 font-extrabold text-navy hover:bg-brand/20"
                         : "text-slate-300"
                   }`}
                 >
@@ -150,7 +150,7 @@ export function BookingCalendar({ c, onRequested }: { c: Consultation; onRequest
                   {available && (
                     <span
                       className={`absolute bottom-1.5 left-1/2 h-1 w-1 -translate-x-1/2 rounded-full ${
-                        picked && dayKey(picked) === k ? "h-1.5 w-1.5 bg-brand-red" : selected ? "bg-white" : "bg-brand-blue"
+                        picked && dayKey(picked) === k ? "h-1.5 w-1.5 bg-brand-red" : selected ? "bg-white" : "bg-brand"
                       }`}
                     />
                   )}
@@ -178,8 +178,8 @@ export function BookingCalendar({ c, onRequested }: { c: Consultation; onRequest
                         setError("");
                         setPicked(on ? null : t);
                       }}
-                      className={`rounded-xl border-2 py-2.5 text-sm font-bold transition outline-none focus-visible:ring-2 focus-visible:ring-brand-blue disabled:opacity-40 ${
-                        on ? "border-brand-blue bg-brand-blue text-white" : "border-slate-100 bg-mist hover:border-brand-blue/40"
+                      className={`rounded-xl border-2 py-2.5 text-sm font-bold transition outline-none focus-visible:ring-2 focus-visible:ring-brand disabled:opacity-40 ${
+                        on ? "border-brand bg-brand text-white" : "border-slate-100 bg-mist hover:border-brand/40"
                       }`}
                     >
                       {timeOf(t)}

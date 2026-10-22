@@ -31,7 +31,7 @@ export function Login() {
     setLoading(true);
     if (mode === "password") {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) setError(error.message === "Invalid login credentials" ? "Wrong email or password. You can also sign in with an email link." : error.message);
+      if (error) setError(error.message === "Invalid login credentials" ? "Wrong email or password. You can also sign in with an email code." : error.message);
     } else {
       const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: `${window.location.origin}/reset-password` });
       if (error) setError(error.message);
@@ -43,7 +43,7 @@ export function Login() {
   const link = (to: Mode, label: string) => (
     <button
       type="button"
-      className="font-bold text-brand-blue hover:underline"
+      className="font-bold text-brand hover:underline"
       onClick={() => {
         setError("");
         setInfo("");
@@ -60,7 +60,7 @@ export function Login() {
         <div className="space-y-4 px-6 py-8 sm:px-8">
           <div className="text-center">
             <h1 className="text-2xl font-black">{mode === "forgot" ? "Reset your password" : "Open your dashboard"}</h1>
-            {mode === "code" && <p className="mt-1 text-sm text-slate-500">Use the email you applied with. We’ll email you a sign-in link — no password needed.</p>}
+            {mode === "code" && <p className="mt-1 text-sm text-slate-500">Use the email you applied with. We’ll email you a sign-in code — no password needed.</p>}
           </div>
 
           {mode === "code" ? (
@@ -98,7 +98,7 @@ export function Login() {
           )}
 
           <div className="flex flex-wrap justify-between gap-2 border-t border-slate-100 pt-4 text-sm">
-            {mode !== "code" && link("code", "Sign in with an email link")}
+            {mode !== "code" && link("code", "Sign in with an email code")}
             {mode === "code" && link("password", "Use my password instead")}
             {mode === "password" && link("forgot", "Forgot password?")}
           </div>

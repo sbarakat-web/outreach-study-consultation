@@ -87,7 +87,7 @@ Deno.serve(async (req) => {
         <p>${digits ? btn(`https://wa.me/${digits}?text=${encodeURIComponent(reply)}`, "Send booking link", "#25D366") : ""}${btn(
           `${appUrl}/admin?lead=${c.id}`,
           "Open in admin",
-          "#172554",
+          "#442DFA",
         )}</p>
       </div>`,
     }),

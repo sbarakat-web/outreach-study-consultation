@@ -1,5 +1,6 @@
-// Sends the application confirmation (candidate) and an instant new-lead alert (admin)
-// with a one-tap WhatsApp reply.
+// Sends the instant new-lead alert (admin) with a one-tap WhatsApp reply.
+// Candidates get a single email from Supabase Auth (application received + sign-in
+// code, see supabase/templates/confirm-signup.html), so none is sent from here.
 // Called by the app right after book_consultation(). Each request is confirmed
 // at most once and only within 15 minutes of creation, so the public endpoint
 // can't be used to re-send mail for old requests.
@@ -99,25 +100,6 @@ Deno.serve(async (req) => {
   if (!env("RESEND_API_KEY")) return json({ ok: true, results: { email: "not-configured" } });
 
   try {
-    await sendEmail(
-      c.email,
-      `Your application for ${course} is received`,
-      `<div style="font-family:Arial,sans-serif;color:#172554;line-height:1.5;max-width:560px">
-        <h2>Hi ${escape(first)},</h2>
-        <p>Thank you! Your application for <strong>${escape(course)}</strong> is saved, and an advisor will contact you soon on WhatsApp or by email.</p>
-        ${when ? `<p><strong>Your free call:</strong> ${escape(when)}</p>` : ""}
-        <p>In your personal dashboard you can book a free call and upload your documents:</p>
-        <p><a href="${appUrl}/login" style="display:inline-block;background:#172554;color:#fff;padding:12px 22px;border-radius:999px;text-decoration:none;font-weight:bold">Open my dashboard</a></p>
-        <p style="color:#64748b;font-size:13px">Sign in with this email address — we'll email you a sign-in link, no password needed.</p>
-        <p>— The Outreach team</p>
-      </div>`,
-    );
-    results.email = "sent";
-  } catch (e) {
-    results.email = String(e);
-  }
-
-  try {
     const digits = (c.whatsapp ?? "").replace(/\D/g, "");
     const reply = `Hi ${first}, this is Outreach about your application for ${course}. When is a good time for a short call?`;
     const row = (k: string, v: string | null | undefined) =>
@@ -134,7 +116,7 @@ Deno.serve(async (req) => {
         </table>
         <p style="margin-top:20px">
           ${digits ? `<a href="https://wa.me/${digits}?text=${encodeURIComponent(reply)}" style="display:inline-block;background:#25D366;color:#fff;padding:12px 22px;border-radius:999px;text-decoration:none;font-weight:bold">Reply on WhatsApp</a>&nbsp;` : ""}
-          <a href="${appUrl}/admin" style="display:inline-block;background:#172554;color:#fff;padding:12px 22px;border-radius:999px;text-decoration:none;font-weight:bold">Open admin</a>
+          <a href="${appUrl}/admin?lead=${c.id}" style="display:inline-block;background:#442DFA;color:#fff;padding:12px 22px;border-radius:999px;text-decoration:none;font-weight:bold">Open admin</a>
         </p>
       </div>`,
     );

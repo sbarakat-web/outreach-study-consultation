@@ -3,17 +3,20 @@ import { supabase } from "../lib/supabase";
 import { Alert, Button } from "./ui";
 
 /**
- * Passwordless sign-in: emails a magic link (and a one-time code once the email
- * template includes {{ .Token }}); the link signs in directly, the code is verified here.
- * Creates the account on first use, which also confirms the email address.
+ * Passwordless sign-in: emails a one-time code plus a link (supabase/templates/*.html).
+ * The code is verified here; the link signs in directly. Creates the account on first
+ * use, which also confirms the email address. `data` (name, course) personalises the
+ * first email for new accounts.
  */
 export function EmailCode({
   email: fixedEmail,
   autoSend,
   next = "/dashboard",
+  data,
   onSignedIn,
 }: {
   email?: string;
+  data?: Record<string, string>;
   autoSend?: boolean;
   next?: string;
   onSignedIn: () => void;
@@ -21,7 +24,6 @@ export function EmailCode({
   const [email, setEmail] = useState(fixedEmail ?? "");
   const [sent, setSent] = useState(false);
   const [code, setCode] = useState("");
-  const [showCode, setShowCode] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [cooldown, setCooldown] = useState(0);
@@ -39,7 +41,7 @@ export function EmailCode({
     setLoading(true);
     const { error } = await supabase.auth.signInWithOtp({
       email: email.trim(),
-      options: { shouldCreateUser: true, emailRedirectTo: `${window.location.origin}${next}` },
+      options: { shouldCreateUser: true, emailRedirectTo: `${window.location.origin}${next}`, data },
     });
     setLoading(false);
     if (error) {
@@ -92,7 +94,7 @@ export function EmailCode({
         )}
         {error && <Alert>{error}</Alert>}
         <Button type="submit" loading={loading} className="w-full">
-          Email me a sign-in link
+          Email me a sign-in code
         </Button>
       </form>
     );
@@ -100,51 +102,42 @@ export function EmailCode({
 
   return (
     <div className="space-y-3">
-      <Alert tone="info">
-        We sent an email to <strong>{email}</strong>. Click the <strong>sign-in link</strong> in it to open your dashboard.
-      </Alert>
-      <p className="text-xs text-slate-500">Can’t find it? Check your spam or promotions folder. The link works on any device.</p>
-      {showCode ? (
-        <form onSubmit={verify} className="space-y-3">
-          <div>
-            <label className="label" htmlFor="otp">
-              Code from the email
-            </label>
-            <input
-              id="otp"
-              inputMode="numeric"
-              autoComplete="one-time-code"
-              pattern="[0-9]{6,10}"
-              maxLength={10}
-              required
-              className="field text-center text-2xl font-black tracking-[0.4em]"
-              placeholder="••••••"
-              value={code}
-              onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
-            />
-          </div>
-          {error && <Alert>{error}</Alert>}
-          <Button type="submit" loading={loading} className="w-full">
-            Open my dashboard
-          </Button>
-        </form>
-      ) : (
-        error && <Alert>{error}</Alert>
-      )}
+      <p className="text-sm text-slate-600">
+        We sent a code to <strong className="text-navy">{email}</strong>. Enter it below — or click the button in the email.
+      </p>
+      <form onSubmit={verify} className="space-y-3">
+        <div>
+          <label className="label" htmlFor="otp">
+            Code from the email
+          </label>
+          <input
+            id="otp"
+            inputMode="numeric"
+            autoComplete="one-time-code"
+            pattern="[0-9]{6,10}"
+            maxLength={10}
+            required
+            className="field text-center text-2xl font-black tracking-[0.4em]"
+            placeholder="••••••"
+            value={code}
+            onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
+          />
+        </div>
+        {error && <Alert>{error}</Alert>}
+        <Button type="submit" loading={loading} className="w-full">
+          Open my dashboard
+        </Button>
+      </form>
+      <p className="text-xs text-slate-500">Can’t find it? Check your spam or promotions folder.</p>
       <div className="flex flex-wrap justify-between gap-2 text-sm">
         <button
           type="button"
           disabled={cooldown > 0 || loading}
           onClick={() => send()}
-          className="font-bold text-brand-blue hover:underline disabled:text-slate-400 disabled:no-underline"
+          className="font-bold text-brand hover:underline disabled:text-slate-400 disabled:no-underline"
         >
-          {cooldown > 0 ? `Send a new email in ${cooldown}s` : "Send a new email"}
+          {cooldown > 0 ? `Send a new code in ${cooldown}s` : "Send a new code"}
         </button>
-        {!showCode && (
-          <button type="button" className="text-slate-500 hover:underline" onClick={() => setShowCode(true)}>
-            Got a code instead?
-          </button>
-        )}
         {!fixedEmail && (
           <button
             type="button"
