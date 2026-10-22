@@ -21,9 +21,62 @@ export async function confirmCall(c: Consultation, iso: string) {
       preferred_call_at: iso,
       call_reviewed_at: c.call_reviewed_at ?? new Date().toISOString(),
       call_declined_at: null,
+      reminder_24h_at: null,
+      reminder_1h_at: null,
       ...(["new", "contacted", "qualified"].includes(c.status) ? { status: "consultation_booked" as const } : {}),
     })
     .eq("id", c.id);
+}
+
+export const googleApi = (action: string, body: Record<string, unknown> = {}) =>
+  supabase.functions.invoke("google-calendar", { body: { action, ...body } });
+
+export const notifyCandidate = (type: "call-confirmed" | "rebook", consultationId: string) =>
+  supabase.functions.invoke("notify", { body: { type, consultationId } });
+
+/** Send the WhatsApp link to a tab opened synchronously in the click handler (or close it). */
+export const fillTab = (tab: Window | null, url?: string | null) => {
+  if (!tab) return;
+  if (url) tab.location.href = url;
+  else tab.close();
+};
+
+export interface ConfirmResult {
+  error?: string;
+  meetUrl?: string | null;
+  emailed: boolean;
+  googleError?: string;
+}
+
+/**
+ * One click: confirm the time, create (or move) the Google event with a Meet link when
+ * Google is connected, email the candidate and hand the WhatsApp message to `waTab`.
+ */
+export async function confirmAndNotify(c: Consultation, iso: string, opts: { google: boolean; waTab: Window | null }): Promise<ConfirmResult> {
+  const moving = c.call_status === "confirmed" && !!c.google_event_id;
+  const { error } = moving
+    ? await supabase.from("consultations").update({ preferred_call_at: iso, reminder_24h_at: null, reminder_1h_at: null }).eq("id", c.id)
+    : await confirmCall(c, iso);
+  if (error) {
+    fillTab(opts.waTab);
+    return { error: error.message, emailed: false };
+  }
+  let meetUrl: string | null | undefined;
+  let googleError: string | undefined;
+  if (opts.google) {
+    const r = await googleApi(moving ? "move-event" : "create-event", { consultationId: c.id, at: iso });
+    if (r.error || r.data?.error) googleError = r.data?.error ?? r.error?.message;
+    meetUrl = r.data?.meetUrl;
+  }
+  const n = await notifyCandidate("call-confirmed", c.id);
+  fillTab(opts.waTab, n.data?.waUrl);
+  return { meetUrl, emailed: !!n.data?.ok, googleError };
+}
+
+/** Admins + session presenters, for adviser pickers. */
+export async function loadStaff() {
+  const { data } = await supabase.rpc("staff_list");
+  return ((data ?? []) as { email: string; role: string }[]).sort((a, b) => a.email.localeCompare(b.email));
 }
 
 export const bookingMessage = (c: Consultation) =>

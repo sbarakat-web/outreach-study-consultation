@@ -5,7 +5,7 @@ import { BOOKING_LINK, CALL_STAGE_LABELS, REVIEW_CHECKLIST, callStage, waLink } 
 import type { Consultation } from "../../lib/types";
 import { Alert, Button } from "../../components/ui";
 
-import { bookingMessage as bookingText, confirmCall, googleEventUrl, maltaTime, toLocalInput } from "./calls";
+import { bookingMessage as bookingText, confirmAndNotify, googleEventUrl, maltaTime, toLocalInput } from "./calls";
 
 /** Admin call workflow: review checklist, confirm a requested time, or reply on WhatsApp. */
 export function CallPanel({ c, documents, onSaved }: { c: Consultation; documents: number; onSaved: () => void }) {
@@ -33,12 +33,15 @@ export function CallPanel({ c, documents, onSaved }: { c: Consultation; document
     if (error) setMsg({ tone: "error", text: error.message });
   };
 
+  // One click: confirm, Google event + Meet (when connected), email the candidate, WhatsApp tab.
   const confirmAt = async (iso: string) => {
-    const { error } = await confirmCall(c, iso);
-    if (error) return setMsg({ tone: "error", text: error.message });
+    const waTab = c.whatsapp ? window.open("about:blank", "_blank") : null;
+    const r = await confirmAndNotify(c, iso, { google: true, waTab });
+    if (r.error) return setMsg({ tone: "error", text: r.error });
+    const google = r.meetUrl ? " · Meet link created" : r.googleError && r.googleError !== "google-not-configured" ? ` · Google: ${r.googleError}` : "";
     setMsg({
       tone: "success",
-      text: `Confirmed for ${maltaTime(iso)} (Malta). The candidate sees it in their dashboard, and it is now in the online-session queue.`,
+      text: `Confirmed for ${maltaTime(iso)} (Malta)${google}${r.emailed ? " · email sent" : ""}. The candidate sees it in their dashboard, and it is now in the online-session queue.`,
     });
     onSaved();
   };

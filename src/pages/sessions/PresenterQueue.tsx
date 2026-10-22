@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { AlarmClock, ChevronDown, ChevronRight, Mail, MessageCircle, Play, Search, Star, Trash2, UserRound, Video, X } from "lucide-react";
-import { ENGLISH_LEVELS, labelFor } from "../../lib/options";
+import { ENGLISH_LEVELS, labelFor, leadScore } from "../../lib/options";
+import { AREAS, PROGRAMMES, findBestMatch } from "./data";
 import type { Consultation } from "../../lib/types";
 
 export type Candidate = Consultation;
@@ -60,13 +61,23 @@ const timeLabel = (c: Candidate, now: Date) => {
   return sameDay(at, now) ? t : `${at.toLocaleDateString([], { weekday: "short", day: "numeric", month: "short" })} · ${t}`;
 };
 
+export interface DocProgress {
+  done: number;
+  total: number;
+}
+
 export function PresenterQueue({
-  candidates,
+  candidates: all,
   now,
   done,
   success,
   currentId,
+  me,
+  docs,
+  programmeFor,
+  onProgramme,
   onStart,
+  onJoinAndStart,
   onHide,
 }: {
   candidates: Candidate[];
@@ -74,9 +85,16 @@ export function PresenterQueue({
   done: number;
   success: string | null;
   currentId: string | null;
+  me: string;
+  docs: Record<string, DocProgress>;
+  programmeFor: Record<string, string>;
+  onProgramme: (id: string, programmeId: string) => void;
   onStart: (c: Candidate) => void;
+  onJoinAndStart: (c: Candidate) => void;
   onHide: (c: Candidate) => void;
 }) {
+  const [mine, setMine] = useState(false);
+  const candidates = useMemo(() => (mine ? all.filter((c) => c.assigned_to === me) : all), [all, mine, me]);
   const [query, setQuery] = useState("");
   const [tab, setTab] = useState<"queue" | "overdue">("queue");
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
@@ -123,6 +141,25 @@ export function PresenterQueue({
 
       <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-3">
         {success && <p className="rounded-xl bg-emerald-50 px-3 py-2 text-sm font-bold text-emerald-800 ring-1 ring-emerald-200">✓ {success}</p>}
+
+        <div role="tablist" aria-label="Whose calls" className="flex gap-1 rounded-xl bg-slate-100 p-1">
+          {[
+            [false, `All calls · ${all.length}`],
+            [true, `My calls · ${all.filter((c) => c.assigned_to === me).length}`],
+          ].map(([value, label]) => (
+            <button
+              key={String(value)}
+              role="tab"
+              aria-selected={mine === value}
+              onClick={() => setMine(value as boolean)}
+              className={`flex-1 rounded-lg py-1.5 text-xs font-bold outline-none focus-visible:ring-2 focus-visible:ring-[#5424c7] ${
+                mine === value ? "bg-white text-[#5424c7] shadow" : "text-slate-500"
+              }`}
+            >
+              {label as string}
+            </button>
+          ))}
+        </div>
 
         {next && (
           <button
@@ -203,8 +240,12 @@ export function PresenterQueue({
                     now={now}
                     open={expanded === c.id}
                     active={currentId === c.id}
+                    docs={docs[c.id]}
+                    programmeId={programmeFor[c.id] ?? findBestMatch(c.desired_course)?.id ?? ""}
+                    onProgramme={(pid) => onProgramme(c.id, pid)}
                     onToggle={() => setExpanded(expanded === c.id ? null : c.id)}
                     onStart={() => onStart(c)}
+                    onJoinAndStart={() => onJoinAndStart(c)}
                     onHide={() => onHide(c)}
                   />
                 ))}
@@ -235,29 +276,40 @@ function QueueRow({
   now,
   open,
   active,
+  docs,
+  programmeId,
+  onProgramme,
   onToggle,
   onStart,
+  onJoinAndStart,
   onHide,
 }: {
   c: Candidate;
   now: Date;
   open: boolean;
   active: boolean;
+  docs?: DocProgress;
+  programmeId: string;
+  onProgramme: (programmeId: string) => void;
   onToggle: () => void;
   onStart: () => void;
+  onJoinAndStart: () => void;
   onHide: () => void;
 }) {
   const status = statusOf(c, now);
   const digits = (c.whatsapp ?? "").replace(/\D/g, "");
+  const score = leadScore({ start_date: c.start_date, english_level: c.english_level, callRequested: true, documents: docs?.done ?? 0 });
+  const at = atOf(c);
+  const reminder = `Hi ${c.full_name.split(" ")[0]}, a quick reminder: your Outreach call is ${at ? `at ${at.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}` : "soon"}.${
+    c.meeting_url ? ` Join here: ${c.meeting_url}` : " We'll call you on WhatsApp."
+  }`;
   const facts: [string, string | null | undefined][] = [
     ["Appointment", c.preferred_call_at ? new Date(c.preferred_call_at).toLocaleString([], { dateStyle: "medium", timeStyle: "short" }) : null],
     ["Email", c.email],
     ["WhatsApp", c.whatsapp],
     ["Country", c.country],
     ["Date of birth", c.age ? `Age ${c.age}` : null],
-    ["English", labelFor(ENGLISH_LEVELS, c.english_level)],
     ["Destination", "Malta"],
-    ["Form notes", c.message],
   ];
 
   return (
@@ -268,9 +320,10 @@ function QueueRow({
             {c.is_starred && <Star className="h-3.5 w-3.5 shrink-0 fill-amber-400 text-amber-400" aria-label="Starred" />}
             {c.full_name}
           </p>
-          <p className="flex items-center gap-1.5 text-xs text-slate-500">
+          <p className="flex flex-wrap items-center gap-1.5 text-xs text-slate-500">
             {timeLabel(c, now)}
             {status && <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${status.style}`}>{status.label}</span>}
+            {c.assigned_to && <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-bold">{c.assigned_to.split("@")[0]}</span>}
           </p>
         </div>
         <button
@@ -282,18 +335,54 @@ function QueueRow({
           <ChevronDown className={`h-4 w-4 transition ${open ? "rotate-180" : ""}`} />
         </button>
       </div>
-      <button
-        onClick={onStart}
-        className="mt-2 inline-flex w-full items-center justify-center gap-1.5 rounded-full bg-[#5424c7] py-1.5 text-xs font-bold text-white outline-none hover:bg-[#4319a8] focus-visible:ring-2 focus-visible:ring-[#5424c7] focus-visible:ring-offset-2"
-      >
-        <Play className="h-3.5 w-3.5 fill-current" /> Start presentation
-      </button>
+
+      {/* Pre-call brief */}
+      <div className="mt-2 flex flex-wrap gap-1 text-[10px] font-bold">
+        <span className={`rounded-full px-1.5 py-0.5 ${docs && docs.done >= docs.total ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"}`}>
+          Docs {docs?.done ?? 0}/{docs?.total ?? "?"}
+        </span>
+        <span className="rounded-full bg-violet-100 px-1.5 py-0.5 capitalize text-[#5424c7]">
+          {score.tier} · {score.score}
+        </span>
+        <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-slate-600">{labelFor(ENGLISH_LEVELS, c.english_level)}</span>
+        {c.start_date && <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-slate-600">{c.start_date}</span>}
+      </div>
+      {c.message && <p className="mt-1 line-clamp-2 text-xs text-slate-500">“{c.message}”</p>}
+
+      <div className="mt-2 grid gap-1.5">
+        {c.meeting_url && (
+          <button
+            onClick={onJoinAndStart}
+            className="inline-flex w-full items-center justify-center gap-1.5 rounded-full bg-emerald-600 py-1.5 text-xs font-bold text-white outline-none hover:bg-emerald-700 focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2"
+          >
+            <Video className="h-3.5 w-3.5" /> Join Meet + Start presentation
+          </button>
+        )}
+        <button
+          onClick={onStart}
+          className="inline-flex w-full items-center justify-center gap-1.5 rounded-full bg-[#5424c7] py-1.5 text-xs font-bold text-white outline-none hover:bg-[#4319a8] focus-visible:ring-2 focus-visible:ring-[#5424c7] focus-visible:ring-offset-2"
+        >
+          <Play className="h-3.5 w-3.5 fill-current" /> Start presentation
+        </button>
+      </div>
+
       {open && (
         <div className="mt-2 space-y-2 border-t border-slate-100 pt-2 text-xs">
-          <p>
-            <span className="text-slate-400">Programme chosen: </span>
-            <strong>{c.desired_course || "Not selected"}</strong>
-          </p>
+          <label className="block">
+            <span className="text-slate-400">Programme for this session</span>
+            <select className="field mt-1 py-1.5 text-xs" value={programmeId} onChange={(e) => onProgramme(e.target.value)}>
+              <option value="">Not selected</option>
+              {AREAS.filter((a) => a.key !== "english").map((a) => (
+                <optgroup key={a.key} label={a.name}>
+                  {PROGRAMMES.filter((p) => p.area === a.key).map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.course} — {p.school}
+                    </option>
+                  ))}
+                </optgroup>
+              ))}
+            </select>
+          </label>
           <div className="flex flex-wrap gap-1.5">
             {c.meeting_url && (
               <a href={c.meeting_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 rounded-full bg-sky-100 px-2.5 py-1 font-bold text-[#078bc7]">
@@ -301,9 +390,19 @@ function QueueRow({
               </a>
             )}
             {digits && (
-              <a href={`https://web.whatsapp.com/send?phone=${digits}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-1 font-bold text-emerald-800">
-                <MessageCircle className="h-3.5 w-3.5" /> WhatsApp
-              </a>
+              <>
+                <a href={`https://web.whatsapp.com/send?phone=${digits}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-1 font-bold text-emerald-800">
+                  <MessageCircle className="h-3.5 w-3.5" /> WhatsApp
+                </a>
+                <a
+                  href={`https://web.whatsapp.com/send?phone=${digits}&text=${encodeURIComponent(reminder)}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-1 font-bold text-emerald-800"
+                >
+                  <AlarmClock className="h-3.5 w-3.5" /> Send reminder
+                </a>
+              </>
             )}
             <a href={`mailto:${c.email}`} className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 font-bold text-slate-700">
               <Mail className="h-3.5 w-3.5" /> Email

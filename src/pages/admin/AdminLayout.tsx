@@ -1,10 +1,11 @@
 import { NavLink, Outlet } from "react-router-dom";
-import { CalendarDays, Presentation, Users, UsersRound } from "lucide-react";
+import { BarChart3, CalendarDays, Presentation, Users, UsersRound } from "lucide-react";
 
 const items = [
   { to: "/admin", label: "Leads", icon: UsersRound, end: true },
   { to: "/admin/calendar", label: "Calendar", icon: CalendarDays },
   { to: "/onlinesessions?present=1", label: "Online sessions", icon: Presentation },
+  { to: "/admin/sessions", label: "Session stats", icon: BarChart3 },
   { to: "/admin/team", label: "Team", icon: Users },
 ];
 

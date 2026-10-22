@@ -25,7 +25,7 @@ export function presentationFilename(name: string) {
   return `Malta-Study-Presentation-${slug}.pdf`;
 }
 
-export function buildPresentationPdf(student: { name: string; email: string }, programme: Programme | undefined) {
+export function buildPresentationPdf(student: { name: string; email: string }, programme: Programme | undefined, liked: Programme[] = []) {
   const doc = new jsPDF({ unit: "mm", format: "a4" });
   let page = 0;
   let y = 0;
@@ -114,6 +114,15 @@ export function buildPresentationPdf(student: { name: string; email: string }, p
     });
   } else {
     write("Your adviser will confirm your programme with you.", { color: SLATE });
+  }
+  const others = liked.filter((p) => p.id !== programme?.id);
+  if (others.length) {
+    y += 6;
+    write("Programmes you liked", { size: 13, bold: true, color: NAVY, gap: 3 });
+    for (const p of others) {
+      write(`* ${p.course}`, { bold: true, gap: 0.5 });
+      write(`${p.school} · ${p.qualification} · ${p.duration} · ${p.totalFee ?? "Confirm with school"}`, { size: 9, color: SLATE, gap: 3 });
+    }
   }
 
   // 3. Programme tables

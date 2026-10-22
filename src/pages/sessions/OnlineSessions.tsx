@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { Toaster, toast } from "sonner";
-import { ArrowLeft, ArrowRight, Check, Info, Loader2, Play, ShieldCheck, Sparkles, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, Info, Loader2, NotebookPen, Play, Radio, ShieldCheck, Sparkles, X } from "lucide-react";
 import { supabase } from "../../lib/supabase";
 import { useAuth } from "../../lib/auth";
 import { CHAPTERS, IMAGES, PROGRAMMES, findBestMatch } from "./data";
@@ -16,8 +16,11 @@ import {
   ThankYouChapter,
   VisaChapter,
 } from "./Chapters";
-import { PresenterQueue, bucketize, queueOrder, type Candidate } from "./PresenterQueue";
-import { CompleteDialog, type Outcome } from "./CompleteDialog";
+import { PresenterQueue, bucketize, queueOrder, type Candidate, type DocProgress } from "./PresenterQueue";
+import { documentTypesFor } from "../../lib/options";
+import { fillTab, notifyCandidate } from "../admin/calls";
+import type { RealtimeChannel } from "@supabase/supabase-js";
+import { CompleteDialog, type NextStep, type Outcome } from "./CompleteDialog";
 import { buildPresentationPdf, pdfBase64, presentationFilename } from "./pdf";
 
 const HIDDEN_ACTION = "hidden_from_presenter_queue";
@@ -54,6 +57,8 @@ export function OnlineSessions() {
   const staff = isAdmin || isPresenter;
   // Admins land in presenter mode on the plain page too (not on a student's personal link).
   const presenterMode = !personalLink && staff && (presentRequested || isAdmin);
+  const liveParam = params.get("live");
+  const me = session?.user.email?.toLowerCase() ?? "";
 
   // ------------------------------------------------------------ presentation state
   const [open, setOpen] = useState(false);
@@ -63,6 +68,11 @@ export function OnlineSessions() {
   const [area, setArea] = useState("english");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [bestMatchId, setBestMatchId] = useState<string | undefined>();
+  const [liked, setLiked] = useState<Set<string>>(new Set());
+  const [notes, setNotes] = useState("");
+  const [notesOpen, setNotesOpen] = useState(false);
+  const [liveCode, setLiveCode] = useState<string | null>(null);
+  const channelRef = useRef<RealtimeChannel | null>(null);
 
   // ------------------------------------------------------------ queue state
   const [queue, setQueue] = useState<Candidate[]>([]);
@@ -73,6 +83,8 @@ export function OnlineSessions() {
   const [unavailable, setUnavailable] = useState<string | null>(null);
   const [completeOpen, setCompleteOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [programmeFor, setProgrammeFor] = useState<Record<string, string>>({});
+  const [docProgress, setDocProgress] = useState<Record<string, DocProgress>>({});
 
   useEffect(() => {
     const t = setInterval(() => setNow(new Date()), 30_000);
@@ -85,7 +97,25 @@ export function OnlineSessions() {
       supabase.from("activity_log").select("consultation_id").eq("action", HIDDEN_ACTION),
     ]);
     if (list.error) toast.error(list.error.message);
-    setQueue(((list.data as Candidate[]) ?? []).filter(isBooked));
+    const booked = ((list.data as Candidate[]) ?? []).filter(isBooked);
+    setQueue(booked);
+    // Pre-call brief: required documents uploaded per candidate.
+    if (booked.length) {
+      const { data: docs } = await supabase
+        .from("documents")
+        .select("consultation_id, doc_type, review_status")
+        .in(
+          "consultation_id",
+          booked.map((c) => c.id),
+        );
+      const progress: Record<string, DocProgress> = {};
+      for (const c of booked) {
+        const required = documentTypesFor(c.study_path).filter((t) => t.required);
+        const have = new Set((docs ?? []).filter((d) => d.consultation_id === c.id && d.review_status !== "rejected").map((d) => d.doc_type));
+        progress[c.id] = { done: required.filter((t) => have.has(t.key)).length, total: required.length };
+      }
+      setDocProgress(progress);
+    }
     setHidden(new Set([...readLocalHidden(), ...(log.data ?? []).map((r) => r.consultation_id as string)]));
   }, []);
 
@@ -97,12 +127,20 @@ export function OnlineSessions() {
   const ordered = useMemo(() => queueOrder(bucketize(visibleQueue, now)), [visibleQueue, now]);
 
   // ------------------------------------------------------------ opening a presentation
-  const openPresentation = useCallback((c: Candidate | null, programmeHint?: string | null) => {
+  const openPresentation = useCallback((c: Candidate | null, programmeHint?: string | null, programmeId?: string) => {
     const match = findBestMatch(programmeHint ?? c?.desired_course, c?.desired_course);
+    const chosen = PROGRAMMES.find((p) => p.id === programmeId) ?? match;
     setCandidate(c);
     setBestMatchId(match?.id);
-    setSelectedId(match?.id ?? null);
-    setArea(match?.area ?? "english");
+    setSelectedId(chosen?.id ?? null);
+    setArea(chosen?.area ?? "english");
+    setLiked(new Set());
+    setNotesOpen(false);
+    try {
+      setNotes(c ? localStorage.getItem(`session_notes_${c.id}`) ?? "" : "");
+    } catch {
+      setNotes("");
+    }
     setChapter(0);
     setVisited(new Set([0]));
     setUnavailable(null);
@@ -111,8 +149,87 @@ export function OnlineSessions() {
 
   const startCandidate = (c: Candidate) => {
     setParams({ present: "1", candidate: c.id }, { replace: true });
-    openPresentation(c);
+    openPresentation(c, null, programmeFor[c.id]);
   };
+
+  // Meet on the left half of the screen, presentation here.
+  const joinAndStart = (c: Candidate) => {
+    if (c.meeting_url) {
+      const w = Math.round(window.screen.availWidth / 2);
+      window.open(c.meeting_url, "outreach-meet", `popup,width=${w},height=${window.screen.availHeight},left=0,top=0`);
+    }
+    startCandidate(c);
+  };
+
+  // Live notes: saved in this browser per candidate, prefilled into the session comment.
+  const saveNotes = (text: string) => {
+    setNotes(text);
+    if (!candidate) return;
+    try {
+      localStorage.setItem(`session_notes_${candidate.id}`, text);
+    } catch {
+      // storage unavailable
+    }
+  };
+
+  const toggleLike = (id: string) =>
+    setLiked((l) => {
+      const n = new Set(l);
+      if (n.has(id)) n.delete(id);
+      else n.add(id);
+      return n;
+    });
+
+  // ------------------------------------------------------------ live follow (Supabase Realtime broadcast)
+  const broadcastState = useCallback(() => {
+    channelRef.current?.send({ type: "broadcast", event: "state", payload: { chapter, area, selectedId } });
+  }, [chapter, area, selectedId]);
+
+  useEffect(() => {
+    if (liveCode && !liveParam) broadcastState();
+  }, [liveCode, liveParam, broadcastState]);
+
+  const startLive = async () => {
+    const code = liveCode ?? crypto.randomUUID().replace(/-/g, "").slice(0, 10);
+    if (!liveCode) {
+      const ch = supabase.channel(`live-${code}`, { config: { broadcast: { self: false } } });
+      ch.on("broadcast", { event: "hello" }, () => broadcastState()).subscribe();
+      channelRef.current = ch;
+      setLiveCode(code);
+    }
+    const link = `${window.location.origin}/onlinesessions?live=${code}`;
+    try {
+      await navigator.clipboard.writeText(link);
+      toast.success("Live link copied — send it to the student");
+    } catch {
+      toast.message(link);
+    }
+  };
+
+  // Student following a live session.
+  useEffect(() => {
+    if (!liveParam) return;
+    const ch = supabase.channel(`live-${liveParam}`, { config: { broadcast: { self: false } } });
+    ch.on("broadcast", { event: "state" }, ({ payload }) => {
+      setOpen(true);
+      setChapter(payload.chapter);
+      setVisited((v) => new Set(v).add(payload.chapter));
+      setArea(payload.area);
+      setSelectedId(payload.selectedId);
+    }).subscribe((status) => {
+      if (status === "SUBSCRIBED") ch.send({ type: "broadcast", event: "hello", payload: {} });
+    });
+    return () => {
+      supabase.removeChannel(ch);
+    };
+  }, [liveParam]);
+
+  useEffect(
+    () => () => {
+      if (channelRef.current) supabase.removeChannel(channelRef.current);
+    },
+    [],
+  );
 
   // ?candidate=<id>: open that candidate straight away (must still be booked).
   useEffect(() => {
@@ -169,11 +286,12 @@ export function OnlineSessions() {
 
   const selectedProgramme = PROGRAMMES.find((p) => p.id === selectedId);
 
-  const recordOutcome = (outcome: Outcome, comment: string) => {
+  const recordOutcome = (outcome: Outcome, comment: string, nextStep: NextStep | null) => {
     if (!candidate) return;
     const c = candidate;
     // Open the WhatsApp tab synchronously inside the click so pop-up blockers allow it.
-    const waTab = outcome === "interviewed" && selectedProgramme ? window.open("about:blank", "_blank") : null;
+    const waTab =
+      (outcome === "interviewed" && selectedProgramme) || (outcome === "no_attendance" && c.whatsapp) ? window.open("about:blank", "_blank") : null;
     setBusy(true);
     (async () => {
       try {
@@ -193,7 +311,11 @@ export function OnlineSessions() {
 
         if (outcome === "interviewed" && selectedProgramme) {
           try {
-            const doc = buildPresentationPdf({ name: c.full_name, email: c.email }, selectedProgramme);
+            const doc = buildPresentationPdf(
+              { name: c.full_name, email: c.email },
+              selectedProgramme,
+              PROGRAMMES.filter((p) => liked.has(p.id)),
+            );
             const { data } = await supabase.functions.invoke("send-interview-recap", {
               body: {
                 applicationId: c.id,
@@ -212,8 +334,19 @@ export function OnlineSessions() {
             waTab?.close();
             toast.error("Candidate was interviewed, but the recap email failed");
           }
+        } else if (outcome === "no_attendance") {
+          // Automatic rebooking: email + WhatsApp "pick a new time".
+          const r = await notifyCandidate("rebook", c.id);
+          fillTab(waTab, r.data?.waUrl);
+          toast.success(r.data?.ok ? `${c.full_name}: rebooking email sent` : `${c.full_name} moved to No Attendance (rebooking email not sent)`);
         } else {
           toast.success(`${c.full_name} moved to ${OUTCOME_LABEL[outcome]}`);
+        }
+        if (nextStep) await supabase.from("tasks").insert({ consultation_id: c.id, title: nextStep.title, due_at: nextStep.due });
+        try {
+          localStorage.removeItem(`session_notes_${c.id}`);
+        } catch {
+          // ignore
         }
 
         // Next candidate: the one after this in queue order.
@@ -246,7 +379,7 @@ export function OnlineSessions() {
       <Hero
         reduce={!!reduce}
         showButton={!presenterMode}
-        label={personalLink ? "View my programme" : "Start presentation"}
+        label={liveParam ? "Follow my adviser live" : personalLink ? "View my programme" : "Start presentation"}
         onStart={() => openPresentation(null, personalLink ? programmeParam : null)}
       />
 
@@ -257,7 +390,12 @@ export function OnlineSessions() {
           done={done}
           success={success}
           currentId={candidate?.id ?? null}
+          me={me}
+          docs={docProgress}
+          programmeFor={programmeFor}
+          onProgramme={(id, pid) => setProgrammeFor((m) => ({ ...m, [id]: pid }))}
           onStart={startCandidate}
+          onJoinAndStart={joinAndStart}
           onHide={hide}
         />
       )}
@@ -332,9 +470,30 @@ export function OnlineSessions() {
               <div aria-hidden className="h-2 shrink-0 bg-gradient-to-r from-[#d91c2b] via-[#8f2be8] to-[#078bc7]" />
               <div className="flex shrink-0 items-center justify-between gap-2 px-4 pt-3 sm:px-8">
                 {presenterMode ? (
-                  <Link to="/admin?view=booked" className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1.5 text-xs font-bold text-slate-600 hover:bg-slate-200">
-                    <ArrowLeft className="h-3.5 w-3.5" /> Booked Appointments
-                  </Link>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <Link to="/admin?view=booked" className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1.5 text-xs font-bold text-slate-600 hover:bg-slate-200">
+                      <ArrowLeft className="h-3.5 w-3.5" /> Booked Appointments
+                    </Link>
+                    {candidate && (
+                      <button
+                        onClick={() => setNotesOpen((o) => !o)}
+                        aria-pressed={notesOpen}
+                        className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold ${notesOpen ? "bg-[#5424c7] text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}
+                      >
+                        <NotebookPen className="h-3.5 w-3.5" /> Notes{notes ? " ·" : ""}
+                      </button>
+                    )}
+                    <button
+                      onClick={startLive}
+                      className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold ${liveCode ? "bg-rose-100 text-rose-700" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}
+                    >
+                      <Radio className="h-3.5 w-3.5" /> {liveCode ? "Live · copy link" : "Share live link"}
+                    </button>
+                  </div>
+                ) : liveParam ? (
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-rose-100 px-3 py-1.5 text-xs font-bold text-rose-700">
+                    <Radio className="h-3.5 w-3.5" /> Following your adviser live
+                  </span>
                 ) : (
                   <span />
                 )}
@@ -402,7 +561,15 @@ export function OnlineSessions() {
                       {chapter === 0 && <IntroChapter welcomeName={presenterMode ? candidate?.full_name : undefined} />}
                       {chapter === 1 && <DiscoverChapter />}
                       {chapter === 2 && (
-                        <ProgrammesChapter area={area} setArea={setArea} selectedId={selectedId} setSelectedId={setSelectedId} bestMatchId={bestMatchId} />
+                        <ProgrammesChapter
+                          area={area}
+                          setArea={setArea}
+                          selectedId={selectedId}
+                          setSelectedId={setSelectedId}
+                          bestMatchId={bestMatchId}
+                          liked={liked}
+                          onToggleLike={toggleLike}
+                        />
                       )}
                       {chapter === 3 && <VisaChapter />}
                       {chapter === 4 && <PartnersChapter />}
@@ -439,6 +606,26 @@ export function OnlineSessions() {
                   </button>
                 </div>
               </div>
+              {notesOpen && (
+                <aside className="absolute bottom-[68px] right-0 top-12 z-10 flex w-full max-w-sm flex-col border-l border-slate-200 bg-white p-4 shadow-2xl sm:rounded-bl-2xl">
+                  <div className="mb-2 flex items-center justify-between">
+                    <p className="flex items-center gap-1.5 text-sm font-black text-[#092553]">
+                      <NotebookPen className="h-4 w-4" /> Session notes
+                    </p>
+                    <button aria-label="Close notes" onClick={() => setNotesOpen(false)} className="rounded-full p-1 text-slate-400 hover:bg-slate-100">
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+                  <textarea
+                    className="field min-h-0 flex-1 resize-none"
+                    placeholder="Questions, decisions, documents to request… Saved automatically and added to the session comment."
+                    value={notes}
+                    onChange={(e) => saveNotes(e.target.value)}
+                    autoFocus
+                  />
+                  <p className="mt-2 text-[11px] text-slate-400">Saved in this browser · prefilled when you complete the session.</p>
+                </aside>
+              )}
             </motion.section>
           </motion.div>
         )}
@@ -451,6 +638,7 @@ export function OnlineSessions() {
           onOpenChange={setCompleteOpen}
           name={candidate.full_name}
           hasProgramme={!!selectedProgramme}
+          initialComment={notes}
           busy={busy}
           onOutcome={recordOutcome}
         />

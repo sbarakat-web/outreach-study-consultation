@@ -40,6 +40,12 @@ export interface Consultation {
   session_outcome_at: string | null;
   meeting_url: string | null;
   is_starred: boolean;
+  assigned_to: string | null;
+  google_event_id: string | null;
+  documents_due_at: string | null;
+  session_by: string | null;
+  session_rating: number | null;
+  session_feedback: string | null;
   tracking: Record<string, string>;
   created_at: string;
   updated_at: string;
@@ -55,4 +61,13 @@ export interface DocumentRow {
   review_status: "pending" | "approved" | "rejected";
   review_note: string | null;
   created_at: string;
+}
+
+export interface Task {
+  id: string;
+  consultation_id: string;
+  title: string;
+  due_at: string;
+  done_at: string | null;
+  created_by: string | null;
 }

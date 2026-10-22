@@ -16,6 +16,7 @@ const OnlineSessions = lazy(() => import("./pages/sessions/OnlineSessions").then
 const AdminLayout = lazy(() => import("./pages/admin/AdminLayout").then((m) => ({ default: m.AdminLayout })));
 const Requests = lazy(() => import("./pages/admin/Requests").then((m) => ({ default: m.Requests })));
 const CalendarPage = lazy(() => import("./pages/admin/CalendarPage").then((m) => ({ default: m.CalendarPage })));
+const SessionsDashboard = lazy(() => import("./pages/admin/SessionsDashboard").then((m) => ({ default: m.SessionsDashboard })));
 const Team = lazy(() => import("./pages/admin/Team").then((m) => ({ default: m.Team })));
 
 export function App() {
@@ -63,6 +64,7 @@ export function App() {
             >
               <Route index element={<Requests />} />
               <Route path="calendar" element={<CalendarPage />} />
+              <Route path="sessions" element={<SessionsDashboard />} />
               <Route path="team" element={<Team />} />
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />

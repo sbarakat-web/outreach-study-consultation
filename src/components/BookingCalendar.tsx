@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { CalendarCheck, CalendarPlus, Check, ChevronLeft, ChevronRight, Download, Info } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { CALL_MINUTES, callStage, callTimes, formatSlot } from "../lib/options";
@@ -24,7 +24,28 @@ export function BookingCalendar({ c, onRequested }: { c: Consultation; onRequest
   const { t } = useI18n();
   const stage = callStage(c);
   const [editing, setEditing] = useState(stage === "none");
-  const times = useMemo(() => callTimes(), []);
+  const allTimes = useMemo(() => callTimes(), []);
+  const [blocked, setBlocked] = useState<{ start: number; end: number }[]>([]);
+  // Only offer free times: other candidates' confirmed calls and the adviser's Google busy times.
+  useEffect(() => {
+    if (!allTimes.length) return;
+    const from = allTimes[0].toISOString();
+    const to = allTimes[allTimes.length - 1].toISOString();
+    Promise.all([
+      supabase.rpc("booked_call_times"),
+      supabase.functions.invoke("google-calendar", { body: { action: "public-busy", from, to } }).catch(() => ({ data: null })),
+    ]).then(([booked, busy]) => {
+      const span = CALL_MINUTES * 60_000;
+      setBlocked([
+        ...((booked.data ?? []) as { starts_at: string }[]).map((b) => ({ start: new Date(b.starts_at).getTime(), end: new Date(b.starts_at).getTime() + span })),
+        ...(((busy.data as { busy?: { start: string; end: string }[] } | null)?.busy ?? []).map((b) => ({ start: new Date(b.start).getTime(), end: new Date(b.end).getTime() }))),
+      ]);
+    });
+  }, [allTimes]);
+  const times = useMemo(() => {
+    const span = CALL_MINUTES * 60_000;
+    return allTimes.filter((t) => !blocked.some((b) => t.getTime() < b.end && t.getTime() + span > b.start));
+  }, [allTimes, blocked]);
   const [month, setMonth] = useState(() => monthStart(times[0] ?? new Date()));
   const [day, setDay] = useState<string | null>(() => (times[0] ? dayKey(times[0]) : null));
   const [picked, setPicked] = useState<Date | null>(null);

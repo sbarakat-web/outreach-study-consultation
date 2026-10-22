@@ -12,6 +12,7 @@ import {
   Gift,
   KeyRound,
   MessageCircle,
+  Star,
   Trash2,
   Upload,
 } from "lucide-react";
@@ -174,6 +175,11 @@ export function CallPage() {
                 <div>
                   <p className="font-black">{t("sess.doneTitle")}</p>
                   <p className="text-sm text-slate-600">{t("sess.doneText")}</p>
+                  {c.documents_due_at && progress.done < progress.total && (
+                    <p className="mt-1 text-sm font-bold text-amber-800">
+                      {t("docs.dueBy", { date: formatSlot(c.documents_due_at, { hour: undefined, minute: undefined, weekday: "long", month: "long" }) })}
+                    </p>
+                  )}
                 </div>
               </div>
               <Link to="/dashboard/documents">
@@ -220,8 +226,52 @@ export function CallPage() {
         </div>
       </Card>
 
+      {c.session_outcome === "interviewed" && <SessionFeedback c={c} onSent={reload} />}
+
       <SetPassword />
     </>
+  );
+}
+
+function SessionFeedback({ c, onSent }: { c: Consultation; onSent: () => void }) {
+  const { t } = useI18n();
+  const [rating, setRating] = useState(c.session_rating ?? 0);
+  const [comment, setComment] = useState("");
+  const [sending, setSending] = useState(false);
+  if (c.session_rating) return <Alert tone="success">{t("fb.thanks")}</Alert>;
+
+  const send = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!rating) return;
+    setSending(true);
+    await supabase.rpc("submit_session_feedback", { p_consultation_id: c.id, p_rating: rating, p_comment: comment });
+    setSending(false);
+    onSent();
+  };
+
+  return (
+    <form onSubmit={send} className="space-y-3 rounded-2xl border border-slate-200 bg-white px-5 py-4">
+      <p className="font-black">{t("fb.title")}</p>
+      <div className="flex gap-1" role="radiogroup" aria-label={t("fb.title")}>
+        {[1, 2, 3, 4, 5].map((n) => (
+          <button
+            key={n}
+            type="button"
+            role="radio"
+            aria-checked={rating === n}
+            aria-label={`${n}/5`}
+            onClick={() => setRating(n)}
+            className="rounded-lg p-1 outline-none focus-visible:ring-2 focus-visible:ring-brand"
+          >
+            <Star className={`h-7 w-7 ${n <= rating ? "fill-amber-400 text-amber-400" : "text-slate-300"}`} />
+          </button>
+        ))}
+      </div>
+      <textarea rows={2} className="field" placeholder={t("fb.placeholder")} value={comment} onChange={(e) => setComment(e.target.value)} />
+      <Button type="submit" loading={sending} disabled={!rating}>
+        {t("fb.send")}
+      </Button>
+    </form>
   );
 }
 
@@ -239,6 +289,11 @@ export function DocumentsPage() {
       <div className="space-y-5 px-5 py-6 sm:px-7">
         <div>
           <h1 className="text-xl font-black sm:text-2xl">{t("docs.title")}</h1>
+          {c.documents_due_at && progress.done < progress.total && (
+            <p className="mt-1 rounded-xl bg-amber-50 px-3 py-2 text-sm font-bold text-amber-900 ring-1 ring-amber-200">
+              {t("docs.dueBy", { date: formatSlot(c.documents_due_at, { hour: undefined, minute: undefined, weekday: "long", month: "long" }) })}
+            </p>
+          )}
           <p className="mt-1 text-sm text-slate-600">
             {t("docs.introA")}{" "}
             {callAt ? (

@@ -16,6 +16,7 @@ import {
 } from "../../lib/options";
 import { CallPanel } from "./CallPanel";
 import { SessionPanel, sessionHref } from "./SessionPanel";
+import { LeadTasks } from "./LeadTasks";
 import type { Consultation, DocumentRow, Status } from "../../lib/types";
 import { Alert, Button, Card, Spinner, StatusBadge } from "../../components/ui";
 
@@ -394,6 +395,8 @@ function Detail({ c, all, onClose, onSaved }: { c: Row; all: Row[]; onClose: () 
           <CallPanel c={c} documents={docs.length} onSaved={onSaved} />
 
           <SessionPanel c={c} />
+
+          <LeadTasks c={c} onSaved={onSaved} />
 
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
             <label htmlFor="meet-link" className="flex shrink-0 items-center gap-1.5 text-sm font-bold">

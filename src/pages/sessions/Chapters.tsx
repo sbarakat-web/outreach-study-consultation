@@ -151,12 +151,16 @@ export function ProgrammesChapter({
   selectedId,
   setSelectedId,
   bestMatchId,
+  liked,
+  onToggleLike,
 }: {
   area: string;
   setArea: (a: string) => void;
   selectedId: string | null;
   setSelectedId: (id: string) => void;
   bestMatchId?: string;
+  liked: Set<string>;
+  onToggleLike: (id: string) => void;
 }) {
   const current = AREAS.find((a) => a.key === area)!;
   const programmes = PROGRAMMES.filter((p) => p.area === area);
@@ -213,6 +217,8 @@ export function ProgrammesChapter({
                 rows={rows}
                 selectedId={selectedId}
                 bestMatchId={bestMatchId}
+                liked={liked}
+                onToggleLike={onToggleLike}
                 onSelect={setSelectedId}
                 notes={SCHOLARSHIPS[area]?.[level] ?? []}
               />
@@ -235,6 +241,8 @@ function LevelTable({
   rows,
   selectedId,
   bestMatchId,
+  liked,
+  onToggleLike,
   onSelect,
   notes,
 }: {
@@ -243,6 +251,8 @@ function LevelTable({
   rows: Programme[];
   selectedId: string | null;
   bestMatchId?: string;
+  liked: Set<string>;
+  onToggleLike: (id: string) => void;
   onSelect: (id: string) => void;
   notes: string[];
 }) {
@@ -286,7 +296,21 @@ function LevelTable({
                     </span>
                   </td>
                   <td className="px-4 py-3">
-                    <span className="font-bold text-slate-800">{p.course}</span>
+                    <span className="flex items-start gap-2">
+                      <button
+                        type="button"
+                        aria-label={liked.has(p.id) ? `Unmark ${p.course}` : `Mark ${p.course} as liked`}
+                        aria-pressed={liked.has(p.id)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onToggleLike(p.id);
+                        }}
+                        className="mt-0.5 shrink-0 rounded-full p-0.5 outline-none hover:bg-amber-50 focus-visible:ring-2 focus-visible:ring-amber-400"
+                      >
+                        <Star className={`h-4 w-4 ${liked.has(p.id) ? "fill-amber-400 text-amber-400" : "text-slate-300"}`} />
+                      </button>
+                      <span className="font-bold text-slate-800">{p.course}</span>
+                    </span>
                     {p.id === bestMatchId && (
                       <span className="mt-1 flex w-fit items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-amber-800">
                         <Star className="h-3 w-3 fill-current" /> Best match

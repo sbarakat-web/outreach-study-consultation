@@ -87,3 +87,17 @@ Guided 7-chapter presentation advisers run live with booked candidates (also ope
   - `public/onlinesessions/online-session-hero-v2.webp` (1672×941), `online-session-hero-mobile-v2.webp` (1000×1777), `introduction-english-path-gbs.webp` (900×1200)
   - `public/onlinesessions/discover-{english-speaking,schengen,education,living,lifestyle,career}.webp` (900×675)
   - `public/partners/{eie,gbs,english-path,lsc,kensington,sbm}.png` (school logos)
+
+## Calendar ↔ sessions workflow
+
+- **Admin → Calendar**: confirm requested calls (one click = Google event + Meet link + candidate email + WhatsApp), assign advisers, drag booked calls to another day, filters, daily agenda (print/CSV), tasks, overdue alerts, "Rebook requested".
+- **Reminders** (`send-reminders`, every 15 min via pg_cron): email 24h and 1h before calls; document-deadline emails (3 days before / due day) after an interviewed session. WhatsApp reminders are automatic only with Twilio secrets; otherwise use "Send reminder" in the presenter queue.
+- **Session stats**: Admin → Session stats.
+
+### Connect Google Calendar (one time)
+1. Google Cloud Console → create/select a project → **APIs & Services → Library** → enable **Google Calendar API**.
+2. **OAuth consent screen**: External, app name "Outreach", add your email as test user (or publish).
+3. **Credentials → Create credentials → OAuth client ID → Web application**. Authorized redirect URI:
+   `https://qkcdjqrtwzqflrrxdgqw.supabase.co/functions/v1/google-calendar/callback`
+4. In Supabase → Edge Functions → Secrets add `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`.
+5. Admin → Calendar → **Connect Google Calendar**. The first connected account is the default for candidates' free/busy.

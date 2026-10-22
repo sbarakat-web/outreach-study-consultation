@@ -1,9 +1,22 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import * as AlertDialog from "@radix-ui/react-alert-dialog";
 import { CheckCircle2, Loader2, UserX, XCircle } from "lucide-react";
 
 export type Outcome = "interviewed" | "no_attendance" | "no_longer_interested";
+
+export interface NextStep {
+  title: string;
+  due: string; // ISO
+}
+
+// Suggested follow-up task per outcome (editable in the dialog).
+const DEFAULT_STEP: Record<Outcome, { title: string; days: number } | null> = {
+  interviewed: { title: "Check documents", days: 7 },
+  no_attendance: { title: "Follow up: rebook the call", days: 2 },
+  no_longer_interested: null,
+};
+const dayInput = (days: number) => new Date(Date.now() + days * 86_400_000).toISOString().slice(0, 10);
 
 /**
  * "Complete session" dialog. `onOutcome` is called synchronously from the click so the
@@ -14,6 +27,7 @@ export function CompleteDialog({
   onOpenChange,
   name,
   hasProgramme,
+  initialComment = "",
   busy,
   onOutcome,
 }: {
@@ -21,10 +35,26 @@ export function CompleteDialog({
   onOpenChange: (open: boolean) => void;
   name: string;
   hasProgramme: boolean;
+  initialComment?: string;
   busy: boolean;
-  onOutcome: (outcome: Outcome, comment: string) => void;
+  onOutcome: (outcome: Outcome, comment: string, nextStep: NextStep | null) => void;
 }) {
-  const [comment, setComment] = useState("");
+  const [comment, setComment] = useState(initialComment);
+  const [addStep, setAddStep] = useState(true);
+  const [stepTitle, setStepTitle] = useState("");
+  const [stepDate, setStepDate] = useState("");
+
+  // Pick up notes typed during the presentation when the dialog opens.
+  useEffect(() => {
+    if (open && !comment && initialComment) setComment(initialComment);
+  }, [open, initialComment]);
+
+  const finish = (outcome: Outcome) => {
+    const d = DEFAULT_STEP[outcome];
+    const title = stepTitle.trim() || d?.title;
+    const date = stepDate || (d ? dayInput(d.days) : "");
+    onOutcome(outcome, comment, addStep && title && date ? { title, due: new Date(`${date}T09:00`).toISOString() } : null);
+  };
   const [confirming, setConfirming] = useState(false);
 
   return (
@@ -51,6 +81,25 @@ export function CompleteDialog({
             <p className="text-xs text-slate-500">This comment will be saved with the candidate and shown in the destination admin table.</p>
           </div>
 
+          <div className="space-y-2 rounded-xl bg-slate-50 p-3">
+            <label className="flex items-center gap-2 text-sm font-bold text-[#092553]">
+              <input type="checkbox" className="h-4 w-4 accent-[#5424c7]" checked={addStep} onChange={(e) => setAddStep(e.target.checked)} />
+              Add a next-step task
+            </label>
+            {addStep && (
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <input
+                  className="field py-2"
+                  placeholder="Default: Check documents (7 days) · Rebook follow-up (2 days)"
+                  value={stepTitle}
+                  onChange={(e) => setStepTitle(e.target.value)}
+                  aria-label="Next step"
+                />
+                <input type="date" className="field w-auto py-2" value={stepDate} onChange={(e) => setStepDate(e.target.value)} aria-label="Next step date" />
+              </div>
+            )}
+          </div>
+
           <button
             disabled={busy}
             onClick={() => setConfirming(true)}
@@ -67,7 +116,7 @@ export function CompleteDialog({
           <div className="grid gap-3 sm:grid-cols-2">
             <button
               disabled={busy}
-              onClick={() => onOutcome("no_attendance", comment)}
+              onClick={() => finish("no_attendance")}
               className="flex items-center gap-3 rounded-2xl border-2 border-amber-300 px-4 py-3 text-left text-amber-900 outline-none hover:bg-amber-50 focus-visible:ring-2 focus-visible:ring-amber-400 disabled:opacity-60"
             >
               <UserX className="h-5 w-5 shrink-0" />
@@ -78,7 +127,7 @@ export function CompleteDialog({
             </button>
             <button
               disabled={busy}
-              onClick={() => onOutcome("no_longer_interested", comment)}
+              onClick={() => finish("no_longer_interested")}
               className="flex items-center gap-3 rounded-2xl border-2 border-rose-300 px-4 py-3 text-left text-rose-900 outline-none hover:bg-rose-50 focus-visible:ring-2 focus-visible:ring-rose-400 disabled:opacity-60"
             >
               <XCircle className="h-5 w-5 shrink-0" />
@@ -102,7 +151,7 @@ export function CompleteDialog({
                 <div className="flex justify-end gap-2">
                   <AlertDialog.Cancel className="rounded-full px-4 py-2 text-sm font-bold text-slate-600 hover:bg-slate-100">Cancel</AlertDialog.Cancel>
                   <AlertDialog.Action
-                    onClick={() => onOutcome("interviewed", comment)}
+                    onClick={() => finish("interviewed")}
                     className="rounded-full bg-emerald-600 px-5 py-2 text-sm font-bold text-white hover:bg-emerald-700"
                   >
                     Move to Interviewed
