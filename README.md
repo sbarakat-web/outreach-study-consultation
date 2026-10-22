@@ -34,12 +34,12 @@ Stack: Vite + React + TypeScript + Tailwind, and Supabase (Auth, Postgres with R
 
 ## 2. Confirmation emails / WhatsApp (Edge Function)
 
-Create a [Resend](https://resend.com) account, verify `outreachstudy.eu`, then run:
+Create a [Resend](https://resend.com) account, verify `consultation.outreachstudy.eu`, then run:
 
 ```bash
 supabase secrets set \
   RESEND_API_KEY=re_xxx \
-  MAIL_FROM="Outreach Recruitment <hello@outreachstudy.eu>" \
+  MAIL_FROM="Outreach <hello@consultation.outreachstudy.eu>" \
   ADMIN_NOTIFY_EMAIL=you@example.com \
   APP_URL=https://consultation.outreachstudy.eu
 supabase functions deploy send-confirmation --no-verify-jwt

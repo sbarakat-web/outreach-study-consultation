@@ -16,7 +16,7 @@ const cors = {
 const env = (k: string) => Deno.env.get(k) ?? "";
 
 const DEFAULTS: Record<string, string> = {
-  MAIL_FROM: "Outreach <hello@outreachstudy.eu>",
+  MAIL_FROM: "Outreach <hello@consultation.outreachstudy.eu>",
   ADMIN_NOTIFY_EMAIL: "sbarakat@outreachrecruitment.net",
   APP_URL: "https://consultation.outreachstudy.eu",
 };
