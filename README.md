@@ -1,4 +1,4 @@
-# Consultation app — consultation.outreachrecruitment.eu
+# Consultation app — consultation.outreachstudy.eu
 
 Candidates book a free study consultation through a 5-step form (no popup); admins manage requests, time slots and the team.
 
@@ -22,8 +22,8 @@ Stack: Vite + React + TypeScript + Tailwind, and Supabase (Auth, Postgres with R
    supabase db push   # applies supabase/migrations/*.sql
    ```
 2. **Auth → Providers → Email**: keep **Confirm email** turned ON. Admin rights depend on a confirmed email.
-3. **Auth → URL Configuration**: set Site URL to `https://consultation.outreachrecruitment.eu` and add these redirect URLs:
-   `https://consultation.outreachrecruitment.eu/**` and `http://localhost:5173/**`.
+3. **Auth → URL Configuration**: set Site URL to `https://consultation.outreachstudy.eu` and add these redirect URLs:
+   `https://consultation.outreachstudy.eu/**` and `http://localhost:5173/**`.
 4. **Make yourself the first admin.** In the SQL editor:
    ```sql
    insert into public.admins (email) values ('you@example.com');
@@ -33,14 +33,14 @@ Stack: Vite + React + TypeScript + Tailwind, and Supabase (Auth, Postgres with R
 
 ## 2. Confirmation emails / WhatsApp (Edge Function)
 
-Create a [Resend](https://resend.com) account, verify `outreachrecruitment.eu`, then run:
+Create a [Resend](https://resend.com) account, verify `outreachstudy.eu`, then run:
 
 ```bash
 supabase secrets set \
   RESEND_API_KEY=re_xxx \
-  MAIL_FROM="Outreach Recruitment <hello@outreachrecruitment.eu>" \
+  MAIL_FROM="Outreach Recruitment <hello@outreachstudy.eu>" \
   ADMIN_NOTIFY_EMAIL=you@example.com \
-  APP_URL=https://consultation.outreachrecruitment.eu
+  APP_URL=https://consultation.outreachstudy.eu
 supabase functions deploy send-confirmation --no-verify-jwt
 ```
 
@@ -54,11 +54,11 @@ npm install
 npm run dev             # http://localhost:5173
 ```
 
-## 4. Deploy to consultation.outreachrecruitment.eu
+## 4. Deploy to consultation.outreachstudy.eu
 
 The app is a static site (`npm run build` → `dist/`). SPA rewrites are already included for Vercel (`vercel.json`) and Netlify (`public/_redirects`).
 
-**Vercel** (example): import the GitHub repo, set **Root Directory** to `consultation-app`, add the three `VITE_*` env vars, and deploy. Then go to Settings → Domains, add `consultation.outreachrecruitment.eu`, and create the DNS record Vercel shows you at your domain registrar (usually `CNAME consultation → cname.vercel-dns.com`).
+**Vercel** (example): import the GitHub repo, add the three `VITE_*` env vars, and deploy. Then go to Settings → Domains, add `consultation.outreachstudy.eu`, and create the DNS record Vercel shows you at your domain registrar (usually `CNAME consultation → cname.vercel-dns.com`).
 
 ## Test checklist
 

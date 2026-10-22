@@ -1,9 +1,9 @@
 # Outreach consultation app
 
-Booking app for consultation.outreachrecruitment.eu (Vite + React + Tailwind + Supabase). See README.md for setup.
+Booking app for consultation.outreachstudy.eu (Vite + React + Tailwind + Supabase). See README.md for setup.
 
 - GitHub: https://github.com/sbarakat-web/outreach-study-consultation (`main`)
-- Vercel deploys `main` automatically to consultation.outreachrecruitment.eu
+- Vercel deploys `main` automatically to consultation.outreachstudy.eu
 - Supabase project: `qkcdjqrtwzqflrrxdgqw` (project-scoped MCP server in `.mcp.json`)
 
 ## Ship every change automatically

@@ -57,7 +57,7 @@ export function Team() {
             <input
               type="email"
               required
-              placeholder="colleague@outreachrecruitment.eu"
+              placeholder="colleague@outreachstudy.eu"
               className="field"
               value={email}
               onChange={(e) => setEmail(e.target.value)}

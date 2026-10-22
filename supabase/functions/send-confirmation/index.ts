@@ -80,7 +80,7 @@ Deno.serve(async (req) => {
 
   const slot = Array.isArray(c.slots) ? c.slots[0] : c.slots;
   const when = slot ? formatSlot(slot.starts_at) : null;
-  const appUrl = env("APP_URL") || "https://consultation.outreachrecruitment.eu";
+  const appUrl = env("APP_URL") || "https://consultation.outreachstudy.eu";
   const name = escape(c.full_name.split(" ")[0]);
 
   const results: Record<string, string> = {};
