@@ -1,0 +1,33 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+  --color-navy: #172554;
+  --color-brand-red: #ef1b24;
+  --color-brand-violet: #4320ff;
+  --color-brand-blue: #3977d5;
+  --color-mist: #f4f7fb;
+}
+
+body {
+  @apply bg-mist text-navy antialiased;
+}
+
+.field {
+  @apply w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-navy outline-none transition placeholder:text-slate-400 focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/20;
+}
+
+.label {
+  @apply mb-1.5 block text-sm font-semibold text-navy;
+}
+
+@keyframes step-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+.step-in {
+  animation: step-in 0.25s ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .step-in { animation: none; }
+}
