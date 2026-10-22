@@ -1,6 +1,10 @@
-import { NavLink, Outlet } from "react-router-dom";
-import { BarChart3, CalendarDays, Presentation, Settings, Users, UsersRound } from "lucide-react";
-import { MobileTabBar, sideLinkClass, type TabItem } from "../../components/TabBar";
+import { useEffect, useState } from "react";
+import { Outlet, useNavigate } from "react-router-dom";
+import { BarChart3, Bell, CalendarDays, Presentation, Settings, Users, UsersRound } from "lucide-react";
+import type { TabItem } from "../../components/TabBar";
+import { AppShell, Fab } from "../../components/dash";
+import { supabase } from "../../lib/supabase";
+import { useAuth } from "../../lib/auth";
 import { AccountSettings } from "../Settings";
 
 const sidebar: TabItem[] = [
@@ -22,24 +26,43 @@ const tabs: TabItem[] = [
 ];
 
 export function AdminLayout() {
+  const { session, isAdmin, signOut } = useAuth();
+  const navigate = useNavigate();
+  const email = (session?.user.email ?? "").toLowerCase();
+  const [profile, setProfile] = useState<{ display_name: string | null; photo_url: string | null } | null>(null);
+  const [toConfirm, setToConfirm] = useState(0);
+
+  useEffect(() => {
+    supabase.from("staff_profiles").select("display_name, photo_url").eq("email", email).maybeSingle().then(({ data }) => setProfile(data));
+    // Requests not confirmed yet (bell badge → Calendar "To confirm")
+    supabase
+      .from("consultations")
+      .select("id", { count: "exact", head: true })
+      .eq("call_status", "requested")
+      .is("call_declined_at", null)
+      .then(({ count }) => setToConfirm(count ?? 0));
+  }, [email]);
+
+  const name = profile?.display_name || email.split("@")[0];
+
   return (
-    <div className="grid gap-6 pb-24 pt-2 md:grid-cols-[13rem_1fr] md:pb-0 md:pt-4">
-      <aside className="hidden md:sticky md:top-24 md:block md:self-start">
-        <nav aria-label="Admin" className="flex flex-col gap-1 rounded-2xl bg-white/60 p-1.5 ring-1 ring-slate-200">
-          {sidebar.map((t) => (
-            <NavLink key={t.to} to={t.to} end={t.end} className={sideLinkClass}>
-              <span className="flex items-center gap-2">
-                <t.icon className="h-4 w-4" /> {t.label}
-              </span>
-            </NavLink>
-          ))}
-        </nav>
-      </aside>
-      <div className="min-w-0">
-        <Outlet />
-      </div>
-      <MobileTabBar items={tabs} label="Admin" />
-    </div>
+    <AppShell
+      name={name}
+      photo={profile?.photo_url}
+      welcome={`Welcome, ${name}!`}
+      role={isAdmin ? "Admin" : "Presenter"}
+      items={sidebar}
+      mobileItems={tabs}
+      label="Admin"
+      signOutLabel="Log out"
+      onSignOut={async () => {
+        await signOut();
+        navigate("/");
+      }}
+      fab={<Fab to="/admin/calendar" label={`${toConfirm} call requests to confirm`} icon={Bell} badge={toConfirm} />}
+    >
+      <Outlet />
+    </AppShell>
   );
 }
 

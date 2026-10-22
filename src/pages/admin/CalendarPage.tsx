@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useState, type DragEvent } from "react
 import { Link, useSearchParams } from "react-router-dom";
 import {
   AlertTriangle,
+  CalendarCheck,
+  Clock,
   Check,
   ChevronLeft,
   ChevronRight,
@@ -18,6 +20,7 @@ import { useAuth } from "../../lib/auth";
 import { callStage, noReply24h } from "../../lib/options";
 import type { Consultation, Task } from "../../lib/types";
 import { Alert, Button, Card, Spinner } from "../../components/ui";
+import { MeetingCard, PageTitle, StatStrip } from "../../components/dash";
 import {
   confirmAndNotify,
   fillTab,
@@ -229,8 +232,17 @@ export function CalendarPage() {
 
   return (
     <div className="space-y-6">
+      <PageTitle>Calendar</PageTitle>
       {error && <Alert>{error}</Alert>}
       {flash && <Alert tone="success">{flash}</Alert>}
+
+      <StatStrip
+        items={[
+          { icon: Clock, label: "To confirm", value: toConfirm.filter((c) => !c.suggested_call_at).length, sub: "new requests", tone: "text-amber-500" },
+          { icon: Send, label: "Waiting for candidate", value: toConfirm.filter((c) => c.suggested_call_at).length, sub: "sent", tone: "text-sky-600" },
+          { icon: CalendarCheck, label: "Booked this week", value: events.filter((e) => e.kind === "booked" && new Date(e.at) >= week && new Date(e.at).getTime() < week.getTime() + 7 * DAY).length, sub: "calls", tone: "text-brand" },
+        ]}
+      />
 
       {/* Google connection */}
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-white px-5 py-3 text-sm shadow-sm ring-1 ring-slate-200">
@@ -316,7 +328,7 @@ export function CalendarPage() {
           {toConfirm.length === 0 ? (
             <p className="text-sm text-slate-500">No call requests waiting.</p>
           ) : (
-            <ul className="space-y-2">
+            <ul className="grid grid-cols-1 gap-1.5 sm:grid-cols-2 xl:grid-cols-3">
               {toConfirm.map((c) => (
                 <RequestRow
                   key={c.id}
@@ -512,44 +524,48 @@ function RequestRow({
   const waiting = !!c.suggested_call_at;
   const at = pendingAt(c)!;
   return (
-    <li className={`rounded-2xl border px-4 py-3 text-sm ${waiting ? "border-sky-200 bg-sky-50/50" : "border-slate-200"}`}>
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0">
-          <Link to={`/admin?lead=${c.id}`} className="font-black text-navy hover:text-brand">
-            {c.full_name}
-          </Link>
-          {c.session_outcome === "no_attendance" && <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-800">Rebook</span>}
-          {waiting && <span className="ml-2 rounded-full bg-sky-100 px-2 py-0.5 text-[11px] font-bold text-sky-800">Waiting for candidate</span>}
-          {noReply24h(c) && <span className="ml-2 rounded-full bg-brand-red/10 px-2 py-0.5 text-[11px] font-bold text-brand-red">No reply 24h+</span>}
-          <p className="text-xs text-slate-500">
-            {c.desired_course || "No course yet"} · {sourceOf(c)}
-          </p>
-          <p className="mt-1">
-            {waiting ? "Sent:" : "Asked for:"} <strong>{maltaTime(at)}</strong> <span className="text-xs text-slate-400">(Malta)</span>
-            {clash && (
-              <span className="ml-2 inline-flex items-center gap-1 rounded-full bg-brand-red/10 px-2 py-0.5 text-[11px] font-bold text-brand-red">
-                <AlertTriangle className="h-3 w-3" /> Clash / busy
-              </span>
-            )}
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-1.5">
-          {waiting ? (
-            <>
-              <Button variant="secondary" className="min-h-9 px-3" loading={busy} onClick={() => onSuggest(at)} title="Send the same time again">
-                <Send className="h-4 w-4" /> Resend
-              </Button>
-              <Button className="min-h-9 px-4" loading={busy} onClick={() => onConfirm(at)}>
-                {google ? "Mark confirmed + Meet" : "Mark confirmed"}
-              </Button>
-            </>
-          ) : (
-            <Button className="min-h-9 px-4" loading={busy} onClick={() => onSuggest(at)}>
-              <Send className="h-4 w-4" /> Send for confirmation
-            </Button>
+    <MeetingCard
+      name={c.full_name}
+      title={
+        <Link to={`/admin?lead=${c.id}`} className="hover:text-brand">
+          {c.full_name}
+        </Link>
+      }
+      subtitle={`${c.desired_course || "No course yet"} · ${sourceOf(c)}`}
+      time={
+        <>
+          <span className="text-xs text-slate-400">{waiting ? "Sent " : "Asked "}</span>
+          {maltaTime(at)}
+        </>
+      }
+      status={
+        <>
+          {waiting ? <span className="font-bold text-sky-700">Waiting for candidate</span> : <span className="font-bold text-amber-700">New request</span>}
+          {noReply24h(c) && <span className="font-bold text-brand-red">No reply 24h+</span>}
+          {c.session_outcome === "no_attendance" && <span className="font-bold text-amber-700">Rebook</span>}
+          {clash && (
+            <span className="inline-flex items-center gap-1 font-bold text-brand-red">
+              <AlertTriangle className="h-3 w-3" /> Clash / busy
+            </span>
           )}
-        </div>
-      </div>
-    </li>
+        </>
+      }
+      footer={
+        waiting ? (
+          <>
+            <button disabled={busy} onClick={() => onSuggest(at)} title="Send the same time again" className="hover:bg-slate-50 hover:text-brand disabled:opacity-50">
+              Resend
+            </button>
+            <button disabled={busy} onClick={() => onConfirm(at)} className="font-bold text-brand hover:bg-brand/5 disabled:opacity-50">
+              {google ? "Mark confirmed + Meet" : "Mark confirmed"}
+            </button>
+          </>
+        ) : (
+          <button disabled={busy} onClick={() => onSuggest(at)} className="inline-flex items-center justify-center gap-2 font-bold text-brand hover:bg-brand/5 disabled:opacity-50">
+            <Send className="h-4 w-4" /> Send for confirmation
+          </button>
+        )
+      }
+    />
   );
 }

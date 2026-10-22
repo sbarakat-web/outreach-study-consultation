@@ -33,3 +33,32 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .step-in { animation: none; }
 }
+
+/* ------------------------------------------------------------------ dashboard look
+   Signed-in areas (candidate dashboard + admin) use the "Boardash" dashboard style:
+   Lato, light-grey canvas, flat white cards with a soft shadow, squarer buttons.
+   Unlayered on purpose so it wins over the rounded utility classes inside the app. */
+.app-ui {
+  --dash-bg: #f5f6f8;
+  font-family: "Lato", ui-sans-serif, system-ui, sans-serif;
+  background: var(--dash-bg);
+}
+.app-ui .ui-card {
+  border: 0;
+  border-radius: 6px;
+  box-shadow: 0 2px 14px rgba(20, 18, 58, 0.06);
+}
+.app-ui .ui-card-bar {
+  display: none;
+}
+.app-ui .ui-btn {
+  border-radius: 6px;
+  box-shadow: none;
+}
+.app-ui .field {
+  border-radius: 6px;
+}
+.app-ui h1 {
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}

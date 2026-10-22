@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { CalendarCheck, FileText, MessageCircle, Play, Presentation, Search, Star, Video, X } from "lucide-react";
+import { CalendarCheck, CheckCircle2, Clock, FileText, MessageCircle, Play, Presentation, Search, Star, UsersRound, Video, X } from "lucide-react";
 import { supabase } from "../../lib/supabase";
 import {
   ENGLISH_LEVELS,
@@ -19,6 +19,7 @@ import { SessionPanel, sessionHref } from "./SessionPanel";
 import { LeadTasks } from "./LeadTasks";
 import type { Consultation, DocumentRow, Status } from "../../lib/types";
 import { Alert, Button, Card, Spinner, StatusBadge } from "../../components/ui";
+import { MeetingCard, PageTitle, StatStrip } from "../../components/dash";
 
 type Row = Consultation & { documents?: { count: number }[] };
 
@@ -26,9 +27,10 @@ type Row = Consultation & { documents?: { count: number }[] };
 export function Requests() {
   const [items, setItems] = useState<Row[] | null>(null);
   const [error, setError] = useState("");
-  const [query, setQuery] = useState("");
-  const [status, setStatus] = useState<Status | "">("");
   const [params] = useSearchParams();
+  const [query, setQuery] = useState(params.get("q") ?? "");
+  const [status, setStatus] = useState<Status | "">("");
+  useEffect(() => setQuery(params.get("q") ?? ""), [params]);
   const [openId, setOpenId] = useState<string | null>(params.get("lead"));
   const [view, setView] = useState(params.get("view"));
 
@@ -74,25 +76,72 @@ export function Requests() {
     <div className="space-y-6">
       {error && <Alert>{error}</Alert>}
 
+      <PageTitle
+        actions={
+          <Link to="/onlinesessions?present=1">
+            <Button variant="secondary">
+              <Presentation className="h-4 w-4" /> Online sessions
+            </Button>
+          </Link>
+        }
+      >
+        Leads
+      </PageTitle>
+
+      <StatStrip
+        items={[
+          {
+            icon: UsersRound,
+            label: "Leads",
+            value: items.length,
+            sub: `+${items.filter((c) => new Date(c.created_at) >= new Date(new Date().getFullYear(), new Date().getMonth(), 1)).length} this month`,
+            onClick: () => setView(null),
+          },
+          {
+            icon: Clock,
+            label: "To confirm",
+            value: items.filter((c) => ["requested", "reviewed", "suggested"].includes(callStage(c))).length,
+            sub: "call requests",
+            tone: "text-amber-500",
+          },
+          { icon: CalendarCheck, label: "Booked calls", value: items.filter(isBookedLead).length, sub: "confirmed", tone: "text-brand", onClick: () => setView("booked") },
+          { icon: CheckCircle2, label: "Interviewed", value: items.filter((c) => c.session_outcome === "interviewed").length, sub: "online sessions", tone: "text-emerald-600" },
+        ]}
+      />
+
       {upcoming.length > 0 && (
-        <Card>
-          <div className="px-5 py-5 sm:px-7">
-            <h2 className="mb-3 text-sm font-extrabold uppercase tracking-wider text-slate-500">Upcoming calls</h2>
-            <ul className="divide-y divide-slate-100">
-              {upcoming.map(({ c, at }) => (
-                <li key={c.id} className="flex items-center gap-2">
-                  <button onClick={() => setOpenId(c.id)} className="flex min-w-0 flex-1 items-center gap-3 py-2.5 text-left text-sm hover:text-brand">
-                    <CalendarCheck className="h-4 w-4 shrink-0 text-brand" />
-                    <span className="w-44 shrink-0 font-bold">{formatSlot(at)}</span>
-                    <span className="truncate">{c.full_name}</span>
+        <section className="space-y-3">
+          <h2 className="text-[15px] text-navy">Upcoming · {upcoming.length} calls</h2>
+          <ul className="grid grid-cols-1 gap-1.5 sm:grid-cols-2 xl:grid-cols-3">
+            {upcoming.map(({ c, at }) => (
+              <MeetingCard
+                key={c.id}
+                name={c.full_name}
+                title={c.full_name}
+                subtitle={c.email}
+                time={formatSlot(at)}
+                status={
+                  <>
+                    <span className="truncate text-brand">{c.desired_course || labelFor(STUDY_PATHS, c.study_path)}</span>
                     <CallBadge c={c} />
-                  </button>
-                  {isBookedLead(c) && <StartSessionLink c={c} />}
-                </li>
-              ))}
-            </ul>
-          </div>
-        </Card>
+                  </>
+                }
+                footer={
+                  <>
+                    <button onClick={() => setOpenId(c.id)} className="hover:bg-slate-50 hover:text-brand">
+                      View details
+                    </button>
+                    {isBookedLead(c) && (
+                      <Link to={sessionHref(c)} className="font-bold text-brand hover:bg-brand/5">
+                        Start session
+                      </Link>
+                    )}
+                  </>
+                }
+              />
+            ))}
+          </ul>
+        </section>
       )}
 
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -108,11 +157,6 @@ export function Requests() {
             Show booked appointments
           </button>
         )}
-        <Link to="/onlinesessions?present=1">
-          <Button variant="secondary">
-            <Presentation className="h-4 w-4" /> Online sessions
-          </Button>
-        </Link>
       </div>
 
       <div className="flex flex-col gap-3 sm:flex-row">

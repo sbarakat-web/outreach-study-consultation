@@ -20,7 +20,7 @@ export function Button({
 }: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: Variant; loading?: boolean }) {
   return (
     <button
-      className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-full px-6 text-sm font-extrabold transition outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 active:scale-[0.98] disabled:pointer-events-none disabled:opacity-50 ${variants[variant]} ${className}`}
+      className={`ui-btn inline-flex min-h-11 items-center justify-center gap-2 rounded-full px-6 text-sm font-extrabold transition outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 active:scale-[0.98] disabled:pointer-events-none disabled:opacity-50 ${variants[variant]} ${className}`}
       disabled={disabled || loading}
       {...props}
     >
@@ -33,9 +33,9 @@ export function Button({
 export function Card({ children, className = "" }: { children: ReactNode; className?: string }) {
   return (
     <section
-      className={`relative w-full overflow-hidden rounded-[2rem] border border-white/50 bg-white shadow-[0_28px_90px_rgba(3,12,40,0.12)] ${className}`}
+      className={`ui-card relative w-full overflow-hidden rounded-[2rem] border border-white/50 bg-white shadow-[0_28px_90px_rgba(3,12,40,0.12)] ${className}`}
     >
-      <div aria-hidden className="h-2 w-full bg-brand" />
+      <div aria-hidden className="ui-card-bar h-2 w-full bg-brand" />
       {children}
     </section>
   );

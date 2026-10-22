@@ -1,14 +1,15 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
-import { Link, NavLink, Outlet, useLocation, useOutletContext } from "react-router-dom";
+import { Link, Outlet, useLocation, useNavigate, useOutletContext } from "react-router-dom";
 import { AlertCircle, CalendarCheck, Camera, CheckCircle2, Circle, Clock, Copy, FileText, Gift, MessageCircle, Settings, Star, Trash2, Upload } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
-import { ENGLISH_LEVELS, STATUSES, STUDY_PATHS, documentTypesFor, formatSlot, labelFor, statusLabel, waLink, type DocumentType } from "../lib/options";
+import { ENGLISH_LEVELS, STATUSES, STUDY_PATHS, callStage, documentTypesFor, formatSlot, labelFor, statusLabel, waLink, whatsappNumber, type DocumentType } from "../lib/options";
 import { useI18n } from "../lib/i18n";
 import type { Consultation, DocumentRow } from "../lib/types";
 import { Alert, Button, Card, Spinner, StatusBadge } from "../components/ui";
 import { BookingCalendar } from "../components/BookingCalendar";
-import { MobileTabBar, sideLinkClass, type TabItem } from "../components/TabBar";
+import type { TabItem } from "../components/TabBar";
+import { AppShell, Fab, StatStrip } from "../components/dash";
 import { AccountSettings } from "./Settings";
 
 // Candidate-facing milestones (a subset of the CRM stages).
@@ -32,7 +33,8 @@ const requiredProgress = (c: Consultation, docs: DocumentRow[]) => {
 
 /** Candidate area: one application, with a sidebar for the call, documents and invites. */
 export function CandidateLayout() {
-  const { session } = useAuth();
+  const { session, signOut } = useAuth();
+  const navigate = useNavigate();
   const { t, lang } = useI18n();
   const userId = session!.user.id;
   const [c, setC] = useState<Consultation | null | undefined>(undefined);
@@ -101,26 +103,27 @@ export function CandidateLayout() {
     { to: "/dashboard/settings", label: t("side.settings"), icon: Settings },
   ];
 
+  const first = c.full_name.split(" ")[0];
   return (
-    <div className="grid gap-6 pb-24 pt-2 md:grid-cols-[13rem_1fr] md:pb-0 md:pt-4">
-      <aside className="hidden md:sticky md:top-24 md:block md:self-start">
-        <nav aria-label={t("side.label")} className="flex flex-col gap-1 rounded-2xl bg-white/60 p-1.5 ring-1 ring-slate-200">
-          {tabs.map((tab) => (
-            <NavLink key={tab.to} to={tab.to} end={tab.end} className={sideLinkClass}>
-              <span className="flex items-center gap-2">
-                <tab.icon className="h-4 w-4" /> {tab.label}
-              </span>
-              {tab.to === "/dashboard/documents" && docBadge}
-            </NavLink>
-          ))}
-        </nav>
-      </aside>
-      <div className="min-w-0 max-w-3xl space-y-6">
+    <AppShell
+      name={c.full_name}
+      welcome={t("side.welcome", { name: first })}
+      role={t("side.role")}
+      items={tabs.map((tab) => (tab.to === "/dashboard/documents" ? { ...tab, badge: docBadge } : tab))}
+      mobileItems={tabs}
+      label={t("side.label")}
+      signOutLabel={t("nav.signOut")}
+      onSignOut={async () => {
+        await signOut();
+        navigate("/");
+      }}
+      fab={whatsappNumber ? <Fab href={waLink(whatsappNumber)} label={t("side.help")} icon={MessageCircle} className="bg-[#25D366]" /> : undefined}
+    >
+      <div className="max-w-4xl space-y-6">
         {error && <Alert>{error}</Alert>}
         <Outlet context={{ c, docs: myDocs, reload, userId } satisfies CandidateContext} />
       </div>
-      <MobileTabBar items={tabs} label={t("side.label")} />
-    </div>
+    </AppShell>
   );
 }
 
@@ -138,8 +141,26 @@ export function CallPage() {
   const progress = requiredProgress(c, docs);
   const rejected = docs.filter((d) => d.review_status === "rejected").length;
 
+  const stage = callStage(c);
+  const callAt = stage === "confirmed" ? c.preferred_call_at : stage === "suggested" ? c.suggested_call_at : c.requested_call_times[0];
+
   return (
     <>
+      <StatStrip
+        items={[
+          {
+            icon: CalendarCheck,
+            label: t("stat.call"),
+            value: callAt ? formatSlot(callAt, { weekday: undefined, hour: undefined, minute: undefined }) : "—",
+            sub: callAt
+              ? `${formatSlot(callAt, { weekday: undefined, day: undefined, month: undefined })} · ${stage === "confirmed" ? t("tl.confirmed") : stage === "suggested" ? t("stat.waiting") : t("stat.requested")}`
+              : t("stat.notBooked"),
+            tone: stage === "confirmed" ? "text-emerald-600" : stage === "suggested" ? "text-brand" : undefined,
+          },
+          { icon: FileText, label: t("stat.docs"), value: `${progress.done}/${progress.total}`, sub: t("stat.uploaded"), tone: progress.done === progress.total ? "text-emerald-600" : undefined },
+          { icon: Star, label: t("stat.status"), value: <span className="text-lg sm:text-xl">{c.status === "new" ? t("status.received") : tv(statusLabel(c.status))}</span> },
+        ]}
+      />
       {justApplied && (
         <Alert tone="success">
           <span className="flex items-center gap-2">

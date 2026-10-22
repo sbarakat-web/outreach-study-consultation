@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
-import { Star } from "lucide-react";
+import { CheckCircle2, FileCheck2, Percent, Presentation, Star, UserX } from "lucide-react";
 import { supabase } from "../../lib/supabase";
 import type { Consultation } from "../../lib/types";
 import { Alert, Card, Spinner } from "../../components/ui";
+import { StatStrip } from "../../components/dash";
 
 type Row = Consultation & { documents?: { count: number }[] };
 
@@ -83,7 +84,7 @@ export function SessionsDashboard() {
     <div className="space-y-6">
       {error && <Alert>{error}</Alert>}
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-black">Online sessions</h1>
+        <h1 className="text-[28px] font-bold">Online sessions</h1>
         <div role="tablist" className="flex gap-1 rounded-full bg-white p-1 ring-1 ring-slate-200">
           {RANGES.map((r) => (
             <button
@@ -99,23 +100,16 @@ export function SessionsDashboard() {
         </div>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-6">
-        {[
-          ["Sessions", stats.total],
-          ["Interviewed", stats.interviewed],
-          ["No-shows", stats.noShow],
-          ["Show rate", stats.showRate],
-          ["Avg. rating", stats.rating],
-          ["Applications", stats.applied],
-        ].map(([label, value]) => (
-          <Card key={label as string}>
-            <div className="px-4 py-4">
-              <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">{label}</p>
-              <p className="mt-1 text-2xl font-black text-navy">{value}</p>
-            </div>
-          </Card>
-        ))}
-      </div>
+      <StatStrip
+        items={[
+          { icon: Presentation, label: "Sessions", value: stats.total, tone: "text-brand" },
+          { icon: CheckCircle2, label: "Interviewed", value: stats.interviewed, tone: "text-emerald-600" },
+          { icon: UserX, label: "No-shows", value: stats.noShow, tone: "text-brand-red" },
+          { icon: Percent, label: "Show rate", value: stats.showRate },
+          { icon: Star, label: "Avg. rating", value: stats.rating, tone: "text-amber-500" },
+          { icon: FileCheck2, label: "Applications", value: stats.applied },
+        ]}
+      />
 
       <Card>
         <div className="space-y-3 px-5 py-5 sm:px-7">
