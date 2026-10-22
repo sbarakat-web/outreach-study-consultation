@@ -311,7 +311,7 @@ function SetPassword() {
     <div className="rounded-2xl border border-slate-200 bg-white px-5 py-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="flex items-center gap-2 text-sm text-slate-600">
-          <KeyRound className="h-4 w-4 text-slate-400" /> You sign in with a code sent by email. A password is optional.
+          <KeyRound className="h-4 w-4 text-slate-400" /> You sign in with a link sent by email. A password is optional.
         </p>
         {!open && (
           <Button variant="ghost" onClick={() => setOpen(true)}>

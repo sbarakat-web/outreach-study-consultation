@@ -108,7 +108,7 @@ Deno.serve(async (req) => {
         ${when ? `<p><strong>Your free call:</strong> ${escape(when)}</p>` : ""}
         <p>In your personal dashboard you can book a free call and upload your documents:</p>
         <p><a href="${appUrl}/login" style="display:inline-block;background:#172554;color:#fff;padding:12px 22px;border-radius:999px;text-decoration:none;font-weight:bold">Open my dashboard</a></p>
-        <p style="color:#64748b;font-size:13px">Sign in with this email address — we'll send you a code, no password needed.</p>
+        <p style="color:#64748b;font-size:13px">Sign in with this email address — we'll email you a sign-in link, no password needed.</p>
         <p>— The Outreach team</p>
       </div>`,
     );

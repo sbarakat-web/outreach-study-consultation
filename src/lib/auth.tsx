@@ -20,15 +20,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => setSession(data.session));
+    // getSession() also finishes signing in from a magic-link redirect before we decide anything.
+    supabase.auth.getSession().then(({ data }) => {
+      setSession(data.session);
+      setReady(true);
+    });
     const { data } = supabase.auth.onAuthStateChange((_event, s) => setSession(s));
     return () => data.subscription.unsubscribe();
   }, []);
 
   const userId = session?.user.id;
   useEffect(() => {
+    if (!ready) return;
     if (!userId) {
       setIsAdmin(false);
       setLoading(false);
@@ -39,7 +45,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setIsAdmin(data === true);
       setLoading(false);
     });
-  }, [userId]);
+  }, [userId, ready]);
 
   const signOut = async () => {
     await supabase.auth.signOut();

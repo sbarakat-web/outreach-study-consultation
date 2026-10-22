@@ -355,7 +355,7 @@ export function Apply() {
                   />
                 </Field>
                 <div className="rounded-xl bg-brand-blue/5 p-3 text-xs leading-relaxed text-navy">
-                  <strong>What happens next?</strong> Your application is saved straight away. We’ll email you a code to open your
+                  <strong>What happens next?</strong> Your application is saved straight away. We’ll email you a sign-in link to open your
                   personal dashboard, where you can book a free call and upload documents. No password needed.
                 </div>
                 <label className="flex items-start gap-3 text-sm text-slate-600">
