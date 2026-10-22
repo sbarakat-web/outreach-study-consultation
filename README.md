@@ -29,7 +29,8 @@ Stack: Vite + React + TypeScript + Tailwind, and Supabase (Auth, Postgres with R
    insert into public.admins (email) values ('you@example.com');
    ```
    Then create an account at `/login` with that email and confirm it. Add other admins from `/admin/team`.
-5. Optional: set Supabase Auth to send email through your own SMTP (Auth → SMTP) so that sign-up emails come from your domain.
+5. **Email sign-in code.** Candidates sign in with a one-time code instead of a password. In **Auth → Email Templates**, add `{{ .Token }}` to both the **Magic Link** and **Confirm signup** templates, for example: `<p>Your code: <strong>{{ .Token }}</strong></p>`. The link in the email keeps working as well.
+6. Optional: set Supabase Auth to send email through your own SMTP (Auth → SMTP) so that sign-up emails come from your domain.
 
 ## 2. Confirmation emails / WhatsApp (Edge Function)
 
@@ -59,6 +60,10 @@ npm run dev             # http://localhost:5173
 The app is a static site (`npm run build` → `dist/`). SPA rewrites are already included for Vercel (`vercel.json`) and Netlify (`public/_redirects`).
 
 **Vercel** (example): import the GitHub repo, add the three `VITE_*` env vars, and deploy. Then go to Settings → Domains, add `consultation.outreachstudy.eu`, and create the DNS record Vercel shows you at your domain registrar (usually `CNAME consultation → cname.vercel-dns.com`).
+
+## Pre-filled links
+
+`?path=english` or `?path=b2` skips the first question; `&course=IT` (also `business`, `accountancy`, `health`, `logistics`, `tourism`) preselects the programme. UTM parameters are saved with each application.
 
 ## Test checklist
 

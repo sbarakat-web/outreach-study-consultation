@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { CalendarCheck, CheckCircle2, FileText, Plus, Upload } from "lucide-react";
+import { CalendarCheck, CheckCircle2, FileText, KeyRound, Plus, Upload } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
 import { ENGLISH_LEVELS, STATUSES, STUDY_PATHS, formatSlot, labelFor, statusLabel } from "../lib/options";
@@ -68,6 +68,7 @@ export function Dashboard() {
       {items.map((c) => (
         <RequestCard key={c.id} c={c} docs={docs.filter((d) => d.consultation_id === c.id)} onChange={load} userId={session!.user.id} />
       ))}
+      <SetPassword />
     </div>
   );
 }
@@ -281,6 +282,62 @@ function CallBooking({ c, slot, onBooked }: { c: Consultation; slot: ReturnType<
           <Button variant="ghost" onClick={() => setOpen(false)}>
             Cancel
           </Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Optional: candidates sign in with an email code, but can add a password for faster sign-in.
+function SetPassword() {
+  const [open, setOpen] = useState(false);
+  const [password, setPassword] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState<{ tone: "error" | "success"; text: string } | null>(null);
+
+  const save = async (e: FormEvent) => {
+    e.preventDefault();
+    if (password.length < 8) return setMsg({ tone: "error", text: "Your password needs at least 8 characters." });
+    setSaving(true);
+    const { error } = await supabase.auth.updateUser({ password });
+    setSaving(false);
+    if (error) return setMsg({ tone: "error", text: error.message });
+    setMsg({ tone: "success", text: "Password saved. You can now sign in with your email and password." });
+    setPassword("");
+    setOpen(false);
+  };
+
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white px-5 py-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="flex items-center gap-2 text-sm text-slate-600">
+          <KeyRound className="h-4 w-4 text-slate-400" /> You sign in with a code sent by email. A password is optional.
+        </p>
+        {!open && (
+          <Button variant="ghost" onClick={() => setOpen(true)}>
+            Set a password
+          </Button>
+        )}
+      </div>
+      {open && (
+        <form onSubmit={save} className="mt-3 flex flex-col gap-2 sm:flex-row">
+          <input
+            type="password"
+            aria-label="New password"
+            autoComplete="new-password"
+            placeholder="At least 8 characters"
+            className="field"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+          />
+          <Button type="submit" loading={saving}>
+            Save
+          </Button>
+        </form>
+      )}
+      {msg && (
+        <div className="mt-3">
+          <Alert tone={msg.tone}>{msg.text}</Alert>
         </div>
       )}
     </div>

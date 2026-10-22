@@ -1,9 +1,10 @@
-// Sends the booking confirmation (candidate) and a new-request alert (admin).
+// Sends the application confirmation (candidate) and an instant new-lead alert (admin)
+// with a one-tap WhatsApp reply.
 // Called by the app right after book_consultation(). Each request is confirmed
 // at most once and only within 15 minutes of creation, so the public endpoint
 // can't be used to re-send mail for old requests.
 //
-// Secrets: RESEND_API_KEY, MAIL_FROM, ADMIN_NOTIFY_EMAIL, APP_URL
+// Secrets: RESEND_API_KEY (required for email); optional overrides MAIL_FROM, ADMIN_NOTIFY_EMAIL, APP_URL
 // Optional WhatsApp (Twilio): TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_WHATSAPP_FROM
 import { createClient } from "npm:@supabase/supabase-js@2.45.4";
 
@@ -13,6 +14,13 @@ const cors = {
 };
 
 const env = (k: string) => Deno.env.get(k) ?? "";
+
+const DEFAULTS: Record<string, string> = {
+  MAIL_FROM: "Outreach <hello@outreachstudy.eu>",
+  ADMIN_NOTIFY_EMAIL: "sbarakat@outreachrecruitment.net",
+  APP_URL: "https://consultation.outreachstudy.eu",
+};
+const setting = (k: string) => env(k) || DEFAULTS[k] || "";
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { ...cors, "Content-Type": "application/json" } });
@@ -32,7 +40,7 @@ async function sendEmail(to: string, subject: string, html: string) {
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: { Authorization: `Bearer ${env("RESEND_API_KEY")}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ from: env("MAIL_FROM"), to, subject, html }),
+    body: JSON.stringify({ from: setting("MAIL_FROM"), to, subject, html }),
   });
   if (!res.ok) throw new Error(`Resend ${res.status}: ${await res.text()}`);
 }
@@ -80,24 +88,28 @@ Deno.serve(async (req) => {
 
   const slot = Array.isArray(c.slots) ? c.slots[0] : c.slots;
   const when = slot ? formatSlot(slot.starts_at) : null;
-  const appUrl = env("APP_URL") || "https://consultation.outreachstudy.eu";
-  const name = escape(c.full_name.split(" ")[0]);
+  const appUrl = setting("APP_URL");
+  const first = c.full_name.split(" ")[0];
+  const course = c.desired_course || "your studies";
+  const level = c.english_level === "b2_plus" ? "B2 or above" : c.english_level === "below_b2" ? "Below B2" : c.english_level;
+  const tracking = c.tracking ?? {};
+  const source = [tracking.utm_source, tracking.utm_medium, tracking.utm_campaign].filter(Boolean).join(" / ") || tracking.referrer || "direct";
 
   const results: Record<string, string> = {};
+  if (!env("RESEND_API_KEY")) return json({ ok: true, results: { email: "not-configured" } });
 
   try {
     await sendEmail(
       c.email,
-      when ? "Your free consultation is booked" : "We received your consultation request",
-      `<div style="font-family:Arial,sans-serif;color:#172554;line-height:1.5">
-        <h2>Hi ${name},</h2>
-        <p>Thank you for your request with Outreach Recruitment.</p>
-        ${when
-          ? `<p><strong>Your consultation:</strong> ${escape(when)}</p><p>We'll contact you on WhatsApp or by email at that time.</p>`
-          : `<p>An advisor will contact you shortly to agree on a time.</p>`}
-        <p>You can follow your request and upload documents here:<br>
-        <a href="${appUrl}/dashboard">${appUrl}/dashboard</a></p>
-        <p>— The Outreach Recruitment team</p>
+      `Your application for ${course} is received`,
+      `<div style="font-family:Arial,sans-serif;color:#172554;line-height:1.5;max-width:560px">
+        <h2>Hi ${escape(first)},</h2>
+        <p>Thank you! Your application for <strong>${escape(course)}</strong> is saved, and an advisor will contact you soon on WhatsApp or by email.</p>
+        ${when ? `<p><strong>Your free call:</strong> ${escape(when)}</p>` : ""}
+        <p>In your personal dashboard you can book a free call and upload your documents:</p>
+        <p><a href="${appUrl}/login" style="display:inline-block;background:#172554;color:#fff;padding:12px 22px;border-radius:999px;text-decoration:none;font-weight:bold">Open my dashboard</a></p>
+        <p style="color:#64748b;font-size:13px">Sign in with this email address — we'll send you a code, no password needed.</p>
+        <p>— The Outreach team</p>
       </div>`,
     );
     results.email = "sent";
@@ -105,22 +117,30 @@ Deno.serve(async (req) => {
     results.email = String(e);
   }
 
-  if (env("ADMIN_NOTIFY_EMAIL")) {
-    try {
-      await sendEmail(
-        env("ADMIN_NOTIFY_EMAIL"),
-        `New consultation: ${c.full_name}${when ? " — " + when : ""}`,
-        `<div style="font-family:Arial,sans-serif">
-          <p><strong>${escape(c.full_name)}</strong> (${escape(c.email)}, ${escape(c.whatsapp ?? "no WhatsApp")})</p>
-          <p>${escape([c.study_path, c.english_level, c.country].filter(Boolean).join(" · "))}</p>
-          <p>${when ? "Slot: " + escape(when) : "No slot chosen"}</p>
-          <p><a href="${appUrl}/admin">Open admin</a></p>
-        </div>`,
-      );
-      results.admin = "sent";
-    } catch (e) {
-      results.admin = String(e);
-    }
+  try {
+    const digits = (c.whatsapp ?? "").replace(/\D/g, "");
+    const reply = `Hi ${first}, this is Outreach about your application for ${course}. When is a good time for a short call?`;
+    const row = (k: string, v: string | null | undefined) =>
+      v ? `<tr><td style="padding:4px 12px 4px 0;color:#64748b">${k}</td><td style="padding:4px 0"><strong>${escape(v)}</strong></td></tr>` : "";
+    await sendEmail(
+      setting("ADMIN_NOTIFY_EMAIL"),
+      `New lead: ${c.full_name} — ${course}${c.start_date ? " (" + c.start_date + ")" : ""}`,
+      `<div style="font-family:Arial,sans-serif;color:#172554;line-height:1.5;max-width:560px">
+        <h2 style="margin-bottom:4px">New application</h2>
+        <table style="border-collapse:collapse;font-size:14px">
+          ${row("Name", c.full_name)}${row("Course", course)}${row("English", level)}${row("Start", c.start_date)}
+          ${row("Country", c.country)}${row("WhatsApp", c.whatsapp)}${row("Email", c.email)}${row("Call", when)}
+          ${row("Notes", c.message)}${row("Source", source)}
+        </table>
+        <p style="margin-top:20px">
+          ${digits ? `<a href="https://wa.me/${digits}?text=${encodeURIComponent(reply)}" style="display:inline-block;background:#25D366;color:#fff;padding:12px 22px;border-radius:999px;text-decoration:none;font-weight:bold">Reply on WhatsApp</a>&nbsp;` : ""}
+          <a href="${appUrl}/admin" style="display:inline-block;background:#172554;color:#fff;padding:12px 22px;border-radius:999px;text-decoration:none;font-weight:bold">Open admin</a>
+        </p>
+      </div>`,
+    );
+    results.admin = "sent";
+  } catch (e) {
+    results.admin = String(e);
   }
 
   if (c.whatsapp) {
@@ -128,8 +148,8 @@ Deno.serve(async (req) => {
       await sendWhatsApp(
         c.whatsapp,
         when
-          ? `Hi ${c.full_name.split(" ")[0]}, your free consultation with Outreach Recruitment is booked for ${when}.`
-          : `Hi ${c.full_name.split(" ")[0]}, thanks for your request! An Outreach Recruitment advisor will contact you shortly.`,
+          ? `Hi ${c.full_name.split(" ")[0]}, your free call with Outreach is booked for ${when}.`
+          : `Hi ${c.full_name.split(" ")[0]}, thanks for your request! An Outreach advisor will contact you shortly.`,
       );
       results.whatsapp = "sent-or-not-configured";
     } catch (e) {

@@ -1,145 +1,199 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { ArrowLeft, ArrowRight, BookOpen, GraduationCap, MailCheck, Send } from "lucide-react";
+import { ArrowLeft, ArrowRight, BookOpen, CheckCircle2, GraduationCap, MessageCircle, Send } from "lucide-react";
+import { parsePhoneNumberFromString, type CountryCode } from "libphonenumber-js/max";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
 import { getTracking } from "../lib/tracking";
-import { COUNTRIES, countryByCode, detectCountry } from "../lib/countries";
-import { PROGRAMMES } from "../lib/options";
+import { COUNTRIES, countryByCode, detectCountry, fetchGeoCountry } from "../lib/countries";
+import { PROGRAMMES, START_OPTIONS, parseCourseParam, parsePathParam, waLink, whatsappNumber } from "../lib/options";
 import { Alert, Button, Card } from "../components/ui";
+import { EmailCode } from "../components/EmailCode";
 
 type Path = "english" | "higher_education";
-type Stage = "choose" | "form" | "password" | "check_email";
+type Stage = "choose" | "form" | "done";
 
-const STEPS = ["English level", "Your details", "Password"];
+interface Draft {
+  stage: Stage;
+  path: Path;
+  name: string;
+  email: string;
+  country: string;
+  dialCountry: string;
+  phone: string;
+  course: string;
+  start: string;
+  notes: string;
+  countryTouched: boolean;
+}
+
+const DRAFT_KEY = "apply_draft_v1";
+
+function loadDraft(): Partial<Draft> {
+  try {
+    return JSON.parse(localStorage.getItem(DRAFT_KEY) ?? "{}");
+  } catch {
+    return {};
+  }
+}
+
+// Initial state: saved draft, then pre-filled link (?path=b2&course=IT) on top.
+function initialDraft(): Draft {
+  const saved = loadDraft();
+  const country = saved.country ?? detectCountry();
+  const d: Draft = {
+    stage: saved.stage === "form" ? "form" : "choose",
+    path: saved.path ?? "english",
+    name: saved.name ?? "",
+    email: saved.email ?? "",
+    country,
+    dialCountry: saved.dialCountry ?? country,
+    phone: saved.phone ?? "",
+    course: saved.course ?? "",
+    start: saved.start ?? "",
+    notes: saved.notes ?? "",
+    countryTouched: saved.countryTouched ?? false,
+  };
+  const params = new URLSearchParams(window.location.search);
+  const course = parseCourseParam(params.get("course"));
+  const path = parsePathParam(params.get("path")) ?? (course ? "higher_education" : undefined);
+  if (path) {
+    d.path = path;
+    d.stage = "form";
+    d.course = path === "english" ? "English Course" : course ?? (PROGRAMMES.includes(d.course) ? d.course : "");
+  }
+  return d;
+}
 
 export function Apply() {
   const { session } = useAuth();
   const navigate = useNavigate();
-  const [stage, setStage] = useState<Stage>("choose");
-  const [path, setPath] = useState<Path>("english");
+  const [d, setD] = useState<Draft>(initialDraft);
+  const [phoneTouched, setPhoneTouched] = useState(false);
+  const [consent, setConsent] = useState(false);
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const geoDone = useRef(false);
 
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [country, setCountry] = useState(detectCountry);
-  const [dialCountry, setDialCountry] = useState(country);
-  const [phone, setPhone] = useState("");
-  const [course, setCourse] = useState("");
-  const [notes, setNotes] = useState("");
-  const [password, setPassword] = useState("");
-  const [consent, setConsent] = useState(false);
+  const set = <K extends keyof Draft>(k: K, v: Draft[K]) => setD((x) => ({ ...x, [k]: v }));
+
+  // Autosave everything except the finished state.
+  useEffect(() => {
+    if (d.stage === "done") return;
+    try {
+      localStorage.setItem(DRAFT_KEY, JSON.stringify(d));
+    } catch {
+      // storage unavailable — autosave is best-effort
+    }
+  }, [d]);
+
+  // Replace the time-zone guess with Vercel's IP country, unless the user already chose one.
+  useEffect(() => {
+    if (geoDone.current || d.countryTouched) return;
+    geoDone.current = true;
+    fetchGeoCountry().then((code) => {
+      if (!code) return;
+      setD((x) => (x.countryTouched ? x : { ...x, country: code, dialCountry: x.phone ? x.dialCountry : code }));
+    });
+  }, [d.countryTouched]);
 
   const sessionEmail = session?.user.email ?? "";
   useEffect(() => {
-    if (sessionEmail) setEmail((e) => e || sessionEmail);
+    if (sessionEmail) setD((x) => (x.email ? x : { ...x, email: sessionEmail }));
   }, [sessionEmail]);
 
-  const go = (s: Stage) => {
+  const phoneCheck = useMemo(() => {
+    const raw = d.phone.trim();
+    if (!raw) return null;
+    const parsed = parsePhoneNumberFromString(raw, d.dialCountry as CountryCode);
+    return parsed?.isValid() ? parsed : false;
+  }, [d.phone, d.dialCountry]);
+
+  const go = (stage: Stage) => {
     setError("");
-    setStage(s);
+    set("stage", stage);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  const choose = (p: Path) => {
-    setPath(p);
-    setCourse(p === "english" ? "English Course" : "");
+  const choose = (path: Path) => {
+    setD((x) => ({
+      ...x,
+      path,
+      course: path === "english" ? "English Course" : PROGRAMMES.includes(x.course) ? x.course : "",
+    }));
     go("form");
   };
 
-  const changeCountry = (code: string) => {
-    // Keep the dial code in step with the country unless the user picked a different one.
-    if (dialCountry === country) setDialCountry(code);
-    setCountry(code);
-  };
+  const changeCountry = (code: string) =>
+    setD((x) => ({
+      ...x,
+      country: code,
+      countryTouched: true,
+      // Keep the dial code in step with the country unless the user picked a different one.
+      dialCountry: x.dialCountry === x.country ? code : x.dialCountry,
+    }));
 
-  const submitDetails = (e: FormEvent) => {
+  const submit = async (e: FormEvent) => {
     e.preventDefault();
-    if (!course) return setError("Please choose a programme.");
-    if (phone.replace(/\D/g, "").length < 6) return setError("Please enter a valid WhatsApp number.");
-    if (session) return createApplication();
-    go("password");
-  };
-
-  const createApplication = async (e?: FormEvent) => {
-    e?.preventDefault();
+    setPhoneTouched(true);
+    if (!d.course) return setError("Please choose a programme.");
+    if (!phoneCheck) return setError(`Please enter a valid WhatsApp number for ${countryByCode(d.dialCountry)?.name ?? "the selected country"}.`);
     if (!consent) return setError("Please accept so we can contact you about your application.");
     setError("");
     setSubmitting(true);
+    const { data: id, error } = await supabase.rpc("book_consultation", {
+      p_full_name: d.name,
+      p_email: d.email,
+      p_whatsapp: phoneCheck.formatInternational(),
+      p_country: countryByCode(d.country)?.name ?? d.country,
+      p_age: null,
+      p_study_path: d.path,
+      p_english_level: d.path === "english" ? "below_b2" : "b2_plus",
+      p_desired_course: d.course,
+      p_start_date: d.start || null,
+      p_budget: null,
+      p_visa_support: null,
+      p_preferred_contact_time: null,
+      p_message: d.notes,
+      p_slot_id: null,
+      p_tracking: getTracking(),
+    });
+    setSubmitting(false);
+    if (error) return setError(error.message.includes("INVALID_INPUT") ? "Please check your name and email." : error.message);
+
+    // Confirmation + admin alert are best-effort; the application is already saved.
+    supabase.functions.invoke("send-confirmation", { body: { consultation_id: id } }).catch(() => {});
     try {
-      let signedIn = !!session;
-      if (!session) {
-        if (password.length < 8) throw new Error("Your password needs at least 8 characters.");
-        const { data, error } = await supabase.auth.signUp({
-          email: email.trim(),
-          password,
-          options: { emailRedirectTo: `${window.location.origin}/dashboard`, data: { full_name: name } },
-        });
-        if (error) throw error;
-        if (data.user && data.user.identities?.length === 0) {
-          throw new Error("An account with this email already exists. Please open your dashboard and sign in.");
-        }
-        signedIn = !!data.session;
-      }
-
-      const dial = countryByCode(dialCountry)?.dial ?? "";
-      const { data: id, error } = await supabase.rpc("book_consultation", {
-        p_full_name: name,
-        p_email: email,
-        p_whatsapp: `+${dial} ${phone.trim()}`,
-        p_country: countryByCode(country)?.name ?? country,
-        p_age: null,
-        p_study_path: path,
-        p_english_level: path === "english" ? "below_b2" : "b2_plus",
-        p_desired_course: course,
-        p_start_date: null,
-        p_budget: null,
-        p_visa_support: null,
-        p_preferred_contact_time: null,
-        p_message: notes,
-        p_slot_id: null,
-        p_tracking: getTracking(),
-      });
-      if (error) throw error;
-
-      // Confirmation email is best-effort; the application is already saved.
-      supabase.functions.invoke("send-confirmation", { body: { consultation_id: id } }).catch(() => {});
-
-      if (signedIn) navigate("/dashboard", { state: { justApplied: true } });
-      else go("check_email");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong. Please try again.");
-    } finally {
-      setSubmitting(false);
+      localStorage.removeItem(DRAFT_KEY);
+    } catch {
+      // ignore
     }
+    if (session) navigate("/dashboard", { state: { justApplied: true } });
+    else go("done");
   };
 
-  if (stage === "check_email") return <CheckEmail email={email} />;
+  if (d.stage === "done") {
+    return <Done name={d.name.split(" ")[0]} email={d.email.trim()} course={d.course} onSignedIn={() => navigate("/dashboard", { state: { justApplied: true } })} />;
+  }
 
-  const stepIndex = stage === "choose" ? 0 : stage === "form" ? 1 : 2;
-  const steps = session ? STEPS.slice(0, 2) : STEPS;
+  const stepIndex = d.stage === "choose" ? 0 : 1;
 
   return (
     <div className="mx-auto max-w-3xl pt-2 sm:pt-4">
       <Card>
         <div className="px-5 pb-8 pt-6 sm:px-9 sm:pb-9 sm:pt-8">
           <div className="mb-7 text-center">
-            <p className="text-xs font-extrabold uppercase tracking-[0.2em] text-brand-blue">
-              Step {stepIndex + 1} of {steps.length}
-            </p>
+            <p className="text-xs font-extrabold uppercase tracking-[0.2em] text-brand-blue">Step {stepIndex + 1} of 2</p>
             <h1 className="mt-2 text-2xl font-black leading-tight sm:text-3xl">
-              {stage === "choose" ? "Choose your English path" : stage === "form" ? "Tell us about you" : "Create your password"}
+              {d.stage === "choose" ? "Choose your English path" : "Tell us about you"}
             </h1>
             <p className="mx-auto mt-2 max-w-xl text-sm text-slate-500">
-              {stage === "choose"
+              {d.stage === "choose"
                 ? "Select one option and we’ll open the correct application form immediately."
-                : stage === "form"
-                  ? "It only takes a minute. Our team will guide you from here."
-                  : "You’ll use it to open your personal dashboard anytime."}
+                : "It only takes a minute. Our team will guide you from here."}
             </p>
-            <ol className={`mx-auto mt-5 grid max-w-sm gap-2 ${steps.length === 3 ? "grid-cols-3" : "grid-cols-2"}`}>
-              {steps.map((label, i) => (
+            <ol className="mx-auto mt-5 grid max-w-xs grid-cols-2 gap-2">
+              {["English level", "Your details"].map((label, i) => (
                 <li key={label} className="space-y-1">
                   <span className={`block h-1.5 rounded-full transition-colors ${i <= stepIndex ? "bg-navy" : "bg-slate-200"}`} />
                   <span
@@ -153,8 +207,8 @@ export function Apply() {
             </ol>
           </div>
 
-          <div key={stage} className="step-in min-h-[300px]">
-            {stage === "choose" && (
+          <div key={d.stage} className="step-in min-h-[300px]">
+            {d.stage === "choose" && (
               <div className="space-y-4">
                 <div className="rounded-2xl bg-mist p-5 text-center sm:p-6">
                   <span className="inline-grid h-12 w-12 place-items-center rounded-full bg-brand-violet text-lg font-black text-white">B2</span>
@@ -182,16 +236,16 @@ export function Apply() {
               </div>
             )}
 
-            {stage === "form" && (
-              <form onSubmit={submitDetails} className="space-y-4">
-                {path === "higher_education" && (
+            {d.stage === "form" && (
+              <form onSubmit={submit} className="space-y-4">
+                {d.path === "higher_education" && (
                   <div className="rounded-xl border border-brand-violet/20 bg-brand-violet/5 p-4 text-sm font-medium leading-relaxed sm:text-base">
                     You already have the required English level — these are the programmes we offer.
                   </div>
                 )}
                 <div className="grid gap-4 sm:grid-cols-2">
                   <Field label="Full name *" id="name">
-                    <input id="name" required autoComplete="name" className="field" value={name} onChange={(e) => setName(e.target.value)} />
+                    <input id="name" required autoComplete="name" className="field" value={d.name} onChange={(e) => set("name", e.target.value)} />
                   </Field>
                   <Field label="Email *" id="email">
                     <input
@@ -201,12 +255,12 @@ export function Apply() {
                       autoComplete="email"
                       readOnly={!!session}
                       className="field"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
+                      value={d.email}
+                      onChange={(e) => set("email", e.target.value)}
                     />
                   </Field>
                   <Field label="Country *" id="country" hint="Detected automatically. Type a country name to change it.">
-                    <select id="country" required className="field" value={country} onChange={(e) => changeCountry(e.target.value)}>
+                    <select id="country" required className="field" value={d.country} onChange={(e) => changeCountry(e.target.value)}>
                       {COUNTRIES.map((c) => (
                         <option key={c.code} value={c.code}>
                           {c.flag} {c.name}
@@ -214,13 +268,13 @@ export function Apply() {
                       ))}
                     </select>
                   </Field>
-                  <Field label="WhatsApp number *" id="phone" hint="Choose the code if your number is from another country.">
+                  <Field label="WhatsApp number *" id="phone">
                     <div className="flex gap-2">
                       <select
                         aria-label="Country code"
                         className="field w-28 shrink-0 px-2"
-                        value={dialCountry}
-                        onChange={(e) => setDialCountry(e.target.value)}
+                        value={d.dialCountry}
+                        onChange={(e) => set("dialCountry", e.target.value)}
                       >
                         {COUNTRIES.map((c) => (
                           <option key={c.code} value={c.code}>
@@ -234,19 +288,35 @@ export function Apply() {
                         required
                         inputMode="tel"
                         autoComplete="tel-national"
-                        placeholder="1234 5678"
-                        className="field"
-                        value={phone}
-                        onChange={(e) => setPhone(e.target.value)}
+                        placeholder="Your number"
+                        aria-invalid={phoneTouched && phoneCheck === false}
+                        aria-describedby="phone-hint"
+                        className={`field ${phoneCheck ? "border-emerald-400" : phoneTouched && phoneCheck === false ? "border-brand-red" : ""}`}
+                        value={d.phone}
+                        onChange={(e) => set("phone", e.target.value)}
+                        onBlur={() => setPhoneTouched(true)}
                       />
                     </div>
+                    <p id="phone-hint" className="mt-1.5 text-xs">
+                      {phoneCheck ? (
+                        <span className="inline-flex items-center gap-1 font-semibold text-emerald-700">
+                          <CheckCircle2 className="h-3.5 w-3.5" /> {phoneCheck.formatInternational()}
+                        </span>
+                      ) : phoneTouched && phoneCheck === false ? (
+                        <span className="font-semibold text-brand-red">
+                          This doesn’t look like a valid {countryByCode(d.dialCountry)?.name} number. Check the code and number.
+                        </span>
+                      ) : (
+                        <span className="text-slate-500">Choose the code if your number is from another country.</span>
+                      )}
+                    </p>
                   </Field>
                 </div>
                 <Field label="Course *" id="course">
-                  {path === "english" ? (
-                    <input id="course" readOnly className="field bg-mist font-bold text-brand-blue" value={course} />
+                  {d.path === "english" ? (
+                    <input id="course" readOnly className="field bg-mist font-bold text-brand-blue" value={d.course} />
                   ) : (
-                    <select id="course" required className="field" value={course} onChange={(e) => setCourse(e.target.value)}>
+                    <select id="course" required className="field" value={d.course} onChange={(e) => set("course", e.target.value)}>
                       <option value="">Select a programme</option>
                       {PROGRAMMES.map((p) => (
                         <option key={p}>{p}</option>
@@ -254,21 +324,44 @@ export function Apply() {
                     </select>
                   )}
                 </Field>
+                <fieldset>
+                  <legend className="label">
+                    When do you want to start? <span className="font-normal text-slate-400">(optional)</span>
+                  </legend>
+                  <div className="flex flex-wrap gap-2">
+                    {START_OPTIONS.map((o) => (
+                      <button
+                        key={o}
+                        type="button"
+                        aria-pressed={d.start === o}
+                        onClick={() => set("start", d.start === o ? "" : o)}
+                        className={`rounded-full border-2 px-4 py-2 text-sm font-bold transition outline-none focus-visible:ring-2 focus-visible:ring-brand-blue ${
+                          d.start === o ? "border-brand-blue bg-brand-blue text-white" : "border-slate-200 bg-white text-navy hover:border-slate-300"
+                        }`}
+                      >
+                        {o}
+                      </button>
+                    ))}
+                  </div>
+                </fieldset>
                 <Field label="Notes" id="notes">
                   <textarea
                     id="notes"
                     rows={3}
                     className="field"
                     placeholder="Tell us anything that will help our team guide you."
-                    value={notes}
-                    onChange={(e) => setNotes(e.target.value)}
+                    value={d.notes}
+                    onChange={(e) => set("notes", e.target.value)}
                   />
                 </Field>
                 <div className="rounded-xl bg-brand-blue/5 p-3 text-xs leading-relaxed text-navy">
-                  <strong>What happens next?</strong> We’ll create your application, let you choose a password, and then open your
-                  personal dashboard. You can return anytime using your email and password.
+                  <strong>What happens next?</strong> Your application is saved straight away. We’ll email you a code to open your
+                  personal dashboard, where you can book a free call and upload documents. No password needed.
                 </div>
-                {session && <Consent consent={consent} setConsent={setConsent} />}
+                <label className="flex items-start gap-3 text-sm text-slate-600">
+                  <input type="checkbox" className="mt-0.5 h-4 w-4 accent-navy" checked={consent} onChange={(e) => setConsent(e.target.checked)} />
+                  I agree that Outreach can contact me by email and WhatsApp about my application.
+                </label>
                 {error && <Alert>{error}</Alert>}
                 <Button type="submit" loading={submitting} className="min-h-12 w-full">
                   <Send className="h-4 w-4" /> Submit my interest
@@ -279,39 +372,10 @@ export function Apply() {
                   </Button>
                   {!session && (
                     <Link to="/login?next=/dashboard" className="self-center text-sm font-bold text-brand-blue hover:underline">
-                      Already have an account? Open Dashboard
+                      Already applied? Open Dashboard
                     </Link>
                   )}
                 </div>
-              </form>
-            )}
-
-            {stage === "password" && (
-              <form onSubmit={createApplication} className="space-y-4">
-                <div className="rounded-2xl bg-mist px-5 py-4 text-sm">
-                  <p className="text-slate-500">Your account email</p>
-                  <p className="font-extrabold">{email}</p>
-                </div>
-                <Field label="Password *" id="password" hint="At least 8 characters.">
-                  <input
-                    id="password"
-                    type="password"
-                    minLength={8}
-                    required
-                    autoComplete="new-password"
-                    className="field"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                  />
-                </Field>
-                <Consent consent={consent} setConsent={setConsent} />
-                {error && <Alert>{error}</Alert>}
-                <Button type="submit" loading={submitting} className="min-h-12 w-full">
-                  Create my application <ArrowRight className="h-4 w-4" />
-                </Button>
-                <Button type="button" variant="ghost" onClick={() => go("form")}>
-                  <ArrowLeft className="h-4 w-4" /> Back
-                </Button>
               </form>
             )}
           </div>
@@ -363,27 +427,32 @@ function Field({ label, id, hint, children }: { label: string; id: string; hint?
   );
 }
 
-function Consent({ consent, setConsent }: { consent: boolean; setConsent: (v: boolean) => void }) {
-  return (
-    <label className="flex items-start gap-3 text-sm text-slate-600">
-      <input type="checkbox" className="mt-0.5 h-4 w-4 accent-navy" checked={consent} onChange={(e) => setConsent(e.target.checked)} />
-      I agree that Outreach can contact me by email and WhatsApp about my application.
-    </label>
-  );
-}
-
-function CheckEmail({ email }: { email: string }) {
+function Done({ name, email, course, onSignedIn }: { name: string; email: string; course: string; onSignedIn: () => void }) {
   return (
     <div className="mx-auto max-w-2xl pt-2 sm:pt-4">
       <Card>
-        <div className="step-in px-6 py-10 text-center sm:px-10">
-          <MailCheck className="mx-auto h-14 w-14 text-brand-blue" />
-          <h1 className="mt-4 text-2xl font-black sm:text-3xl">Your application is created!</h1>
-          <p className="mx-auto mt-3 max-w-md text-slate-600">
-            We sent an email to <strong className="text-navy">{email}</strong>. Click the link in it to activate your account and open
-            your personal dashboard, where you can book your free call and upload documents.
-          </p>
-          <p className="mx-auto mt-4 max-w-md text-xs text-slate-500">Can’t find it? Check your spam or promotions folder.</p>
+        <div className="step-in space-y-6 px-6 py-9 sm:px-10">
+          <div className="text-center">
+            <CheckCircle2 className="mx-auto h-14 w-14 text-emerald-500" />
+            <h1 className="mt-4 text-2xl font-black sm:text-3xl">Thank you{name ? `, ${name}` : ""}!</h1>
+            <p className="mx-auto mt-2 max-w-md text-slate-600">
+              Your application for <strong className="text-navy">{course}</strong> is saved. An advisor will contact you soon.
+            </p>
+          </div>
+          <div className="rounded-2xl bg-mist p-5">
+            <h2 className="mb-3 font-black">Open your personal dashboard</h2>
+            <EmailCode email={email} autoSend onSignedIn={onSignedIn} />
+          </div>
+          {whatsappNumber && (
+            <a
+              href={waLink(whatsappNumber, `Hi! I just applied for ${course}. My name is ${name}.`)}
+              target="_blank"
+              rel="noreferrer"
+              className="flex min-h-12 items-center justify-center gap-2 rounded-full bg-[#25D366] px-6 text-sm font-extrabold text-white shadow-lg transition hover:brightness-95"
+            >
+              <MessageCircle className="h-4 w-4" /> Chat with an advisor on WhatsApp
+            </a>
+          )}
         </div>
       </Card>
     </div>

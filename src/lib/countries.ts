@@ -39,7 +39,19 @@ export const COUNTRIES: Country[] = Object.entries(DIAL)
 
 export const countryByCode = (code: string) => COUNTRIES.find((c) => c.code === code);
 
-// Best guess from the browser's locale/time zone; falls back to Malta.
+// Accurate country from Vercel's IP geolocation (/api/geo); null when unavailable (e.g. local dev).
+export async function fetchGeoCountry(): Promise<string | null> {
+  try {
+    const res = await fetch("/api/geo");
+    if (!res.ok) return null;
+    const { country } = await res.json();
+    return typeof country === "string" && DIAL[country] ? country : null;
+  } catch {
+    return null;
+  }
+}
+
+// Quick first guess from the browser's locale/time zone; falls back to Malta.
 export function detectCountry(): string {
   const tz = Intl.DateTimeFormat().resolvedOptions().timeZone ?? "";
   const byZone: Record<string, string> = {

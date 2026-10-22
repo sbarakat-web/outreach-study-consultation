@@ -36,7 +36,7 @@ export function Team() {
     const { error } = await supabase.from("admins").insert({ email: email.trim().toLowerCase(), added_by: session?.user.id });
     setSaving(false);
     if (error) return setError(error.code === "23505" ? "That person is already an admin." : error.message);
-    setInfo(`${email} is now an admin. Ask them to create an account at ${window.location.origin}/login with this email (or sign in if they already have one).`);
+    setInfo(`${email} is now an admin. They can sign in at ${window.location.origin}/login with this email (we email them a code).`);
     setEmail("");
     load();
   };

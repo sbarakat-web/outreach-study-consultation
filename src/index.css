@@ -13,12 +13,15 @@ body {
   @apply bg-mist text-navy antialiased;
 }
 
-.field {
-  @apply w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-navy outline-none transition placeholder:text-slate-400 focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/20;
-}
+/* In the components layer so utility classes (w-28, px-2, border-…) can override them. */
+@layer components {
+  .field {
+    @apply w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-navy outline-none transition placeholder:text-slate-400 focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/20;
+  }
 
-.label {
-  @apply mb-1.5 block text-sm font-semibold text-navy;
+  .label {
+    @apply mb-1.5 block text-sm font-semibold text-navy;
+  }
 }
 
 @keyframes step-in {
