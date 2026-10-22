@@ -6,7 +6,7 @@ import { LOCALES, langOf, mailT, type MailLang } from "./mail-i18n.ts";
 export const CALL_MINUTES = 20;
 export const APP_URL = () => Deno.env.get("APP_URL") || "https://consultation.outreachstudy.eu";
 export const MAIL_FROM = () => Deno.env.get("MAIL_FROM") || "Outreach <hello@consultation.outreachstudy.eu>";
-export const BOOKING_LINK = () => Deno.env.get("BOOKING_LINK") || "https://calendar.app.google/FpLsWb5W5Q73v6JE7";
+export const BOOKING_LINK = () => Deno.env.get("BOOKING_LINK") || "https://calendar.app.google/qTS8FRBH5BZdGgCx7";
 
 // deno-lint-ignore no-explicit-any
 type Row = Record<string, any>;

@@ -18,7 +18,7 @@ const DEFAULTS: Record<string, string> = {
   MAIL_FROM: "Outreach <hello@consultation.outreachstudy.eu>",
   ADMIN_NOTIFY_EMAIL: "sbarakat@outreachrecruitment.net",
   APP_URL: "https://consultation.outreachstudy.eu",
-  BOOKING_LINK: "https://calendar.app.google/FpLsWb5W5Q73v6JE7",
+  BOOKING_LINK: "https://calendar.app.google/qTS8FRBH5BZdGgCx7",
 };
 const setting = (k: string) => env(k) || DEFAULTS[k] || "";
 

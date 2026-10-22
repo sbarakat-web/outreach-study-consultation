@@ -11,7 +11,7 @@
 //   POST { action: "disconnect" | "set-default" }        staff / admin
 // Secrets: GOOGLE_SERVICE_ACCOUNT, GOOGLE_CALENDAR_ID, optional GOOGLE_IMPERSONATE; or GOOGLE_CLIENT_ID/SECRET; optional APP_URL
 import { createClient } from "npm:@supabase/supabase-js@2.45.4";
-import { SCOPES, createCallEvent, freeBusy, googleConfigured, moveCallEvent, oauthConfigured, serviceAccount } from "../_shared/google.ts";
+import { SCOPES, calendarIdOf, createCallEvent, freeBusy, googleConfigured, moveCallEvent, oauthConfigured, serviceAccount } from "../_shared/google.ts";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -114,8 +114,8 @@ Deno.serve(async (req) => {
           const now = new Date();
           const fb = await freeBusy(db(), null, now.toISOString(), new Date(now.getTime() + 3_600_000).toISOString());
           return json({
-            service: { calendar: env("GOOGLE_CALENDAR_ID"), account: serviceAccount()!.client_email, ok: !!fb, delegated: !!env("GOOGLE_IMPERSONATE") },
-            connections: fb ? [{ email: env("GOOGLE_CALENDAR_ID"), is_default: true }] : [],
+            service: { calendar: calendarIdOf(), account: serviceAccount()!.client_email, ok: !!fb, delegated: !!env("GOOGLE_IMPERSONATE") },
+            connections: fb ? [{ email: calendarIdOf(), is_default: true }] : [],
           });
         }
         const { data } = await db().from("google_connections").select("email, is_default");

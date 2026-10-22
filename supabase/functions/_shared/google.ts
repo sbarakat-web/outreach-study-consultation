@@ -6,6 +6,9 @@
 const env = (k: string) => Deno.env.get(k) ?? "";
 const APP_URL = () => env("APP_URL") || "https://consultation.outreachstudy.eu";
 export const CALL_MINUTES = 20;
+// Calendar the service account writes to (shared with it in Google Calendar); GOOGLE_CALENDAR_ID overrides.
+const DEFAULT_CALENDAR = "sbarakat@outreachrecruitment.net";
+export const calendarIdOf = () => env("GOOGLE_CALENDAR_ID") || DEFAULT_CALENDAR;
 export const SCOPES = "https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/calendar.freebusy";
 
 export interface CalendarAuth {
@@ -25,7 +28,7 @@ interface ServiceAccount {
 export function serviceAccount(): ServiceAccount | null {
   try {
     const sa = JSON.parse(env("GOOGLE_SERVICE_ACCOUNT") || "null");
-    return sa?.client_email && sa?.private_key && env("GOOGLE_CALENDAR_ID") ? sa : null;
+    return sa?.client_email && sa?.private_key ? sa : null;
   } catch {
     return null;
   }
@@ -67,7 +70,7 @@ async function serviceToken(sa: ServiceAccount) {
 export async function calendarAuth(db: any, email?: string | null): Promise<CalendarAuth | null> {
   const sa = serviceAccount();
   if (sa) {
-    const calendarId = env("GOOGLE_CALENDAR_ID");
+    const calendarId = env("GOOGLE_CALENDAR_ID") || DEFAULT_CALENDAR;
     return { token: await serviceToken(sa), calendarId, email: calendarId, limited: !env("GOOGLE_IMPERSONATE") };
   }
   if (!oauthConfigured()) return null;
