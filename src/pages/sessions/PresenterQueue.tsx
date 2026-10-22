@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { AlarmClock, ChevronDown, ChevronRight, Mail, MessageCircle, Play, Search, Star, Trash2, UserRound, Video, X } from "lucide-react";
-import { ENGLISH_LEVELS, labelFor, leadScore } from "../../lib/options";
+import { ENGLISH_LEVELS, labelFor } from "../../lib/options";
 import { AREAS, PROGRAMMES, findBestMatch } from "./data";
 import type { Consultation } from "../../lib/types";
 
@@ -72,7 +72,6 @@ export function PresenterQueue({
   done,
   success,
   currentId,
-  me,
   docs,
   programmeFor,
   onProgramme,
@@ -85,7 +84,6 @@ export function PresenterQueue({
   done: number;
   success: string | null;
   currentId: string | null;
-  me: string;
   docs: Record<string, DocProgress>;
   programmeFor: Record<string, string>;
   onProgramme: (id: string, programmeId: string) => void;
@@ -93,8 +91,7 @@ export function PresenterQueue({
   onJoinAndStart: (c: Candidate) => void;
   onHide: (c: Candidate) => void;
 }) {
-  const [mine, setMine] = useState(false);
-  const candidates = useMemo(() => (mine ? all.filter((c) => c.assigned_to === me) : all), [all, mine, me]);
+  const candidates = all;
   const [query, setQuery] = useState("");
   const [tab, setTab] = useState<"queue" | "overdue">("queue");
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
@@ -141,25 +138,6 @@ export function PresenterQueue({
 
       <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-3">
         {success && <p className="rounded-xl bg-emerald-50 px-3 py-2 text-sm font-bold text-emerald-800 ring-1 ring-emerald-200">✓ {success}</p>}
-
-        <div role="tablist" aria-label="Whose calls" className="flex gap-1 rounded-xl bg-slate-100 p-1">
-          {[
-            [false, `All calls · ${all.length}`],
-            [true, `My calls · ${all.filter((c) => c.assigned_to === me).length}`],
-          ].map(([value, label]) => (
-            <button
-              key={String(value)}
-              role="tab"
-              aria-selected={mine === value}
-              onClick={() => setMine(value as boolean)}
-              className={`flex-1 rounded-lg py-1.5 text-xs font-bold outline-none focus-visible:ring-2 focus-visible:ring-[#5424c7] ${
-                mine === value ? "bg-white text-[#5424c7] shadow" : "text-slate-500"
-              }`}
-            >
-              {label as string}
-            </button>
-          ))}
-        </div>
 
         {next && (
           <button
@@ -298,7 +276,6 @@ function QueueRow({
 }) {
   const status = statusOf(c, now);
   const digits = (c.whatsapp ?? "").replace(/\D/g, "");
-  const score = leadScore({ start_date: c.start_date, english_level: c.english_level, callRequested: true, documents: docs?.done ?? 0 });
   const at = atOf(c);
   const reminder = `Hi ${c.full_name.split(" ")[0]}, a quick reminder: your Outreach call is ${at ? `at ${at.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}` : "soon"}.${
     c.meeting_url ? ` Join here: ${c.meeting_url}` : " We'll call you on WhatsApp."
@@ -323,7 +300,6 @@ function QueueRow({
           <p className="flex flex-wrap items-center gap-1.5 text-xs text-slate-500">
             {timeLabel(c, now)}
             {status && <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${status.style}`}>{status.label}</span>}
-            {c.assigned_to && <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-bold">{c.assigned_to.split("@")[0]}</span>}
           </p>
         </div>
         <button
@@ -340,9 +316,6 @@ function QueueRow({
       <div className="mt-2 flex flex-wrap gap-1 text-[10px] font-bold">
         <span className={`rounded-full px-1.5 py-0.5 ${docs && docs.done >= docs.total ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"}`}>
           Docs {docs?.done ?? 0}/{docs?.total ?? "?"}
-        </span>
-        <span className="rounded-full bg-violet-100 px-1.5 py-0.5 capitalize text-[#5424c7]">
-          {score.tier} · {score.score}
         </span>
         <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-slate-600">{labelFor(ENGLISH_LEVELS, c.english_level)}</span>
         {c.start_date && <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-slate-600">{c.start_date}</span>}

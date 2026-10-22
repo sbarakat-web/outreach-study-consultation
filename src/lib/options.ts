@@ -62,7 +62,7 @@ export function leadScore(c: { start_date: string | null; english_level: string 
 }
 
 // Real booking page, shared manually after the profile is reviewed.
-export const BOOKING_LINK = "https://calendar.app.google/E41BXUEy1DELT7WY6";
+export const BOOKING_LINK = "https://calendar.app.google/FpLsWb5W5Q73v6JE7";
 
 export const CALL_MINUTES = 20;
 

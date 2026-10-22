@@ -1,6 +1,7 @@
 // Candidate emails sent by staff actions:
 //   { type: "call-confirmed", consultationId }  time in the candidate's time zone, Meet link, .ics, prepare documents
 //   { type: "rebook", consultationId }          missed session → pick a new time
+//   { type: "booking-link", consultationId }    send the real Google booking page for the call
 // Returns waUrl (WhatsApp Web link with the same short message). Staff only.
 // Secrets: RESEND_API_KEY; optional MAIL_FROM, APP_URL
 import { createClient } from "npm:@supabase/supabase-js@2.45.4";
@@ -14,6 +15,7 @@ const env = (k: string) => Deno.env.get(k) ?? "";
 const APP_URL = () => env("APP_URL") || "https://consultation.outreachstudy.eu";
 const MAIL_FROM = () => env("MAIL_FROM") || "Outreach <hello@consultation.outreachstudy.eu>";
 const CALL_MINUTES = 20;
+const BOOKING_LINK = () => env("BOOKING_LINK") || "https://calendar.app.google/FpLsWb5W5Q73v6JE7";
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { ...cors, "Content-Type": "application/json" } });
@@ -117,6 +119,19 @@ Deno.serve(async (req) => {
       "Pick a new time for your free call",
     );
     wa = `Hi ${first}, we missed you at your Outreach call today. Please pick a new time here: ${APP_URL()}/dashboard`;
+  } else if (type === "booking-link") {
+    const asked = c.requested_call_times?.[0] ? whenIn(c.requested_call_times[0], tz).main : null;
+    subject = `${first}, book your free call with Outreach`;
+    html = layout(
+      eyebrow("Book your call") +
+        title(`Hi ${escape(first)}, let's book your free call`) +
+        para("We've reviewed your request. Please choose your call time on our booking page — it takes 30 seconds and adds the call to your calendar.", true) +
+        (asked ? highlight(`<span style="color:#8a8ea8;font-size:13px">You asked for</span><br><strong style="font-size:17px">${escape(asked)}</strong>`) : "") +
+        actions(button(BOOKING_LINK(), "Book my free call")) +
+        para("Questions? Reply to this email or message us on WhatsApp.", true),
+      "Choose your free call time",
+    );
+    wa = `Hi ${first}, this is Outreach. Thank you for your application for ${c.desired_course || "your studies"}! Please book your free call here: ${BOOKING_LINK()}`;
   } else {
     return json({ error: "Unknown type" }, 400);
   }

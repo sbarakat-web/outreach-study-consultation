@@ -58,7 +58,6 @@ export function OnlineSessions() {
   // Admins land in presenter mode on the plain page too (not on a student's personal link).
   const presenterMode = !personalLink && staff && (presentRequested || isAdmin);
   const liveParam = params.get("live");
-  const me = session?.user.email?.toLowerCase() ?? "";
 
   // ------------------------------------------------------------ presentation state
   const [open, setOpen] = useState(false);
@@ -390,7 +389,6 @@ export function OnlineSessions() {
           done={done}
           success={success}
           currentId={candidate?.id ?? null}
-          me={me}
           docs={docProgress}
           programmeFor={programmeFor}
           onProgramme={(id, pid) => setProgrammeFor((m) => ({ ...m, [id]: pid }))}

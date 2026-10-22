@@ -2,13 +2,13 @@ import { useCallback, useEffect, useMemo, useState, type DragEvent } from "react
 import { Link, useSearchParams } from "react-router-dom";
 import {
   AlertTriangle,
-  CalendarPlus,
   Check,
   ChevronLeft,
   ChevronRight,
   Download,
   ExternalLink,
   Link2,
+  Mail,
   MessageCircle,
   Play,
   Printer,
@@ -24,9 +24,7 @@ import {
   confirmAndNotify,
   fillTab,
   googleApi,
-  googleEventUrl,
   googleWeekUrl,
-  loadStaff,
   maltaTime,
   notifyCandidate,
 } from "./calls";
@@ -43,7 +41,6 @@ const startOfWeek = (d: Date) => {
 };
 const timeOf = (iso: string) => new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 const sameDay = (a: Date, b: Date) => a.toDateString() === b.toDateString();
-const initials = (email?: string | null) => (email ? email.split("@")[0].slice(0, 2).toUpperCase() : "—");
 const sourceOf = (c: Consultation) => c.tracking?.utm_source || (c.tracking?.ref ? "referral" : "direct");
 
 type Kind = "booked" | "requested" | "done";
@@ -64,13 +61,11 @@ export function CalendarPage() {
   const [params, setParams] = useSearchParams();
   const [items, setItems] = useState<Consultation[] | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
-  const [staff, setStaff] = useState<{ email: string; role: string }[]>([]);
   const [google, setGoogle] = useState<{ configured: boolean; connections: { email: string; is_default: boolean }[] }>({ configured: false, connections: [] });
   const [busy, setBusy] = useState<Busy[]>([]);
   const [error, setError] = useState("");
   const [flash, setFlash] = useState(params.get("google") === "connected" ? "Google Calendar connected." : "");
   const [week, setWeek] = useState(() => startOfWeek(new Date()));
-  const [adviser, setAdviser] = useState("all");
   const [kindFilter, setKindFilter] = useState<"all" | Kind>("all");
   const [source, setSource] = useState("all");
   const [agendaDay, setAgendaDay] = useState(() => new Date().toISOString().slice(0, 10));
@@ -91,7 +86,6 @@ export function CalendarPage() {
 
   useEffect(() => {
     load();
-    loadStaff().then(setStaff);
     googleApi("status").then((r) => setGoogle({ configured: !r.error && !r.data?.error, connections: r.data?.connections ?? [] }));
     if (params.get("google")) setParams({}, { replace: true });
   }, [load]);
@@ -99,10 +93,10 @@ export function CalendarPage() {
   // Google busy blocks for the visible week.
   useEffect(() => {
     if (!googleReady) return;
-    googleApi("busy", { from: week.toISOString(), to: new Date(week.getTime() + 7 * DAY).toISOString(), email: adviser !== "all" && adviser !== "none" ? adviser : me }).then((r) =>
+    googleApi("busy", { from: week.toISOString(), to: new Date(week.getTime() + 7 * DAY).toISOString(), email: me }).then((r) =>
       setBusy(r.data?.busy ?? []),
     );
-  }, [googleReady, week, adviser, me]);
+  }, [googleReady, week, me]);
 
   const byId = useMemo(() => new Map((items ?? []).map((c) => [c.id, c])), [items]);
   const confirmedAts = useMemo(
@@ -117,14 +111,14 @@ export function CalendarPage() {
   };
 
   const matches = (c: Consultation) =>
-    (adviser === "all" || (adviser === "none" ? !c.assigned_to : c.assigned_to === adviser)) && (source === "all" || sourceOf(c) === source);
+    source === "all" || sourceOf(c) === source;
 
   const toConfirm = useMemo(
     () =>
       (items ?? [])
         .filter((c) => matches(c) && ["requested", "reviewed"].includes(callStage(c)) && c.requested_call_times.length)
         .sort((a, b) => a.requested_call_times[0].localeCompare(b.requested_call_times[0])),
-    [items, adviser, source],
+    [items, source],
   );
   const rebook = (items ?? []).filter((c) => matches(c) && c.session_outcome === "no_attendance" && c.call_status === "none");
   const overdue = (items ?? []).filter(
@@ -139,7 +133,7 @@ export function CalendarPage() {
       else if (c.call_status !== "none" && c.requested_call_times[0]) out.push({ c, at: c.requested_call_times[0], kind: "requested" });
     }
     return out.filter((e) => kindFilter === "all" || e.kind === kindFilter).sort((a, b) => a.at.localeCompare(b.at));
-  }, [items, adviser, source, kindFilter]);
+  }, [items, source, kindFilter]);
 
   const sources = useMemo(() => [...new Set((items ?? []).map(sourceOf))].sort(), [items]);
   const days = Array.from({ length: 7 }, (_, i) => new Date(week.getTime() + i * DAY));
@@ -158,12 +152,6 @@ export function CalendarPage() {
         r.googleError ? ` · Google: ${r.googleError}` : ""
       }. Now in the online-session queue.`,
     );
-    load();
-  };
-
-  const assign = async (c: Consultation, email: string) => {
-    const { error } = await supabase.from("consultations").update({ assigned_to: email || null }).eq("id", c.id);
-    if (error) return setError(error.message);
     load();
   };
 
@@ -202,8 +190,8 @@ export function CalendarPage() {
     return events.filter((e) => e.kind !== "requested" && sameDay(new Date(e.at), d));
   }, [events, agendaDay]);
 
-  const agendaRows = agenda.map((e) => [timeOf(e.at), e.c.full_name, e.c.email, e.c.whatsapp ?? "", e.c.desired_course ?? "", e.c.assigned_to ?? "", e.c.meeting_url ?? "", e.kind]);
-  const AGENDA_HEAD = ["Time", "Candidate", "Email", "WhatsApp", "Course", "Adviser", "Meet", "Status"];
+  const agendaRows = agenda.map((e) => [timeOf(e.at), e.c.full_name, e.c.email, e.c.whatsapp ?? "", e.c.desired_course ?? "", e.c.meeting_url ?? "", e.kind]);
+  const AGENDA_HEAD = ["Time", "Candidate", "Email", "WhatsApp", "Course", "Meet", "Status"];
 
   const exportCsv = () => {
     const csv = [AGENDA_HEAD, ...agendaRows].map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\n");
@@ -221,7 +209,7 @@ export function CalendarPage() {
     const esc = (s: string) => s.replace(/[&<>]/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[ch]!);
     w.document.write(`<!doctype html><title>Agenda ${agendaDay}</title><style>body{font-family:Arial;padding:24px;color:#14123a}table{border-collapse:collapse;width:100%}th,td{border-bottom:1px solid #ddd;padding:8px;text-align:left;font-size:13px}th{background:#442DFA;color:#fff}</style>
       <h2>Outreach — agenda for ${new Date(`${agendaDay}T00:00`).toLocaleDateString([], { dateStyle: "full" })}</h2>
-      <table><tr>${AGENDA_HEAD.map((h) => `<th>${h}</th>`).join("")}</tr>${agendaRows.map((r) => `<tr>${r.map((v) => `<td>${esc(String(v))}</td>`).join("")}</tr>`).join("") || `<tr><td colspan="8">No calls.</td></tr>`}</table>
+      <table><tr>${AGENDA_HEAD.map((h) => `<th>${h}</th>`).join("")}</tr>${agendaRows.map((r) => `<tr>${r.map((v) => `<td>${esc(String(v))}</td>`).join("")}</tr>`).join("") || `<tr><td colspan="7">No calls.</td></tr>`}</table>
       <script>window.print()</script>`);
     w.document.close();
   };
@@ -268,18 +256,6 @@ export function CalendarPage() {
 
       {/* Filters */}
       <div className="flex flex-wrap gap-2">
-        <select className="field w-auto py-2" value={adviser} onChange={(e) => setAdviser(e.target.value)} aria-label="Adviser">
-          <option value="all">All advisers</option>
-          <option value={me}>My calls</option>
-          <option value="none">Unassigned</option>
-          {staff
-            .filter((s) => s.email !== me)
-            .map((s) => (
-              <option key={s.email} value={s.email}>
-                {s.email}
-              </option>
-            ))}
-        </select>
         <select className="field w-auto py-2" value={kindFilter} onChange={(e) => setKindFilter(e.target.value as "all" | Kind)} aria-label="Status">
           <option value="all">All calls</option>
           <option value="booked">Booked</option>
@@ -325,7 +301,7 @@ export function CalendarPage() {
             <p className="text-xs text-slate-500">
               {googleReady
                 ? "Confirm creates the Google event with a Meet link, invites the candidate, emails them and opens WhatsApp."
-                : "Check your Google Calendar, add the call there, then confirm. The candidate is emailed and WhatsApp opens."}
+                : "Send the candidate your Google booking link (email or WhatsApp). Once they have booked, confirm here — they are emailed and join the online-session queue."}
             </p>
           </div>
           {toConfirm.length === 0 ? (
@@ -336,11 +312,9 @@ export function CalendarPage() {
                 <RequestRow
                   key={c.id}
                   c={c}
-                  staff={staff}
                   google={googleReady}
                   busy={working === c.id}
                   clash={clashes(c.requested_call_times[0])}
-                  onAssign={(email) => assign(c, email)}
                   onConfirm={(iso) => confirm(c, iso)}
                 />
               ))}
@@ -495,9 +469,6 @@ function EventChip({ e, clash }: { e: Event; clash: boolean }) {
           {timeOf(e.at)}
           {clash && <AlertTriangle className="h-3.5 w-3.5 text-brand-red" aria-label="Clash" />}
         </span>
-        <span title={e.c.assigned_to ?? "Unassigned"} className="rounded-full bg-slate-100 px-1.5 text-[9px] text-slate-500">
-          {initials(e.c.assigned_to)}
-        </span>
       </p>
       <Link to={`/admin?lead=${e.c.id}`} className="block truncate font-semibold text-slate-700 hover:text-brand">
         {e.c.full_name}
@@ -515,24 +486,24 @@ function EventChip({ e, clash }: { e: Event; clash: boolean }) {
 
 function RequestRow({
   c,
-  staff,
   google,
   busy,
   clash,
-  onAssign,
   onConfirm,
 }: {
   c: Consultation;
-  staff: { email: string }[];
   google: boolean;
   busy: boolean;
   clash: boolean;
-  onAssign: (email: string) => void;
   onConfirm: (iso: string) => void;
 }) {
-  const [other, setOther] = useState("");
-  const [showOther, setShowOther] = useState(false);
+  const [sent, setSent] = useState<"" | "sending" | "sent" | "failed">("");
   const at = c.requested_call_times[0];
+  const emailLink = async () => {
+    setSent("sending");
+    const r = await notifyCandidate("booking-link", c.id);
+    setSent(r.data?.ok ? "sent" : "failed");
+  };
   return (
     <li className="rounded-2xl border border-slate-200 px-4 py-3 text-sm">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -545,56 +516,32 @@ function RequestRow({
             {c.desired_course || "No course yet"} · {sourceOf(c)}
           </p>
           <p className="mt-1">
-            Requested: <strong>{maltaTime(at)}</strong> <span className="text-xs text-slate-400">(Malta)</span>
+            Asked for: <strong>{maltaTime(at)}</strong> <span className="text-xs text-slate-400">(Malta)</span>
             {clash && (
               <span className="ml-2 inline-flex items-center gap-1 rounded-full bg-brand-red/10 px-2 py-0.5 text-[11px] font-bold text-brand-red">
                 <AlertTriangle className="h-3 w-3" /> Clash / busy
               </span>
             )}
           </p>
-          <label className="mt-2 flex items-center gap-2 text-xs text-slate-500">
-            Adviser
-            <select className="field w-auto py-1 text-xs" value={c.assigned_to ?? ""} onChange={(e) => onAssign(e.target.value)}>
-              <option value="">Unassigned</option>
-              {staff.map((s) => (
-                <option key={s.email} value={s.email}>
-                  {s.email}
-                </option>
-              ))}
-            </select>
-          </label>
+          {sent === "sent" && <p className="mt-1 text-xs font-bold text-emerald-700">Booking link emailed.</p>}
+          {sent === "failed" && <p className="mt-1 text-xs font-bold text-brand-red">Email not sent — check Resend.</p>}
         </div>
         <div className="flex flex-wrap gap-1.5">
-          {!google && (
-            <a href={googleEventUrl(c, at)} target="_blank" rel="noreferrer">
-              <Button variant="ghost" className="min-h-9 px-3">
-                <CalendarPlus className="h-4 w-4" /> Add to Google
+          <Button variant="secondary" className="min-h-9 px-3" loading={sent === "sending"} onClick={emailLink}>
+            <Mail className="h-4 w-4" /> Email booking link
+          </Button>
+          {c.whatsapp && (
+            <a href={waLink(c.whatsapp, bookingMessage(c))} target="_blank" rel="noreferrer" title="WhatsApp booking link">
+              <Button variant="secondary" className="min-h-9 px-3">
+                <MessageCircle className="h-4 w-4" />
               </Button>
             </a>
           )}
           <Button className="min-h-9 px-4" loading={busy} onClick={() => onConfirm(at)}>
             {google ? "Confirm + Meet" : "Confirm"}
           </Button>
-          <Button variant="secondary" className="min-h-9 px-3" onClick={() => setShowOther((v) => !v)}>
-            Other time
-          </Button>
-          {c.whatsapp && (
-            <a href={waLink(c.whatsapp, bookingMessage(c))} target="_blank" rel="noreferrer" title="Send the Google booking link on WhatsApp">
-              <Button variant="secondary" className="min-h-9 px-3">
-                <MessageCircle className="h-4 w-4" />
-              </Button>
-            </a>
-          )}
         </div>
       </div>
-      {showOther && (
-        <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-          <input type="datetime-local" aria-label="Other call time" className="field py-2" value={other} onChange={(e) => setOther(e.target.value)} />
-          <Button disabled={!other} onClick={() => onConfirm(new Date(other).toISOString())}>
-            Confirm this time
-          </Button>
-        </div>
-      )}
     </li>
   );
 }

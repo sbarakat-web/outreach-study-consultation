@@ -9,7 +9,6 @@ import {
   STUDY_PATHS,
   formatSlot,
   labelFor,
-  leadScore,
   statusLabel,
   waLink,
   callStage,
@@ -22,28 +21,9 @@ import { Alert, Button, Card, Spinner, StatusBadge } from "../../components/ui";
 
 type Row = Consultation & { documents?: { count: number }[] };
 
-const scoreOf = (c: Row) =>
-  leadScore({ start_date: c.start_date, english_level: c.english_level, callRequested: c.requested_call_times.length > 0 || c.call_status === "confirmed", documents: c.documents?.[0]?.count ?? 0 });
-
-const TIER_STYLE = {
-  hot: "bg-brand-red/10 text-brand-red",
-  warm: "bg-amber-100 text-amber-800",
-  cold: "bg-slate-100 text-slate-500",
-};
-
-function ScoreBadge({ c }: { c: Row }) {
-  const { score, tier } = scoreOf(c);
-  return (
-    <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-extrabold capitalize ${TIER_STYLE[tier]}`}>
-      {tier === "hot" ? "🔥 " : ""}
-      {tier} · {score}
-    </span>
-  );
-}
 
 export function Requests() {
   const [items, setItems] = useState<Row[] | null>(null);
-  const [sort, setSort] = useState<"score" | "newest">("score");
   const [error, setError] = useState("");
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState<Status | "">("");
@@ -73,13 +53,8 @@ export function Requests() {
         (view !== "booked" || isBookedLead(c)) &&
         (!q || [c.full_name, c.email, c.whatsapp, c.country, c.desired_course].some((v) => v?.toLowerCase().includes(q))),
     );
-    // Hot leads first; closed/lost leads sink to the bottom. Ties: newest first.
-    if (sort === "score") {
-      const rank = (c: Row) => (c.status === "lost" || c.status === "enrolled" ? -1 : scoreOf(c).score);
-      rows.sort((a, b) => rank(b) - rank(a) || b.created_at.localeCompare(a.created_at));
-    }
     return rows;
-  }, [items, query, status, sort, view]);
+  }, [items, query, status, view]);
 
   const upcoming = useMemo(
     () =>
@@ -150,10 +125,6 @@ export function Requests() {
             aria-label="Search requests"
           />
         </div>
-        <select className="field sm:w-48" value={sort} onChange={(e) => setSort(e.target.value as "score" | "newest")} aria-label="Sort">
-          <option value="score">Hot leads first</option>
-          <option value="newest">Newest first</option>
-        </select>
         <select className="field sm:w-64" value={status} onChange={(e) => setStatus(e.target.value as Status | "")} aria-label="Filter by status">
           <option value="">All statuses ({items.length})</option>
           {STATUSES.map((s) => (
@@ -173,7 +144,6 @@ export function Requests() {
               <thead className="text-xs uppercase tracking-wider text-slate-500">
                 <tr className="border-b border-slate-100">
                   <th className="px-5 py-3 font-bold">Candidate</th>
-                  <th className="px-3 py-3 font-bold">Lead</th>
                   <th className="hidden px-3 py-3 font-bold md:table-cell">Course</th>
                   <th className="hidden px-3 py-3 font-bold sm:table-cell">Call</th>
                   <th className="px-3 py-3 font-bold">Status</th>
@@ -188,9 +158,6 @@ export function Requests() {
                         {c.full_name}
                       </button>
                       <div className="text-xs text-slate-500">{c.country ?? c.email}</div>
-                    </td>
-                    <td className="px-3 py-3">
-                      <ScoreBadge c={c} />
                     </td>
                     <td className="hidden px-3 py-3 md:table-cell">{c.desired_course || labelFor(STUDY_PATHS, c.study_path)}</td>
                     <td className="hidden px-3 py-3 sm:table-cell">
@@ -324,13 +291,11 @@ function Detail({ c, all, onClose, onSaved }: { c: Row; all: Row[]; onClose: () 
     if (data) window.open(data.signedUrl, "_blank", "noopener");
   };
 
-  const lead = scoreOf(c);
   const requiredDocs = documentTypesFor(c.study_path).filter((t) => t.required);
   const hasDoc = (key: string) => docs.some((d) => d.doc_type === key && d.review_status !== "rejected");
   const referredBy = c.tracking.ref ? all.find((x) => x.referral_code === c.tracking.ref && x.id !== c.id) : undefined;
   const referrals = all.filter((x) => x.tracking.ref === c.referral_code && x.id !== c.id);
   const rows: [string, string | null | undefined][] = [
-    ["Lead score", `${lead.score} (${lead.tier})${lead.parts.length ? " — " + lead.parts.map(([l, n]) => `${l} +${n}`).join(", ") : ""}`],
     ["Email", c.email],
     ["WhatsApp", c.whatsapp],
     ["Country", c.country],
@@ -392,11 +357,11 @@ function Detail({ c, all, onClose, onSaved }: { c: Row; all: Row[]; onClose: () 
             </a>
           </div>
 
-          <CallPanel c={c} documents={docs.length} onSaved={onSaved} />
+          <CallPanel c={c} onSaved={onSaved} />
 
           <SessionPanel c={c} />
 
-          <LeadTasks c={c} onSaved={onSaved} />
+          <LeadTasks c={c} />
 
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
             <label htmlFor="meet-link" className="flex shrink-0 items-center gap-1.5 text-sm font-bold">

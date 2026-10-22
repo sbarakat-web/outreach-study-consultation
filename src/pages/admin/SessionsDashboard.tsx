@@ -140,7 +140,7 @@ export function SessionsDashboard() {
         </div>
       </Card>
 
-      <BreakdownTable title="By adviser" rows={stats.byAdviser} showRating />
+      <BreakdownTable title="By presenter" rows={stats.byAdviser} showRating />
       <BreakdownTable title="By programme" rows={stats.byProgramme} />
     </div>
   );

@@ -31,7 +31,7 @@ export async function confirmCall(c: Consultation, iso: string) {
 export const googleApi = (action: string, body: Record<string, unknown> = {}) =>
   supabase.functions.invoke("google-calendar", { body: { action, ...body } });
 
-export const notifyCandidate = (type: "call-confirmed" | "rebook", consultationId: string) =>
+export const notifyCandidate = (type: "call-confirmed" | "rebook" | "booking-link", consultationId: string) =>
   supabase.functions.invoke("notify", { body: { type, consultationId } });
 
 /** Send the WhatsApp link to a tab opened synchronously in the click handler (or close it). */

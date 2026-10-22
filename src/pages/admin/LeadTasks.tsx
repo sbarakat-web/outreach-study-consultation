@@ -1,15 +1,13 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
-import { ListTodo, Star, UserRound } from "lucide-react";
+import { ListTodo, Star } from "lucide-react";
 import { supabase } from "../../lib/supabase";
 import type { Consultation, Task } from "../../lib/types";
 import { Button } from "../../components/ui";
-import { loadStaff } from "./calls";
 
 const inDays = (n: number) => new Date(Date.now() + n * 86_400_000).toISOString().slice(0, 10);
 
-/** Adviser assignment, next-step tasks and the student's session feedback for one lead. */
-export function LeadTasks({ c, onSaved }: { c: Consultation; onSaved: () => void }) {
-  const [staff, setStaff] = useState<{ email: string }[]>([]);
+/** Next-step tasks and the student's session feedback for one lead. */
+export function LeadTasks({ c }: { c: Consultation }) {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [title, setTitle] = useState("");
   const [due, setDue] = useState(inDays(2));
@@ -20,14 +18,8 @@ export function LeadTasks({ c, onSaved }: { c: Consultation; onSaved: () => void
   }, [c.id]);
 
   useEffect(() => {
-    loadStaff().then(setStaff);
     loadTasks();
   }, [loadTasks]);
-
-  const assign = async (email: string) => {
-    await supabase.from("consultations").update({ assigned_to: email || null }).eq("id", c.id);
-    onSaved();
-  };
 
   const add = async (e: FormEvent) => {
     e.preventDefault();
@@ -44,20 +36,6 @@ export function LeadTasks({ c, onSaved }: { c: Consultation; onSaved: () => void
 
   return (
     <div className="space-y-4 rounded-2xl bg-mist px-4 py-4 text-sm">
-      <label className="flex flex-wrap items-center gap-2">
-        <span className="flex items-center gap-1.5 font-extrabold">
-          <UserRound className="h-4 w-4 text-brand" /> Adviser
-        </span>
-        <select className="field w-auto py-1.5" value={c.assigned_to ?? ""} onChange={(e) => assign(e.target.value)}>
-          <option value="">Unassigned</option>
-          {staff.map((s) => (
-            <option key={s.email} value={s.email}>
-              {s.email}
-            </option>
-          ))}
-        </select>
-      </label>
-
       <div>
         <p className="mb-2 flex items-center gap-1.5 font-extrabold">
           <ListTodo className="h-4 w-4 text-brand" /> Next steps
