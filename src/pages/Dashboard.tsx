@@ -167,7 +167,27 @@ export function CallPage() {
             <StatusBadge label={c.status === "new" ? t("status.received") : tv(statusLabel(c.status))} muted={lost} />
           </div>
 
-          {!lost && <BookingCalendar c={c} onRequested={reload} />}
+          {!lost && c.session_outcome === "interviewed" ? (
+            <div className="flex flex-wrap items-start justify-between gap-3 rounded-2xl bg-emerald-50 px-4 py-4 ring-1 ring-emerald-200 sm:px-5">
+              <div className="flex items-start gap-3">
+                <CheckCircle2 className="mt-0.5 h-6 w-6 shrink-0 text-emerald-600" />
+                <div>
+                  <p className="font-black">{t("sess.doneTitle")}</p>
+                  <p className="text-sm text-slate-600">{t("sess.doneText")}</p>
+                </div>
+              </div>
+              <Link to="/dashboard/documents">
+                <Button>{t("dash.uploadDocs")}</Button>
+              </Link>
+            </div>
+          ) : (
+            !lost && (
+              <>
+                {c.session_outcome === "no_attendance" && c.call_status !== "confirmed" && <Alert tone="info">{t("sess.missed")}</Alert>}
+                <BookingCalendar c={c} onRequested={reload} />
+              </>
+            )
+          )}
 
           {!lost && (progress.done < progress.total || rejected > 0) && (
             <div

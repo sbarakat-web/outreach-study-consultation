@@ -75,3 +75,15 @@ The app is a static site (`npm run build` → `dist/`). SPA rewrites are already
 - [ ] A second account can't see the first account's requests or documents
 - [ ] As an admin: change status and notes, open a document, free a slot, add/delete slots, add an admin
 - [ ] A non-admin who opens `/admin` is redirected to `/dashboard`
+
+## Online Study Session (`/onlinesessions`)
+
+Guided 7-chapter presentation advisers run live with booked candidates (also open to students).
+
+- Public: `/onlinesessions` · personalised: `/onlinesessions?stage=interviewed&programme=<name>` · presenter: `/onlinesessions?present=1[&candidate=<id>]`
+- Presenter access: admins, or emails in **Admin → Team → Session presenters** (they only see booked/interviewed candidates and record outcomes via `mark_candidate_interviewed` / `mark_candidate_session_outcome`).
+- "Booked" = call confirmed in Admin. Outcomes: Interviewed → Documents requested (+ PDF recap email via `send-interview-recap`), No attendance → call reset so the candidate rebooks, No longer interested → Lost.
+- Images are optional; add them with these names and they appear automatically (a built-in illustration/placeholder is shown until then):
+  - `public/onlinesessions/online-session-hero-v2.webp` (1672×941), `online-session-hero-mobile-v2.webp` (1000×1777), `introduction-english-path-gbs.webp` (900×1200)
+  - `public/onlinesessions/discover-{english-speaking,schengen,education,living,lifestyle,career}.webp` (900×675)
+  - `public/partners/{eie,gbs,english-path,lsc,kensington,sbm}.png` (school logos)

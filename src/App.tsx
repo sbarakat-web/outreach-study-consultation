@@ -1,17 +1,21 @@
+import { Suspense, lazy } from "react";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { AuthProvider } from "./lib/auth";
 import { I18nProvider } from "./lib/i18n";
 import { supabaseConfigured } from "./lib/supabase";
 import { Layout } from "./components/Layout";
 import { RequireAuth } from "./components/RequireAuth";
-import { Alert } from "./components/ui";
+import { Alert, Spinner } from "./components/ui";
 import { Apply } from "./pages/Apply";
 import { Login } from "./pages/Login";
 import { ResetPassword } from "./pages/ResetPassword";
 import { CallPage, CandidateLayout, DocumentsPage, InvitePage } from "./pages/Dashboard";
-import { AdminLayout } from "./pages/admin/AdminLayout";
-import { Requests } from "./pages/admin/Requests";
-import { Team } from "./pages/admin/Team";
+
+// Heavy, staff-only screens (PDF, animation, admin tables) load on demand.
+const OnlineSessions = lazy(() => import("./pages/sessions/OnlineSessions").then((m) => ({ default: m.OnlineSessions })));
+const AdminLayout = lazy(() => import("./pages/admin/AdminLayout").then((m) => ({ default: m.AdminLayout })));
+const Requests = lazy(() => import("./pages/admin/Requests").then((m) => ({ default: m.Requests })));
+const Team = lazy(() => import("./pages/admin/Team").then((m) => ({ default: m.Team })));
 
 export function App() {
   if (!supabaseConfigured) {
@@ -29,7 +33,9 @@ export function App() {
     <I18nProvider>
     <AuthProvider>
       <BrowserRouter>
+        <Suspense fallback={<Spinner />}>
         <Routes>
+          <Route path="onlinesessions" element={<OnlineSessions />} />
           <Route element={<Layout />}>
             <Route index element={<Apply />} />
             <Route path="login" element={<Login />} />
@@ -60,6 +66,7 @@ export function App() {
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
         </Routes>
+        </Suspense>
       </BrowserRouter>
     </AuthProvider>
     </I18nProvider>

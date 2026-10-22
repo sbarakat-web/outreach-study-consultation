@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "react-router-dom";
-import { CalendarCheck, FileText, MessageCircle, Search, X } from "lucide-react";
+import { Link, useSearchParams } from "react-router-dom";
+import { CalendarCheck, FileText, MessageCircle, Presentation, Search, Star, Video, X } from "lucide-react";
 import { supabase } from "../../lib/supabase";
 import {
   ENGLISH_LEVELS,
@@ -47,6 +47,7 @@ export function Requests() {
   const [status, setStatus] = useState<Status | "">("");
   const [params] = useSearchParams();
   const [openId, setOpenId] = useState<string | null>(params.get("lead"));
+  const [view, setView] = useState(params.get("view"));
 
   const load = useCallback(async () => {
     const { data, error } = await supabase
@@ -67,6 +68,7 @@ export function Requests() {
     const rows = (items ?? []).filter(
       (c) =>
         (!status || c.status === status) &&
+        (view !== "booked" || isBookedLead(c)) &&
         (!q || [c.full_name, c.email, c.whatsapp, c.country, c.desired_course].some((v) => v?.toLowerCase().includes(q))),
     );
     // Hot leads first; closed/lost leads sink to the bottom. Ties: newest first.
@@ -75,7 +77,7 @@ export function Requests() {
       rows.sort((a, b) => rank(b) - rank(a) || b.created_at.localeCompare(a.created_at));
     }
     return rows;
-  }, [items, query, status, sort]);
+  }, [items, query, status, sort, view]);
 
   const upcoming = useMemo(
     () =>
@@ -113,6 +115,26 @@ export function Requests() {
           </div>
         </Card>
       )}
+
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        {view === "booked" ? (
+          <span className="inline-flex items-center gap-2 rounded-full bg-brand/10 px-3 py-1.5 text-sm font-bold text-brand">
+            Booked appointments only
+            <button aria-label="Show all leads" onClick={() => setView(null)} className="rounded-full px-1 hover:bg-brand/10">
+              ×
+            </button>
+          </span>
+        ) : (
+          <button onClick={() => setView("booked")} className="text-sm font-bold text-brand hover:underline">
+            Show booked appointments
+          </button>
+        )}
+        <Link to="/onlinesessions?present=1">
+          <Button variant="secondary">
+            <Presentation className="h-4 w-4" /> Online sessions
+          </Button>
+        </Link>
+      </div>
 
       <div className="flex flex-col gap-3 sm:flex-row">
         <div className="relative flex-1">
@@ -180,6 +202,7 @@ export function Requests() {
                     </td>
                     <td className="px-3 py-3">
                       <StatusBadge label={statusLabel(c.status)} muted={c.status === "lost"} />
+                      {c.session_outcome && <div className="mt-1 text-[11px] font-bold text-slate-500">Session: {SESSION_LABEL[c.session_outcome]}</div>}
                     </td>
                     <td className="hidden px-5 py-3 text-slate-500 lg:table-cell">{new Date(c.created_at).toLocaleDateString()}</td>
                   </tr>
@@ -194,6 +217,11 @@ export function Requests() {
     </div>
   );
 }
+
+const SESSION_LABEL = { interviewed: "Interviewed", no_attendance: "No attendance", no_longer_interested: "No longer interested" } as const;
+
+const isBookedLead = (c: Row) =>
+  c.call_status === "confirmed" && !c.call_declined_at && !["interviewed", "no_longer_interested"].includes(c.session_outcome ?? "");
 
 // Confirmed time, otherwise the candidate's first choice.
 const callTimeOf = (c: Row) => (c.call_status === "confirmed" ? c.preferred_call_at : c.requested_call_times[0]) ?? null;
@@ -261,6 +289,12 @@ function Detail({ c, all, onClose, onSaved }: { c: Row; all: Row[]; onClose: () 
     if (!error) onSaved();
   };
 
+  const quickUpdate = async (fields: Partial<Row>) => {
+    const { error } = await supabase.from("consultations").update(fields).eq("id", c.id);
+    if (error) return setMsg({ tone: "error", text: error.message });
+    onSaved();
+  };
+
   const remove = async () => {
     if (!confirm(`Delete the request from ${c.full_name}? This can't be undone.`)) return;
     const { error } = await supabase.from("consultations").delete().eq("id", c.id);
@@ -310,8 +344,16 @@ function Detail({ c, all, onClose, onSaved }: { c: Row; all: Row[]; onClose: () 
       >
         <div className="sticky top-0 flex items-start justify-between gap-3 border-b border-slate-100 bg-white px-6 py-5">
           <div>
-            <h2 id="detail-title" className="text-xl font-black">
+            <h2 id="detail-title" className="flex items-center gap-2 text-xl font-black">
               {c.full_name}
+              <button
+                aria-label={c.is_starred ? "Unstar" : "Star (shown first in the presenter queue)"}
+                aria-pressed={c.is_starred}
+                onClick={() => quickUpdate({ is_starred: !c.is_starred })}
+                className="rounded-full p-1 hover:bg-amber-50"
+              >
+                <Star className={`h-5 w-5 ${c.is_starred ? "fill-amber-400 text-amber-400" : "text-slate-300"}`} />
+              </button>
             </h2>
             <p className="text-sm text-slate-500">{c.user_id ? "Has an account" : "No linked account yet"}</p>
           </div>
@@ -335,6 +377,20 @@ function Detail({ c, all, onClose, onSaved }: { c: Row; all: Row[]; onClose: () 
           </div>
 
           <CallPanel c={c} documents={docs.length} onSaved={onSaved} />
+
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <label htmlFor="meet-link" className="flex shrink-0 items-center gap-1.5 text-sm font-bold">
+              <Video className="h-4 w-4 text-brand" /> Meet link
+            </label>
+            <input
+              id="meet-link"
+              type="url"
+              placeholder="https://meet.google.com/…"
+              className="field py-2"
+              defaultValue={c.meeting_url ?? ""}
+              onBlur={(e) => e.target.value.trim() !== (c.meeting_url ?? "") && quickUpdate({ meeting_url: e.target.value.trim() || null })}
+            />
+          </div>
 
           <dl className="grid grid-cols-[8rem_1fr] gap-x-4 gap-y-2 text-sm">
             {rows.map(([k, v]) => (

@@ -4,25 +4,54 @@ import { supabase } from "../../lib/supabase";
 import { useAuth } from "../../lib/auth";
 import { Alert, Button, Card, Spinner } from "../../components/ui";
 
-interface Admin {
+interface Member {
   email: string;
   created_at: string;
 }
 
 export function Team() {
+  return (
+    <div className="mx-auto max-w-2xl space-y-6">
+      <RoleList
+        table="admins"
+        title="Admins"
+        singular="admin"
+        description="Admins can see every lead, change statuses, run online sessions and add other team members."
+      />
+      <RoleList
+        table="session_presenters"
+        title="Session presenters"
+        singular="session presenter"
+        description="Session presenters only run online sessions (/onlinesessions) for booked candidates and record the outcome. They cannot see or edit other leads."
+      />
+    </div>
+  );
+}
+
+function RoleList({
+  table,
+  title,
+  singular,
+  description,
+}: {
+  table: "admins" | "session_presenters";
+  title: string;
+  singular: string;
+  description: string;
+}) {
   const { session } = useAuth();
   const me = session?.user.email?.toLowerCase();
-  const [admins, setAdmins] = useState<Admin[] | null>(null);
+  const [members, setMembers] = useState<Member[] | null>(null);
   const [email, setEmail] = useState("");
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
   const [saving, setSaving] = useState(false);
 
   const load = useCallback(async () => {
-    const { data, error } = await supabase.from("admins").select("email, created_at").order("created_at");
+    const { data, error } = await supabase.from(table).select("email, created_at").order("created_at");
     if (error) setError(error.message);
-    setAdmins(data ?? []);
-  }, []);
+    setMembers(data ?? []);
+  }, [table]);
 
   useEffect(() => {
     load();
@@ -33,69 +62,65 @@ export function Team() {
     setError("");
     setInfo("");
     setSaving(true);
-    const { error } = await supabase.from("admins").insert({ email: email.trim().toLowerCase(), added_by: session?.user.id });
+    const { error } = await supabase.from(table).insert({ email: email.trim().toLowerCase(), added_by: session?.user.id });
     setSaving(false);
-    if (error) return setError(error.code === "23505" ? "That person is already an admin." : error.message);
-    setInfo(`${email} is now an admin. They can sign in at ${window.location.origin}/login with this email (we email them a sign-in link).`);
+    if (error) return setError(error.code === "23505" ? `That person is already a ${singular}.` : error.message);
+    setInfo(`${email} is now a ${singular}. They can sign in at ${window.location.origin}/login with this email (we email them a sign-in code).`);
     setEmail("");
     load();
   };
 
-  const remove = async (a: Admin) => {
-    if (!confirm(`Remove admin access for ${a.email}?`)) return;
-    const { error } = await supabase.from("admins").delete().eq("email", a.email);
+  const remove = async (m: Member) => {
+    if (!confirm(`Remove ${singular} access for ${m.email}?`)) return;
+    const { error } = await supabase.from(table).delete().eq("email", m.email);
     if (error) return setError(error.message);
     load();
   };
 
   return (
-    <div className="mx-auto max-w-2xl space-y-6">
-      <Card>
-        <form onSubmit={add} className="space-y-4 px-5 py-6 sm:px-7">
-          <h2 className="text-lg font-black">Add an admin</h2>
-          <div className="flex flex-col gap-3 sm:flex-row">
-            <input
-              type="email"
-              required
-              placeholder="colleague@outreachstudy.eu"
-              className="field"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              aria-label="Admin email"
-            />
-            <Button type="submit" loading={saving}>
-              Add
-            </Button>
-          </div>
-          <p className="text-xs text-slate-500">Admins can see every request, change statuses, manage time slots and add other admins.</p>
-          {error && <Alert>{error}</Alert>}
-          {info && <Alert tone="success">{info}</Alert>}
-        </form>
-      </Card>
-
-      <Card>
-        <div className="px-5 py-5 sm:px-7">
-          <h2 className="mb-3 text-lg font-black">Admins</h2>
-          {!admins ? (
-            <Spinner />
-          ) : (
-            <ul className="divide-y divide-slate-100">
-              {admins.map((a) => (
-                <li key={a.email} className="flex items-center justify-between gap-3 py-3 text-sm">
-                  <span className="truncate font-bold">
-                    {a.email} {a.email === me && <span className="font-normal text-slate-400">(you)</span>}
-                  </span>
-                  {a.email !== me && (
-                    <button aria-label={`Remove ${a.email}`} onClick={() => remove(a)} className="text-slate-400 hover:text-brand-red">
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  )}
-                </li>
-              ))}
-            </ul>
-          )}
+    <Card>
+      <div className="space-y-4 px-5 py-6 sm:px-7">
+        <div>
+          <h2 className="text-lg font-black">{title}</h2>
+          <p className="text-xs text-slate-500">{description}</p>
         </div>
-      </Card>
-    </div>
+        <form onSubmit={add} className="flex flex-col gap-3 sm:flex-row">
+          <input
+            type="email"
+            required
+            placeholder="colleague@outreachstudy.eu"
+            className="field"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            aria-label={`New ${singular} email`}
+          />
+          <Button type="submit" loading={saving}>
+            Add
+          </Button>
+        </form>
+        {error && <Alert>{error}</Alert>}
+        {info && <Alert tone="success">{info}</Alert>}
+        {!members ? (
+          <Spinner />
+        ) : members.length === 0 ? (
+          <p className="text-sm text-slate-500">No {title.toLowerCase()} yet.</p>
+        ) : (
+          <ul className="divide-y divide-slate-100">
+            {members.map((m) => (
+              <li key={m.email} className="flex items-center justify-between gap-3 py-3 text-sm">
+                <span className="truncate font-bold">
+                  {m.email} {m.email === me && <span className="font-normal text-slate-400">(you)</span>}
+                </span>
+                {!(table === "admins" && m.email === me) && (
+                  <button aria-label={`Remove ${m.email}`} onClick={() => remove(m)} className="text-slate-400 hover:text-brand-red">
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </Card>
   );
 }

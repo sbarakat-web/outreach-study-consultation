@@ -36,6 +36,10 @@ export interface Consultation {
   call_reviewed_at: string | null;
   call_declined_at: string | null;
   referral_code: string;
+  session_outcome: "interviewed" | "no_attendance" | "no_longer_interested" | null;
+  session_outcome_at: string | null;
+  meeting_url: string | null;
+  is_starred: boolean;
   tracking: Record<string, string>;
   created_at: string;
   updated_at: string;

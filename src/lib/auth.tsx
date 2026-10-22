@@ -5,6 +5,8 @@ import { supabase } from "./supabase";
 interface AuthState {
   session: Session | null;
   isAdmin: boolean;
+  /** Session presenter (runs /onlinesessions, records outcomes). Admins have every presenter right too. */
+  isPresenter: boolean;
   loading: boolean;
   signOut: () => Promise<void>;
 }
@@ -12,6 +14,7 @@ interface AuthState {
 const AuthContext = createContext<AuthState>({
   session: null,
   isAdmin: false,
+  isPresenter: false,
   loading: true,
   signOut: async () => {},
 });
@@ -19,6 +22,7 @@ const AuthContext = createContext<AuthState>({
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isPresenter, setIsPresenter] = useState(false);
   const [loading, setLoading] = useState(true);
   const [ready, setReady] = useState(false);
 
@@ -37,12 +41,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!ready) return;
     if (!userId) {
       setIsAdmin(false);
+      setIsPresenter(false);
       setLoading(false);
       return;
     }
     setLoading(true);
-    supabase.rpc("is_admin").then(({ data }) => {
-      setIsAdmin(data === true);
+    Promise.all([supabase.rpc("is_admin"), supabase.rpc("is_session_presenter")]).then(([admin, presenter]) => {
+      setIsAdmin(admin.data === true);
+      setIsPresenter(presenter.data === true);
       setLoading(false);
     });
   }, [userId, ready]);
@@ -51,7 +57,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await supabase.auth.signOut();
   };
 
-  return <AuthContext.Provider value={{ session, isAdmin, loading, signOut }}>{children}</AuthContext.Provider>;
+  return <AuthContext.Provider value={{ session, isAdmin, isPresenter, loading, signOut }}>{children}</AuthContext.Provider>;
 }
 
 export const useAuth = () => useContext(AuthContext);
