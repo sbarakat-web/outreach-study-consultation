@@ -29,7 +29,7 @@ Stack: Vite + React + TypeScript + Tailwind, and Supabase (Auth, Postgres with R
    insert into public.admins (email) values ('you@example.com');
    ```
    Then create an account at `/login` with that email and confirm it. Add other admins from `/admin/team`.
-5. **Email sign-in code.** Candidates sign in with a one-time code instead of a password. In **Auth → Email Templates**, add `{{ .Token }}` to both the **Magic Link** and **Confirm signup** templates, for example: `<p>Your code: <strong>{{ .Token }}</strong></p>`. The link in the email keeps working as well.
+5. **Email sign-in code.** Candidates sign in with a one-time code instead of a password. In **Auth → Email Templates**, paste [`supabase/templates/sign-in-code.html`](supabase/templates/sign-in-code.html) into both the **Magic Link** and **Confirm signup** templates (subject: `Your Outreach sign-in code`). The link in the email keeps working as well.
 6. Optional: set Supabase Auth to send email through your own SMTP (Auth → SMTP) so that sign-up emails come from your domain.
 
 ## 2. Confirmation emails / WhatsApp (Edge Function)
