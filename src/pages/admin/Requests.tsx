@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { CalendarCheck, FileText, MessageCircle, Presentation, Search, Star, Video, X } from "lucide-react";
+import { CalendarCheck, FileText, MessageCircle, Play, Presentation, Search, Star, Video, X } from "lucide-react";
 import { supabase } from "../../lib/supabase";
 import {
   ENGLISH_LEVELS,
@@ -15,6 +15,7 @@ import {
   callStage,
 } from "../../lib/options";
 import { CallPanel } from "./CallPanel";
+import { SessionPanel, sessionHref } from "./SessionPanel";
 import type { Consultation, DocumentRow, Status } from "../../lib/types";
 import { Alert, Button, Card, Spinner, StatusBadge } from "../../components/ui";
 
@@ -102,13 +103,14 @@ export function Requests() {
             <h2 className="mb-3 text-sm font-extrabold uppercase tracking-wider text-slate-500">Upcoming calls</h2>
             <ul className="divide-y divide-slate-100">
               {upcoming.map(({ c, at }) => (
-                <li key={c.id}>
-                  <button onClick={() => setOpenId(c.id)} className="flex w-full items-center gap-3 py-2.5 text-left text-sm hover:text-brand">
+                <li key={c.id} className="flex items-center gap-2">
+                  <button onClick={() => setOpenId(c.id)} className="flex min-w-0 flex-1 items-center gap-3 py-2.5 text-left text-sm hover:text-brand">
                     <CalendarCheck className="h-4 w-4 shrink-0 text-brand" />
                     <span className="w-44 shrink-0 font-bold">{formatSlot(at)}</span>
                     <span className="truncate">{c.full_name}</span>
                     <CallBadge c={c} />
                   </button>
+                  {isBookedLead(c) && <StartSessionLink c={c} />}
                 </li>
               ))}
             </ul>
@@ -195,6 +197,7 @@ export function Requests() {
                         <div className="space-y-1">
                           <div>{formatSlot(callTimeOf(c)!)}</div>
                           <CallBadge c={c} />
+                          {isBookedLead(c) && <StartSessionLink c={c} />}
                         </div>
                       ) : (
                         <CallBadge c={c} />
@@ -219,6 +222,18 @@ export function Requests() {
 }
 
 const SESSION_LABEL = { interviewed: "Interviewed", no_attendance: "No attendance", no_longer_interested: "No longer interested" } as const;
+
+function StartSessionLink({ c }: { c: Row }) {
+  return (
+    <Link
+      to={sessionHref(c)}
+      onClick={(e) => e.stopPropagation()}
+      className="inline-flex shrink-0 items-center gap-1 rounded-full bg-brand px-2.5 py-1 text-[11px] font-bold text-white hover:bg-brand/90"
+    >
+      <Play className="h-3 w-3 fill-current" /> Start session
+    </Link>
+  );
+}
 
 const isBookedLead = (c: Row) =>
   c.call_status === "confirmed" && !c.call_declined_at && !["interviewed", "no_longer_interested"].includes(c.session_outcome ?? "");
@@ -377,6 +392,8 @@ function Detail({ c, all, onClose, onSaved }: { c: Row; all: Row[]; onClose: () 
           </div>
 
           <CallPanel c={c} documents={docs.length} onSaved={onSaved} />
+
+          <SessionPanel c={c} />
 
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
             <label htmlFor="meet-link" className="flex shrink-0 items-center gap-1.5 text-sm font-bold">

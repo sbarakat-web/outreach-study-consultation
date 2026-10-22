@@ -49,7 +49,7 @@ export function CallPanel({ c, documents, onSaved }: { c: Consultation; document
         call_declined_at: null,
         ...(["new", "contacted", "qualified"].includes(c.status) ? { status: "consultation_booked" as const } : {}),
       },
-      `Confirmed for ${maltaTime(iso)} (Malta). The candidate now sees it in their dashboard.`,
+      `Confirmed for ${maltaTime(iso)} (Malta). The candidate sees it in their dashboard, and it is now in the online-session queue.`,
     );
 
   const bookingMessage = `Hi ${first}, this is Outreach. Thank you for your application for ${course} — we've reviewed your profile and would love to talk. Please confirm your free call here: ${BOOKING_LINK}`;
