@@ -4,6 +4,7 @@ import { CalendarCheck, FileText, MessageCircle, Search, X } from "lucide-react"
 import { supabase } from "../../lib/supabase";
 import {
   ENGLISH_LEVELS,
+  documentTypesFor,
   STATUSES,
   STUDY_PATHS,
   formatSlot,
@@ -255,6 +256,7 @@ function Detail({ c, onClose, onSaved }: { c: Row; onClose: () => void; onSaved:
   };
 
   const lead = scoreOf(c);
+  const requiredDocs = documentTypesFor(c.study_path).filter((t) => t.required);
   const rows: [string, string | null | undefined][] = [
     ["Lead score", `${lead.score} (${lead.tier})${lead.parts.length ? " — " + lead.parts.map(([l, n]) => `${l} +${n}`).join(", ") : ""}`],
     ["Email", c.email],
@@ -320,7 +322,13 @@ function Detail({ c, onClose, onSaved }: { c: Row; onClose: () => void; onSaved:
           </dl>
 
           <div>
-            <h3 className="mb-2 text-sm font-extrabold">Documents</h3>
+            <h3 className="mb-2 text-sm font-extrabold">
+              Documents{" "}
+              <span className="font-normal text-slate-500">
+                ({requiredDocs.filter((t) => docs.some((d) => d.doc_type === t.key)).length}/{requiredDocs.length} required:{" "}
+                {requiredDocs.map((t) => `${docs.some((d) => d.doc_type === t.key) ? "✓" : "✗"} ${t.label}`).join(", ")})
+              </span>
+            </h3>
             {docs.length === 0 ? (
               <p className="text-sm text-slate-500">No documents uploaded.</p>
             ) : (
@@ -329,6 +337,11 @@ function Detail({ c, onClose, onSaved }: { c: Row; onClose: () => void; onSaved:
                   <li key={d.id}>
                     <button onClick={() => openDoc(d)} className="flex items-center gap-2 text-sm hover:underline">
                       <FileText className="h-4 w-4 text-slate-400" /> {d.file_name}
+                      {d.doc_type && (
+                        <span className="rounded-full bg-mist px-2 py-0.5 text-[11px] font-bold text-slate-500">
+                          {documentTypesFor(c.study_path).find((t) => t.key === d.doc_type)?.label ?? d.doc_type}
+                        </span>
+                      )}
                     </button>
                   </li>
                 ))}

@@ -46,5 +46,6 @@ export interface DocumentRow {
   user_id: string;
   file_path: string;
   file_name: string;
+  doc_type: string | null;
   created_at: string;
 }

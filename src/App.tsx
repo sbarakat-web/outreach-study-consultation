@@ -7,7 +7,7 @@ import { Alert } from "./components/ui";
 import { Apply } from "./pages/Apply";
 import { Login } from "./pages/Login";
 import { ResetPassword } from "./pages/ResetPassword";
-import { Dashboard } from "./pages/Dashboard";
+import { CallPage, CandidateLayout, DocumentsPage } from "./pages/Dashboard";
 import { AdminLayout } from "./pages/admin/AdminLayout";
 import { Requests } from "./pages/admin/Requests";
 import { Team } from "./pages/admin/Team";
@@ -35,11 +35,14 @@ export function App() {
             <Route
               path="dashboard"
               element={
-                <RequireAuth>
-                  <Dashboard />
+                <RequireAuth candidate>
+                  <CandidateLayout />
                 </RequireAuth>
               }
-            />
+            >
+              <Route index element={<CallPage />} />
+              <Route path="documents" element={<DocumentsPage />} />
+            </Route>
             <Route
               path="admin"
               element={

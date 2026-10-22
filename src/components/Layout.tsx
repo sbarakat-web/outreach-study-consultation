@@ -17,12 +17,13 @@ export function Layout() {
         <nav className="flex items-center gap-1">
           {session ? (
             <>
-              <NavLink to="/dashboard" className={navClass}>
-                My requests
-              </NavLink>
-              {isAdmin && (
+              {isAdmin ? (
                 <NavLink to="/admin" className={navClass}>
                   Admin
+                </NavLink>
+              ) : (
+                <NavLink to="/dashboard" className={navClass}>
+                  My application
                 </NavLink>
               )}
               <button

@@ -87,6 +87,35 @@ export function callStage(c: {
   return c.requested_call_times.length ? "requested" : "none";
 }
 
+// Documents candidates upload before their call, per study path.
+export interface DocumentType {
+  key: string;
+  label: string;
+  hint: string;
+  required: boolean;
+}
+
+const PASSPORT: DocumentType = { key: "passport", label: "Passport", hint: "Photo page, valid for at least 6 months", required: true };
+const PHOTO: DocumentType = { key: "photo", label: "Passport-style photo", hint: "Plain background, recent", required: false };
+const CV: DocumentType = { key: "cv", label: "CV", hint: "Education and work experience", required: false };
+
+export const DOCUMENT_TYPES: Record<string, DocumentType[]> = {
+  english: [
+    PASSPORT,
+    PHOTO,
+    { key: "english_certificate", label: "English certificate", hint: "Only if you have one (any level)", required: false },
+  ],
+  higher_education: [
+    PASSPORT,
+    { key: "diploma", label: "Highest diploma", hint: "High school or university diploma", required: true },
+    { key: "transcripts", label: "Transcripts", hint: "Grades for your last completed studies", required: true },
+    { key: "english_certificate", label: "English certificate (B2)", hint: "IELTS, TOEFL, Cambridge or similar", required: true },
+    CV,
+  ],
+};
+
+export const documentTypesFor = (studyPath: string | null) => DOCUMENT_TYPES[studyPath ?? ""] ?? DOCUMENT_TYPES.english;
+
 export const REVIEW_CHECKLIST = [
   { key: "english", label: "English level confirmed" },
   { key: "course", label: "Course fits the profile" },
