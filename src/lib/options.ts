@@ -97,7 +97,7 @@ export interface DocumentType {
 
 const PASSPORT: DocumentType = { key: "passport", label: "Passport", hint: "Photo page, valid for at least 6 months", required: true };
 const PHOTO: DocumentType = { key: "photo", label: "Passport-style photo", hint: "Plain background, recent", required: false };
-const CV: DocumentType = { key: "cv", label: "CV", hint: "Education and work experience", required: false };
+const CV: DocumentType = { key: "cv", label: "CV in English", hint: "Education and work experience, written in English", required: false };
 
 export const DOCUMENT_TYPES: Record<string, DocumentType[]> = {
   english: [
@@ -109,7 +109,7 @@ export const DOCUMENT_TYPES: Record<string, DocumentType[]> = {
     PASSPORT,
     { key: "diploma", label: "Highest diploma", hint: "High school or university diploma", required: true },
     { key: "transcripts", label: "Transcripts", hint: "Grades for your last completed studies", required: true },
-    { key: "english_certificate", label: "English certificate (B2)", hint: "IELTS, TOEFL, Cambridge or similar", required: true },
+    { key: "english_certificate", label: "English certificate", hint: "Any English certificate or proof of your level", required: false },
     CV,
   ],
 };
