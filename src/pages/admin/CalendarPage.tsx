@@ -65,7 +65,11 @@ export function CalendarPage() {
   const [params, setParams] = useSearchParams();
   const [items, setItems] = useState<Consultation[] | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
-  const [google, setGoogle] = useState<{ configured: boolean; connections: { email: string; is_default: boolean }[] }>({ configured: false, connections: [] });
+  const [google, setGoogle] = useState<{
+    configured: boolean;
+    connections: { email: string; is_default: boolean }[];
+    service?: { calendar: string; account: string; ok: boolean; delegated: boolean };
+  }>({ configured: false, connections: [] });
   const [busy, setBusy] = useState<Busy[]>([]);
   const [error, setError] = useState("");
   const [flash, setFlash] = useState(params.get("google") === "connected" ? "Google Calendar connected." : "");
@@ -90,7 +94,7 @@ export function CalendarPage() {
 
   useEffect(() => {
     load();
-    googleApi("status").then((r) => setGoogle({ configured: !r.error && !r.data?.error, connections: r.data?.connections ?? [] }));
+    googleApi("status").then((r) => setGoogle({ configured: !r.error && !r.data?.error, connections: r.data?.connections ?? [], service: r.data?.service }));
     if (params.get("google")) setParams({}, { replace: true });
   }, [load]);
 
@@ -250,6 +254,18 @@ export function CalendarPage() {
           <p className="text-slate-600">
             <strong>Google Calendar not set up.</strong> Add the Google OAuth keys in Supabase to show your busy times and create Meet links automatically.
           </p>
+        ) : google.service ? (
+          google.service.ok ? (
+            <p className="flex flex-wrap items-center gap-2 text-slate-600">
+              <Check className="h-4 w-4 text-emerald-600" /> Google Calendar connected: <strong>{google.service.calendar}</strong>
+              {!google.service.delegated && <span className="text-xs text-slate-400">(Meet links and invites need Workspace delegation)</span>}
+            </p>
+          ) : (
+            <p className="text-slate-600">
+              <strong>Almost there:</strong> in Google Calendar, share <strong>{google.service.calendar}</strong> with{" "}
+              <code className="rounded bg-slate-100 px-1 text-xs">{google.service.account}</code> (“Make changes to events”), then reload this page.
+            </p>
+          )
         ) : myConnection ? (
           <p className="flex items-center gap-2 text-slate-600">
             <Check className="h-4 w-4 text-emerald-600" /> Google Calendar connected: <strong>{me}</strong>
@@ -259,7 +275,7 @@ export function CalendarPage() {
           <p className="text-slate-600">Connect your Google Calendar to see busy times and create Meet links on confirm.</p>
         )}
         <div className="flex flex-wrap gap-2">
-          {google.configured && !myConnection && (
+          {google.configured && !google.service && !myConnection && (
             <Button onClick={connectGoogle}>
               <Link2 className="h-4 w-4" /> Connect Google Calendar
             </Button>

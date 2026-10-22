@@ -1,14 +1,17 @@
-// Google Calendar for advisers: connect (OAuth), busy times, Meet events for confirmed calls.
+// Google Calendar for advisers: busy times and Meet events for confirmed calls.
+// Connects through a service account (GOOGLE_SERVICE_ACCOUNT + GOOGLE_CALENDAR_ID, see _shared/google.ts)
+// or per-adviser OAuth (GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET).
 //   GET  /google-calendar/callback        OAuth redirect target
-//   POST { action: "auth-url" }           staff: URL to connect their Google account
-//   POST { action: "status" }             staff: connected accounts
+//   POST { action: "auth-url" }           staff: URL to connect their Google account (OAuth only)
+//   POST { action: "status" }             staff: connected accounts (+ service calendar)
 //   POST { action: "busy", from, to }     staff: busy intervals of the caller (or default) calendar
 //   POST { action: "public-busy", from, to }  anyone: busy intervals only (no details), default calendar
 //   POST { action: "create-event", consultationId, at }  staff: event + Meet link, invites candidate
 //   POST { action: "move-event", consultationId, at }    staff: reschedule the Google event
 //   POST { action: "disconnect" | "set-default" }        staff / admin
-// Secrets: GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET; optional APP_URL
+// Secrets: GOOGLE_SERVICE_ACCOUNT, GOOGLE_CALENDAR_ID, optional GOOGLE_IMPERSONATE; or GOOGLE_CLIENT_ID/SECRET; optional APP_URL
 import { createClient } from "npm:@supabase/supabase-js@2.45.4";
+import { SCOPES, createCallEvent, freeBusy, googleConfigured, moveCallEvent, oauthConfigured, serviceAccount } from "../_shared/google.ts";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -16,8 +19,6 @@ const cors = {
 };
 const env = (k: string) => Deno.env.get(k) ?? "";
 const APP_URL = () => env("APP_URL") || "https://consultation.outreachstudy.eu";
-const CALL_MINUTES = 20;
-const SCOPES = "https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/calendar.freebusy";
 const redirectUri = () => `${env("SUPABASE_URL")}/functions/v1/google-calendar/callback`;
 
 const json = (body: unknown, status = 200) =>
@@ -38,47 +39,14 @@ async function staffEmail(req: Request) {
   return a || p ? { email, admin: !!a } : null;
 }
 
-async function accessToken(email?: string | null) {
-  const { data: rows } = await db().from("google_connections").select("email, refresh_token, calendar_id, is_default");
-  const conn = rows?.find((r) => r.email === email) ?? rows?.find((r) => r.is_default) ?? rows?.[0];
-  if (!conn) return null;
-  const res = await fetch("https://oauth2.googleapis.com/token", {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({
-      client_id: env("GOOGLE_CLIENT_ID"),
-      client_secret: env("GOOGLE_CLIENT_SECRET"),
-      refresh_token: conn.refresh_token,
-      grant_type: "refresh_token",
-    }),
-  });
-  if (!res.ok) return null;
-  const { access_token } = await res.json();
-  return { token: access_token as string, calendarId: conn.calendar_id as string, email: conn.email as string };
-}
-
 async function defaultEmail() {
   const { data } = await db().from("google_connections").select("email").eq("is_default", true).maybeSingle();
   return data?.email ?? null;
 }
 
-async function freeBusy(email: string | null, from: string, to: string) {
-  const auth = await accessToken(email);
-  if (!auth) return null;
-  const res = await fetch("https://www.googleapis.com/calendar/v3/freeBusy", {
-    method: "POST",
-    headers: { Authorization: `Bearer ${auth.token}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ timeMin: from, timeMax: to, items: [{ id: auth.calendarId }] }),
-  });
-  if (!res.ok) return null;
-  const data = await res.json();
-  return { email: auth.email, busy: (data.calendars?.[auth.calendarId]?.busy ?? []) as { start: string; end: string }[] };
-}
-
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   const url = new URL(req.url);
-  const configured = !!(env("GOOGLE_CLIENT_ID") && env("GOOGLE_CLIENT_SECRET"));
 
   // OAuth redirect
   if (req.method === "GET" && url.pathname.endsWith("/callback")) {
@@ -111,103 +79,73 @@ Deno.serve(async (req) => {
   const body = await req.json().catch(() => ({}));
   const action = body.action as string;
 
-  if (!configured) return json({ error: "google-not-configured" }, action === "public-busy" ? 200 : 503);
+  if (!googleConfigured()) return json({ error: "google-not-configured" }, action === "public-busy" ? 200 : 503);
 
   if (action === "public-busy") {
-    const fb = await freeBusy(await defaultEmail(), body.from, body.to);
+    const fb = await freeBusy(db(), await defaultEmail(), body.from, body.to).catch(() => null);
     return json({ busy: fb?.busy ?? [] });
   }
 
   const staff = await staffEmail(req);
   if (!staff) return json({ error: "Staff only" }, 403);
 
-  switch (action) {
-    case "auth-url": {
-      const state = crypto.randomUUID();
-      await db().from("oauth_states").insert({ state, email: staff.email });
-      const params = new URLSearchParams({
-        client_id: env("GOOGLE_CLIENT_ID"),
-        redirect_uri: redirectUri(),
-        response_type: "code",
-        scope: SCOPES,
-        access_type: "offline",
-        prompt: "consent",
-        include_granted_scopes: "true",
-        login_hint: staff.email,
-        state,
-      });
-      return json({ url: `https://accounts.google.com/o/oauth2/v2/auth?${params}` });
-    }
-    case "status": {
-      const { data } = await db().from("google_connections").select("email, is_default");
-      return json({ connections: data ?? [] });
-    }
-    case "busy": {
-      const fb = await freeBusy(body.email ?? staff.email, body.from, body.to);
-      return json(fb ?? { busy: [], email: null });
-    }
-    case "disconnect": {
-      await db().from("google_connections").delete().eq("email", staff.email);
-      return json({ ok: true });
-    }
-    case "set-default": {
-      if (!staff.admin) return json({ error: "Admins only" }, 403);
-      await db().from("google_connections").update({ is_default: false }).neq("email", body.email);
-      await db().from("google_connections").update({ is_default: true }).eq("email", body.email);
-      return json({ ok: true });
-    }
-    case "create-event":
-    case "move-event": {
-      const { data: c } = await db().from("consultations").select("*").eq("id", body.consultationId).maybeSingle();
-      if (!c) return json({ error: "Candidate not found" }, 404);
-      const auth = await accessToken(c.assigned_to ?? staff.email);
-      if (!auth) return json({ error: "No connected Google Calendar" }, 409);
-      const start = new Date(body.at);
-      const end = new Date(start.getTime() + CALL_MINUTES * 60_000);
-      const base = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(auth.calendarId)}/events`;
-
-      if (action === "move-event") {
-        if (!c.google_event_id) return json({ ok: true, skipped: "no event" });
-        const res = await fetch(`${base}/${c.google_event_id}?sendUpdates=all`, {
-          method: "PATCH",
-          headers: { Authorization: `Bearer ${auth.token}`, "Content-Type": "application/json" },
-          body: JSON.stringify({ start: { dateTime: start.toISOString() }, end: { dateTime: end.toISOString() } }),
+  try {
+    switch (action) {
+      case "auth-url": {
+        if (!oauthConfigured()) return json({ error: "Calendar is connected through the service account" }, 400);
+        const state = crypto.randomUUID();
+        await db().from("oauth_states").insert({ state, email: staff.email });
+        const params = new URLSearchParams({
+          client_id: env("GOOGLE_CLIENT_ID"),
+          redirect_uri: redirectUri(),
+          response_type: "code",
+          scope: SCOPES,
+          access_type: "offline",
+          prompt: "consent",
+          include_granted_scopes: "true",
+          login_hint: staff.email,
+          state,
         });
-        return json({ ok: res.ok });
+        return json({ url: `https://accounts.google.com/o/oauth2/v2/auth?${params}` });
       }
-
-      const event = {
-        summary: `Outreach call — ${c.full_name}`,
-        description: [
-          `Candidate: ${c.full_name} (${c.email})`,
-          c.whatsapp ? `WhatsApp: ${c.whatsapp}` : "",
-          `Course: ${c.desired_course ?? "-"}`,
-          `Lead: ${APP_URL()}/admin?lead=${c.id}`,
-          `Online session: ${APP_URL()}/onlinesessions?present=1&candidate=${c.id}`,
-        ]
-          .filter(Boolean)
-          .join("\n"),
-        start: { dateTime: start.toISOString() },
-        end: { dateTime: end.toISOString() },
-        attendees: [{ email: c.email }],
-        conferenceData: { createRequest: { requestId: crypto.randomUUID(), conferenceSolutionKey: { type: "hangoutsMeet" } } },
-        reminders: { useDefault: true },
-      };
-      const res = await fetch(`${base}?conferenceDataVersion=1&sendUpdates=all`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${auth.token}`, "Content-Type": "application/json" },
-        body: JSON.stringify(event),
-      });
-      const created = await res.json();
-      if (!res.ok) return json({ error: created.error?.message ?? "Google error" }, 502);
-      const meetUrl = created.hangoutLink ?? created.conferenceData?.entryPoints?.find((e: { entryPointType: string }) => e.entryPointType === "video")?.uri ?? null;
-      await db()
-        .from("consultations")
-        .update({ google_event_id: created.id, meeting_url: meetUrl ?? c.meeting_url, assigned_to: c.assigned_to ?? auth.email })
-        .eq("id", c.id);
-      return json({ ok: true, meetUrl, eventId: created.id, calendar: auth.email });
+      case "status": {
+        if (serviceAccount()) {
+          // Check the shared calendar is actually reachable.
+          const now = new Date();
+          const fb = await freeBusy(db(), null, now.toISOString(), new Date(now.getTime() + 3_600_000).toISOString());
+          return json({
+            service: { calendar: env("GOOGLE_CALENDAR_ID"), account: serviceAccount()!.client_email, ok: !!fb, delegated: !!env("GOOGLE_IMPERSONATE") },
+            connections: fb ? [{ email: env("GOOGLE_CALENDAR_ID"), is_default: true }] : [],
+          });
+        }
+        const { data } = await db().from("google_connections").select("email, is_default");
+        return json({ connections: data ?? [] });
+      }
+      case "busy": {
+        const fb = await freeBusy(db(), body.email ?? staff.email, body.from, body.to);
+        return json(fb ?? { busy: [], email: null });
+      }
+      case "disconnect": {
+        await db().from("google_connections").delete().eq("email", staff.email);
+        return json({ ok: true });
+      }
+      case "set-default": {
+        if (!staff.admin) return json({ error: "Admins only" }, 403);
+        await db().from("google_connections").update({ is_default: false }).neq("email", body.email);
+        await db().from("google_connections").update({ is_default: true }).eq("email", body.email);
+        return json({ ok: true });
+      }
+      case "create-event":
+      case "move-event": {
+        const { data: c } = await db().from("consultations").select("*").eq("id", body.consultationId).maybeSingle();
+        if (!c) return json({ error: "Candidate not found" }, 404);
+        const r = action === "move-event" ? await moveCallEvent(db(), c, body.at, staff.email) : await createCallEvent(db(), c, body.at, staff.email);
+        return "error" in r && r.error ? json(r, r.error === "No connected Google Calendar" ? 409 : 502) : json({ ok: true, ...r });
+      }
+      default:
+        return json({ error: "Unknown action" }, 400);
     }
-    default:
-      return json({ error: "Unknown action" }, 400);
+  } catch (e) {
+    return json({ error: e instanceof Error ? e.message : String(e) }, 502);
   }
 });
