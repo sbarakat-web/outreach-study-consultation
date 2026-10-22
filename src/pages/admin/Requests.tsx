@@ -270,10 +270,7 @@ function CallBadge({ c }: { c: Row }) {
 }
 
 function Detail({ c, all, onClose, onSaved }: { c: Row; all: Row[]; onClose: () => void; onSaved: () => void }) {
-  const [status, setStatus] = useState<Status>(c.status);
-  const [notes, setNotes] = useState(c.admin_notes ?? "");
   const [docs, setDocs] = useState<DocumentRow[]>([]);
-  const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<{ tone: "error" | "success"; text: string } | null>(null);
 
   const loadDocs = useCallback(() => {
@@ -309,14 +306,6 @@ function Detail({ c, all, onClose, onSaved }: { c: Row; all: Row[]; onClose: () 
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
-
-  const save = async () => {
-    setSaving(true);
-    const { error } = await supabase.from("consultations").update({ status, admin_notes: notes || null }).eq("id", c.id);
-    setSaving(false);
-    setMsg(error ? { tone: "error", text: error.message } : { tone: "success", text: "Saved." });
-    if (!error) onSaved();
-  };
 
   const quickUpdate = async (fields: Partial<Row>) => {
     const { error } = await supabase.from("consultations").update(fields).eq("id", c.id);
@@ -495,33 +484,10 @@ function Detail({ c, all, onClose, onSaved }: { c: Row; all: Row[]; onClose: () 
           </div>
 
           <div className="space-y-3 border-t border-slate-100 pt-5">
-            <div>
-              <label className="label" htmlFor="status">
-                Status
-              </label>
-              <select id="status" className="field" value={status} onChange={(e) => setStatus(e.target.value as Status)}>
-                {STATUSES.map((s) => (
-                  <option key={s.value} value={s.value}>
-                    {s.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="label" htmlFor="notes">
-                Internal notes
-              </label>
-              <textarea id="notes" rows={5} className="field" value={notes} onChange={(e) => setNotes(e.target.value)} />
-            </div>
             {msg && <Alert tone={msg.tone}>{msg.text}</Alert>}
-            <div className="flex justify-between gap-3">
-              <Button variant="danger" onClick={remove}>
-                Delete
-              </Button>
-              <Button onClick={save} loading={saving}>
-                Save changes
-              </Button>
-            </div>
+            <Button variant="danger" onClick={remove}>
+              Delete
+            </Button>
           </div>
         </div>
       </aside>
