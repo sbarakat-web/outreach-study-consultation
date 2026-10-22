@@ -1,5 +1,6 @@
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { AuthProvider } from "./lib/auth";
+import { I18nProvider } from "./lib/i18n";
 import { supabaseConfigured } from "./lib/supabase";
 import { Layout } from "./components/Layout";
 import { RequireAuth } from "./components/RequireAuth";
@@ -7,7 +8,7 @@ import { Alert } from "./components/ui";
 import { Apply } from "./pages/Apply";
 import { Login } from "./pages/Login";
 import { ResetPassword } from "./pages/ResetPassword";
-import { CallPage, CandidateLayout, DocumentsPage } from "./pages/Dashboard";
+import { CallPage, CandidateLayout, DocumentsPage, InvitePage } from "./pages/Dashboard";
 import { AdminLayout } from "./pages/admin/AdminLayout";
 import { Requests } from "./pages/admin/Requests";
 import { Team } from "./pages/admin/Team";
@@ -25,6 +26,7 @@ export function App() {
   }
 
   return (
+    <I18nProvider>
     <AuthProvider>
       <BrowserRouter>
         <Routes>
@@ -42,6 +44,7 @@ export function App() {
             >
               <Route index element={<CallPage />} />
               <Route path="documents" element={<DocumentsPage />} />
+              <Route path="invite" element={<InvitePage />} />
             </Route>
             <Route
               path="admin"
@@ -59,5 +62,6 @@ export function App() {
         </Routes>
       </BrowserRouter>
     </AuthProvider>
+    </I18nProvider>
   );
 }

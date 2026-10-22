@@ -39,6 +39,20 @@ export const COUNTRIES: Country[] = Object.entries(DIAL)
 
 export const countryByCode = (code: string) => COUNTRIES.find((c) => c.code === code);
 
+// Same list with names in the visitor's language (stored values stay English).
+const localized = new Map<string, Country[]>();
+export function countriesFor(lang: string): Country[] {
+  if (lang === "en") return COUNTRIES;
+  if (!localized.has(lang)) {
+    const local = new Intl.DisplayNames([lang], { type: "region" });
+    localized.set(
+      lang,
+      COUNTRIES.map((c) => ({ ...c, name: local.of(c.code) ?? c.name })).sort((a, b) => a.name.localeCompare(b.name, lang)),
+    );
+  }
+  return localized.get(lang)!;
+}
+
 // Accurate country from Vercel's IP geolocation (/api/geo); null when unavailable (e.g. local dev).
 export async function fetchGeoCountry(): Promise<string | null> {
   try {

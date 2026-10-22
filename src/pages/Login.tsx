@@ -4,12 +4,14 @@ import { supabase } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
 import { Alert, Button, Card } from "../components/ui";
 import { EmailCode } from "../components/EmailCode";
+import { useI18n } from "../lib/i18n";
 
 type Mode = "code" | "password" | "forgot";
 
 export function Login() {
   const { session } = useAuth();
   const navigate = useNavigate();
+  const { t } = useI18n();
   const [params] = useSearchParams();
   const nextPath = params.get("next") || "/dashboard";
 
@@ -31,11 +33,11 @@ export function Login() {
     setLoading(true);
     if (mode === "password") {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) setError(error.message === "Invalid login credentials" ? "Wrong email or password. You can also sign in with an email code." : error.message);
+      if (error) setError(error.message === "Invalid login credentials" ? t("login.errWrong") : error.message);
     } else {
       const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: `${window.location.origin}/reset-password` });
       if (error) setError(error.message);
-      else setInfo("If an account exists for this email, we've sent a link to reset your password.");
+      else setInfo(t("login.resetSent"));
     }
     setLoading(false);
   };
@@ -59,8 +61,8 @@ export function Login() {
       <Card>
         <div className="space-y-4 px-6 py-8 sm:px-8">
           <div className="text-center">
-            <h1 className="text-2xl font-black">{mode === "forgot" ? "Reset your password" : "Open your dashboard"}</h1>
-            {mode === "code" && <p className="mt-1 text-sm text-slate-500">Use the email you applied with. We’ll email you a sign-in code — no password needed.</p>}
+            <h1 className="text-2xl font-black">{mode === "forgot" ? t("login.resetTitle") : t("login.title")}</h1>
+            {mode === "code" && <p className="mt-1 text-sm text-slate-500">{t("login.sub")}</p>}
           </div>
 
           {mode === "code" ? (
@@ -69,14 +71,14 @@ export function Login() {
             <form onSubmit={submit} className="space-y-4">
               <div>
                 <label className="label" htmlFor="email">
-                  Email
+                  {t("code.email")}
                 </label>
                 <input id="email" type="email" required autoComplete="email" className="field" value={email} onChange={(e) => setEmail(e.target.value)} />
               </div>
               {mode === "password" && (
                 <div>
                   <label className="label" htmlFor="password">
-                    Password
+                    {t("login.password")}
                   </label>
                   <input
                     id="password"
@@ -92,15 +94,15 @@ export function Login() {
               {error && <Alert>{error}</Alert>}
               {info && <Alert tone="success">{info}</Alert>}
               <Button type="submit" loading={loading} className="w-full">
-                {mode === "password" ? "Sign in" : "Send reset link"}
+                {mode === "password" ? t("login.signIn") : t("login.sendReset")}
               </Button>
             </form>
           )}
 
           <div className="flex flex-wrap justify-between gap-2 border-t border-slate-100 pt-4 text-sm">
-            {mode !== "code" && link("code", "Sign in with an email code")}
-            {mode === "code" && link("password", "Use my password instead")}
-            {mode === "password" && link("forgot", "Forgot password?")}
+            {mode !== "code" && link("code", t("login.useCode"))}
+            {mode === "code" && link("password", t("login.usePassword"))}
+            {mode === "password" && link("forgot", t("login.forgot"))}
           </div>
         </div>
       </Card>

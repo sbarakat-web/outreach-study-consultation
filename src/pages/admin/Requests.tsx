@@ -190,7 +190,7 @@ export function Requests() {
         )}
       </Card>
 
-      {open && <Detail c={open as Row} onClose={() => setOpenId(null)} onSaved={load} />}
+      {open && <Detail c={open as Row} all={items} onClose={() => setOpenId(null)} onSaved={load} />}
     </div>
   );
 }
@@ -212,14 +212,14 @@ function CallBadge({ c }: { c: Row }) {
   return <span className={`inline-flex shrink-0 rounded-full px-2 py-0.5 text-[11px] font-bold ${style}`}>{label}</span>;
 }
 
-function Detail({ c, onClose, onSaved }: { c: Row; onClose: () => void; onSaved: () => void }) {
+function Detail({ c, all, onClose, onSaved }: { c: Row; all: Row[]; onClose: () => void; onSaved: () => void }) {
   const [status, setStatus] = useState<Status>(c.status);
   const [notes, setNotes] = useState(c.admin_notes ?? "");
   const [docs, setDocs] = useState<DocumentRow[]>([]);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<{ tone: "error" | "success"; text: string } | null>(null);
 
-  useEffect(() => {
+  const loadDocs = useCallback(() => {
     supabase
       .from("documents")
       .select("*")
@@ -227,6 +227,25 @@ function Detail({ c, onClose, onSaved }: { c: Row; onClose: () => void; onSaved:
       .order("created_at")
       .then(({ data }) => setDocs(data ?? []));
   }, [c.id]);
+
+  useEffect(() => {
+    loadDocs();
+  }, [loadDocs]);
+
+  // Approve, or ask for a new file with a short reason the candidate will see.
+  const reviewDoc = async (d: DocumentRow, review_status: DocumentRow["review_status"]) => {
+    let review_note: string | null = null;
+    if (review_status === "rejected") {
+      review_note = prompt(`Why does "${d.file_name}" need a new file? The candidate will see this.`, "Photo is blurry — please upload a clearer one.");
+      if (review_note === null) return;
+    }
+    const { error } = await supabase
+      .from("documents")
+      .update({ review_status, review_note, reviewed_at: new Date().toISOString() })
+      .eq("id", d.id);
+    if (error) return setMsg({ tone: "error", text: error.message });
+    loadDocs();
+  };
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
@@ -257,6 +276,9 @@ function Detail({ c, onClose, onSaved }: { c: Row; onClose: () => void; onSaved:
 
   const lead = scoreOf(c);
   const requiredDocs = documentTypesFor(c.study_path).filter((t) => t.required);
+  const hasDoc = (key: string) => docs.some((d) => d.doc_type === key && d.review_status !== "rejected");
+  const referredBy = c.tracking.ref ? all.find((x) => x.referral_code === c.tracking.ref && x.id !== c.id) : undefined;
+  const referrals = all.filter((x) => x.tracking.ref === c.referral_code && x.id !== c.id);
   const rows: [string, string | null | undefined][] = [
     ["Lead score", `${lead.score} (${lead.tier})${lead.parts.length ? " — " + lead.parts.map(([l, n]) => `${l} +${n}`).join(", ") : ""}`],
     ["Email", c.email],
@@ -273,6 +295,8 @@ function Detail({ c, onClose, onSaved }: { c: Row; onClose: () => void; onSaved:
     ["Message", c.message],
     ["Source", [c.tracking.utm_source, c.tracking.utm_medium, c.tracking.utm_campaign].filter(Boolean).join(" / ") || c.tracking.referrer],
     ["Received", new Date(c.created_at).toLocaleString()],
+    ["Referred by", referredBy ? `${referredBy.full_name} (${referredBy.email})` : c.tracking.ref ? `Code ${c.tracking.ref}` : null],
+    ["Referrals", referrals.length ? `${referrals.length}: ${referrals.map((x) => x.full_name).join(", ")}` : null],
   ];
 
   return (
@@ -325,24 +349,58 @@ function Detail({ c, onClose, onSaved }: { c: Row; onClose: () => void; onSaved:
             <h3 className="mb-2 text-sm font-extrabold">
               Documents{" "}
               <span className="font-normal text-slate-500">
-                ({requiredDocs.filter((t) => docs.some((d) => d.doc_type === t.key)).length}/{requiredDocs.length} required:{" "}
-                {requiredDocs.map((t) => `${docs.some((d) => d.doc_type === t.key) ? "✓" : "✗"} ${t.label}`).join(", ")})
+                ({requiredDocs.filter((t) => hasDoc(t.key)).length}/{requiredDocs.length} required:{" "}
+                {requiredDocs.map((t) => `${hasDoc(t.key) ? "✓" : "✗"} ${t.label}`).join(", ")})
               </span>
             </h3>
             {docs.length === 0 ? (
               <p className="text-sm text-slate-500">No documents uploaded.</p>
             ) : (
-              <ul className="space-y-1">
+              <ul className="space-y-2">
                 {docs.map((d) => (
-                  <li key={d.id}>
-                    <button onClick={() => openDoc(d)} className="flex items-center gap-2 text-sm hover:underline">
-                      <FileText className="h-4 w-4 text-slate-400" /> {d.file_name}
-                      {d.doc_type && (
-                        <span className="rounded-full bg-mist px-2 py-0.5 text-[11px] font-bold text-slate-500">
-                          {documentTypesFor(c.study_path).find((t) => t.key === d.doc_type)?.label ?? d.doc_type}
-                        </span>
-                      )}
-                    </button>
+                  <li key={d.id} className="rounded-xl bg-mist px-3 py-2">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <button onClick={() => openDoc(d)} className="flex min-w-0 items-center gap-2 text-sm hover:underline">
+                        <FileText className="h-4 w-4 shrink-0 text-slate-400" /> <span className="truncate">{d.file_name}</span>
+                        {d.doc_type && (
+                          <span className="shrink-0 rounded-full bg-white px-2 py-0.5 text-[11px] font-bold text-slate-500">
+                            {documentTypesFor(c.study_path).find((t) => t.key === d.doc_type)?.label ?? d.doc_type}
+                          </span>
+                        )}
+                      </button>
+                      <span className="flex items-center gap-1.5">
+                        {d.review_status === "pending" ? (
+                          <>
+                            <button
+                              onClick={() => reviewDoc(d, "approved")}
+                              className="rounded-full bg-emerald-600 px-3 py-1 text-xs font-bold text-white hover:bg-emerald-700"
+                            >
+                              Approve
+                            </button>
+                            <button
+                              onClick={() => reviewDoc(d, "rejected")}
+                              className="rounded-full bg-white px-3 py-1 text-xs font-bold text-brand-red ring-1 ring-brand-red/30 hover:bg-brand-red/5"
+                            >
+                              Needs a new file
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <span
+                              className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${
+                                d.review_status === "approved" ? "bg-emerald-100 text-emerald-800" : "bg-brand-red/10 text-brand-red"
+                              }`}
+                            >
+                              {d.review_status === "approved" ? "Approved" : "Needs a new file"}
+                            </span>
+                            <button onClick={() => reviewDoc(d, "pending")} className="text-xs font-bold text-slate-400 hover:text-navy">
+                              Undo
+                            </button>
+                          </>
+                        )}
+                      </span>
+                    </div>
+                    {d.review_status === "rejected" && d.review_note && <p className="mt-1 text-xs text-brand-red">“{d.review_note}”</p>}
                   </li>
                 ))}
               </ul>

@@ -4,13 +4,16 @@ import { supabase } from "../lib/supabase";
 import { CALL_MINUTES, callStage, callTimes, formatSlot } from "../lib/options";
 import type { Consultation } from "../lib/types";
 import { Alert, Button } from "./ui";
+import { currentLocale, useI18n } from "../lib/i18n";
 
-const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 // Local calendar day key, so times group by the candidate's own date.
 const dayKey = (d: Date) => `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
 const monthStart = (d: Date) => new Date(d.getFullYear(), d.getMonth(), 1);
-const timeOf = (d: Date) => d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+const timeOf = (d: Date) => d.toLocaleTimeString(currentLocale(), { hour: "2-digit", minute: "2-digit" });
+const dayLabel = (d: Date, opts: Intl.DateTimeFormatOptions) => d.toLocaleDateString(currentLocale(), opts);
+// Monday-first weekday names in the current language (2024-01-01 was a Monday).
+const weekdays = () => Array.from({ length: 7 }, (_, i) => dayLabel(new Date(2024, 0, 1 + i), { weekday: "short" }));
 const longDate = (iso: string) => formatSlot(iso, { weekday: "long", month: "long" });
 
 /**
@@ -18,6 +21,7 @@ const longDate = (iso: string) => formatSlot(iso, { weekday: "long", month: "lon
  * reviews the profile and confirms the call manually, so nothing is reserved here.
  */
 export function BookingCalendar({ c, onRequested }: { c: Consultation; onRequested: () => void }) {
+  const { t } = useI18n();
   const stage = callStage(c);
   const [editing, setEditing] = useState(stage === "none");
   const times = useMemo(() => callTimes(), []);
@@ -50,7 +54,7 @@ export function BookingCalendar({ c, onRequested }: { c: Consultation; onRequest
   const isPicked = (t: Date) => picked?.getTime() === t.getTime();
 
   const send = async () => {
-    if (!picked) return setError("Please pick a time.");
+    if (!picked) return setError(t("cal.errPick"));
     setError("");
     setSaving(true);
     const { error } = await supabase.rpc("request_call_times", {
@@ -61,9 +65,9 @@ export function BookingCalendar({ c, onRequested }: { c: Consultation; onRequest
     if (error) {
       setError(
         error.message.includes("ALREADY_CONFIRMED")
-          ? "Your call is already confirmed. Contact your advisor to change it."
+          ? t("cal.errConfirmed")
           : error.message.includes("INVALID_TIME")
-            ? "Please pick times at least one day ahead."
+            ? t("cal.errTime")
             : error.message,
       );
       return;
@@ -87,12 +91,12 @@ export function BookingCalendar({ c, onRequested }: { c: Consultation; onRequest
       <div className="border-b border-slate-100 px-4 py-3 sm:px-5">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h3 className="flex items-center gap-2 font-black">
-            <CalendarCheck className="h-5 w-5 text-brand" /> Pick a time for your free {CALL_MINUTES}-minute call
+            <CalendarCheck className="h-5 w-5 text-brand" /> {t("cal.title", { min: CALL_MINUTES })}
           </h3>
-          <span className="text-xs text-slate-500">Your time zone: {tz}</span>
+          <span className="text-xs text-slate-500">{t("cal.tz", { tz })}</span>
         </div>
         <p className="mt-1 text-sm text-slate-500">
-          We’ll review your profile and confirm the call with you. We usually confirm within 24 hours.
+          {t("cal.sub")}
         </p>
       </div>
 
@@ -101,26 +105,26 @@ export function BookingCalendar({ c, onRequested }: { c: Consultation; onRequest
           <div className="mb-3 flex items-center justify-between">
             <button
               type="button"
-              aria-label="Previous month"
+              aria-label={t("cal.prev")}
               disabled={month <= firstMonth}
               onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() - 1, 1))}
               className="grid h-9 w-9 place-items-center rounded-full hover:bg-mist disabled:opacity-30"
             >
-              <ChevronLeft className="h-5 w-5" />
+              <ChevronLeft className="h-5 w-5 rtl:rotate-180" />
             </button>
-            <p className="font-extrabold">{month.toLocaleDateString(undefined, { month: "long", year: "numeric" })}</p>
+            <p className="font-extrabold">{dayLabel(month, { month: "long", year: "numeric" })}</p>
             <button
               type="button"
-              aria-label="Next month"
+              aria-label={t("cal.next")}
               disabled={month >= lastMonth}
               onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() + 1, 1))}
               className="grid h-9 w-9 place-items-center rounded-full hover:bg-mist disabled:opacity-30"
             >
-              <ChevronRight className="h-5 w-5" />
+              <ChevronRight className="h-5 w-5 rtl:rotate-180" />
             </button>
           </div>
           <div className="grid grid-cols-7 gap-1 text-center">
-            {WEEKDAYS.map((w) => (
+            {weekdays().map((w) => (
               <span key={w} className="pb-1 text-[11px] font-bold uppercase text-slate-400">
                 {w}
               </span>
@@ -136,7 +140,7 @@ export function BookingCalendar({ c, onRequested }: { c: Consultation; onRequest
                   type="button"
                   disabled={!available}
                   aria-pressed={selected}
-                  aria-label={`${d.toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" })}${available ? "" : ", not available"}`}
+                  aria-label={`${dayLabel(d, { weekday: "long", day: "numeric", month: "long" })}${available ? "" : `, ${t("cal.notAvailable")}`}`}
                   onClick={() => setDay(k)}
                   className={`relative aspect-square rounded-xl text-sm transition outline-none focus-visible:ring-2 focus-visible:ring-brand ${
                     selected
@@ -164,9 +168,9 @@ export function BookingCalendar({ c, onRequested }: { c: Consultation; onRequest
           {dayTimes.length > 0 ? (
             <>
               <p className="mb-2 text-sm font-extrabold">
-                {dayTimes[0].toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" })}
+                {dayLabel(dayTimes[0], { weekday: "long", day: "numeric", month: "long" })}
               </p>
-              <div className="grid max-h-72 grid-cols-3 gap-2 overflow-y-auto pr-1 md:grid-cols-2">
+              <div className="grid max-h-72 grid-cols-3 gap-2 overflow-y-auto pe-1 md:grid-cols-2">
                 {dayTimes.map((t) => {
                   const on = isPicked(t);
                   return (
@@ -189,7 +193,7 @@ export function BookingCalendar({ c, onRequested }: { c: Consultation; onRequest
               </div>
             </>
           ) : (
-            <p className="text-sm text-slate-500">Pick a highlighted day to see the available times.</p>
+            <p className="text-sm text-slate-500">{t("cal.pickDay")}</p>
           )}
         </div>
       </div>
@@ -198,21 +202,21 @@ export function BookingCalendar({ c, onRequested }: { c: Consultation; onRequest
         <p className="text-sm">
           {picked ? (
             <>
-              Your time: <strong>{formatSlot(picked.toISOString(), { weekday: "long", month: "long" })}</strong>
+              {t("cal.yourTime")} <strong>{formatSlot(picked.toISOString(), { weekday: "long", month: "long" })}</strong>
             </>
           ) : (
-            <span className="text-slate-500">Pick a day, then a time.</span>
+            <span className="text-slate-500">{t("cal.pickPrompt")}</span>
           )}
         </p>
         {error && <Alert>{error}</Alert>}
         <div className="flex flex-wrap justify-end gap-2">
           {stage !== "none" && (
             <Button variant="ghost" onClick={() => setEditing(false)}>
-              Keep my current time
+              {t("cal.keep")}
             </Button>
           )}
           <Button onClick={send} loading={saving} disabled={!picked}>
-            Request this time
+            {t("cal.request")}
           </Button>
         </div>
       </div>
@@ -220,12 +224,11 @@ export function BookingCalendar({ c, onRequested }: { c: Consultation; onRequest
   );
 }
 
-const STEPS = ["Requested", "Profile reviewed", "Confirmed"];
-
 function Timeline({ reached }: { reached: number }) {
+  const { t } = useI18n();
   return (
-    <ol className="grid grid-cols-3 gap-2" aria-label="Call status">
-      {STEPS.map((label, i) => (
+    <ol className="grid grid-cols-3 gap-2" aria-label={t("tl.label")}>
+      {[t("tl.requested"), t("tl.reviewed"), t("tl.confirmed")].map((label, i) => (
         <li key={label} className="space-y-1.5">
           <span className={`block h-1.5 rounded-full ${i <= reached ? "bg-emerald-500" : "bg-slate-200"}`} />
           <span className={`flex items-center gap-1 text-xs font-bold ${i <= reached ? "text-navy" : "text-slate-400"}`}>
@@ -239,12 +242,13 @@ function Timeline({ reached }: { reached: number }) {
 }
 
 function CallStatus({ c, stage, onChange }: { c: Consultation; stage: ReturnType<typeof callStage>; onChange: () => void }) {
+  const { t } = useI18n();
   if (stage === "declined") {
     return (
       <div className="flex items-start gap-3 rounded-2xl bg-mist px-4 py-4 sm:px-5">
         <Info className="mt-0.5 h-5 w-5 shrink-0 text-slate-500" />
         <p className="text-sm text-slate-600">
-          Thank you for your interest. Your advisor will contact you about the best next step for your profile.
+          {t("call.declined")}
         </p>
       </div>
     );
@@ -265,17 +269,17 @@ function CallStatus({ c, stage, onChange }: { c: Consultation; stage: ReturnType
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="text-xs font-bold uppercase tracking-wider text-amber-700">
-            {stage === "reviewed" ? "Profile reviewed · confirming your time" : "Requested · pending review"}
+            {stage === "reviewed" ? t("call.reviewedTitle") : t("call.pendingTitle")}
           </p>
           {c.requested_call_times[0] && (
             <p className="mt-1 text-sm">
-              <span className="text-slate-500">Requested time:</span> <strong>{longDate(c.requested_call_times[0])}</strong>
+              <span className="text-slate-500">{t("call.requestedTime")}</span> <strong>{longDate(c.requested_call_times[0])}</strong>
             </p>
           )}
-          <p className="mt-2 text-sm text-slate-600">We usually confirm within 24 hours, on WhatsApp or by email.</p>
+          <p className="mt-2 text-sm text-slate-600">{t("call.usually")}</p>
         </div>
         <Button variant="ghost" onClick={onChange}>
-          Change time
+          {t("call.change")}
         </Button>
       </div>
     </div>
@@ -283,6 +287,7 @@ function CallStatus({ c, stage, onChange }: { c: Consultation; stage: ReturnType
 }
 
 function ConfirmedCall({ at, course }: { at: string; course: string }) {
+  const { t } = useI18n();
   const start = new Date(at);
   const end = new Date(start.getTime() + CALL_MINUTES * 60000);
   const stamp = (d: Date) => d.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
@@ -324,9 +329,9 @@ function ConfirmedCall({ at, course }: { at: string; course: string }) {
       <div className="flex items-start gap-3">
         <CalendarCheck className="mt-0.5 h-6 w-6 shrink-0 text-emerald-600" />
         <div>
-          <p className="text-xs font-bold uppercase tracking-wider text-emerald-700">Your free call is confirmed</p>
+          <p className="text-xs font-bold uppercase tracking-wider text-emerald-700">{t("call.confirmedTitle")}</p>
           <p className="text-lg font-black">{longDate(at)}</p>
-          <p className="text-sm text-slate-600">{CALL_MINUTES} minutes · your advisor will call you on WhatsApp</p>
+          <p className="text-sm text-slate-600">{t("call.confirmedSub", { min: CALL_MINUTES })}</p>
         </div>
       </div>
       <div className="mt-3 flex flex-wrap gap-2">
@@ -336,14 +341,14 @@ function ConfirmedCall({ at, course }: { at: string; course: string }) {
           rel="noreferrer"
           className="inline-flex items-center gap-1.5 rounded-full bg-white px-4 py-2 text-sm font-bold text-navy ring-1 ring-slate-200 hover:bg-slate-50"
         >
-          <CalendarPlus className="h-4 w-4" /> Add to Google Calendar
+          <CalendarPlus className="h-4 w-4" /> {t("call.google")}
         </a>
         <button
           type="button"
           onClick={downloadIcs}
           className="inline-flex items-center gap-1.5 rounded-full bg-white px-4 py-2 text-sm font-bold text-navy ring-1 ring-slate-200 hover:bg-slate-50"
         >
-          <Download className="h-4 w-4" /> Apple / Outlook (.ics)
+          <Download className="h-4 w-4" /> {t("call.ics")}
         </button>
       </div>
     </div>

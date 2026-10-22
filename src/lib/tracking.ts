@@ -10,7 +10,7 @@ export function captureTracking() {
       referrer: document.referrer,
       device: /Mobi|Android/i.test(navigator.userAgent) ? "mobile" : "desktop",
     };
-    for (const k of ["utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term", "gclid", "fbclid"]) {
+    for (const k of ["utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term", "gclid", "fbclid", "ref"]) {
       const v = params.get(k);
       if (v) data[k] = v;
     }

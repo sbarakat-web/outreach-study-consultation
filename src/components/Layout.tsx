@@ -1,13 +1,15 @@
 import { Link, NavLink, Outlet, useNavigate } from "react-router-dom";
-import { Globe, LogOut, MessageCircle } from "lucide-react";
+import { Globe, Languages, LogOut, MessageCircle } from "lucide-react";
 import { useAuth } from "../lib/auth";
 import { waLink, whatsappNumber } from "../lib/options";
+import { LANGS, useI18n, type Lang } from "../lib/i18n";
 
 const WEBSITE = "https://outreachstudy.eu";
 
 export function Layout() {
   const { session, isAdmin, signOut } = useAuth();
   const navigate = useNavigate();
+  const { lang, setLang, t } = useI18n();
 
   const navClass = ({ isActive }: { isActive: boolean }) =>
     `rounded-full px-4 py-2 text-sm font-bold transition ${isActive ? "bg-brand text-white shadow-sm" : "text-navy hover:bg-brand/5"}`;
@@ -21,26 +23,43 @@ export function Layout() {
             <img src="/logo.png" alt="Outreach — Study in Malta" width={1102} height={180} className="h-8 w-auto sm:h-10" />
           </Link>
           <nav className="flex items-center gap-1">
+            {!isAdmin && (
+              <label className="relative inline-flex items-center rounded-full px-2 py-2 text-sm font-bold text-slate-600 hover:bg-brand/5">
+                <Languages aria-hidden className="h-4 w-4" />
+                <span className="sr-only">{t("nav.language")}</span>
+                <select
+                  value={lang}
+                  onChange={(e) => setLang(e.target.value as Lang)}
+                  className="cursor-pointer appearance-none bg-transparent ps-1.5 pe-1 font-bold text-navy outline-none"
+                >
+                  {LANGS.map((l) => (
+                    <option key={l.code} value={l.code}>
+                      {l.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
             {session ? (
               <>
                 {isAdmin ? (
                   <NavLink to="/admin" className={navClass}>
-                    Admin
+                    {t("nav.admin")}
                   </NavLink>
                 ) : (
                   <NavLink to="/dashboard" className={navClass}>
-                    My application
+                    {t("nav.myApplication")}
                   </NavLink>
                 )}
                 <button
-                  aria-label="Sign out"
+                  aria-label={t("nav.signOut")}
                   className="inline-flex items-center gap-1.5 rounded-full px-3 py-2 text-sm font-bold text-slate-500 transition hover:bg-brand/5 hover:text-navy"
                   onClick={async () => {
                     await signOut();
                     navigate("/");
                   }}
                 >
-                  <LogOut className="h-4 w-4" /> <span className="hidden sm:inline">Sign out</span>
+                  <LogOut className="h-4 w-4" /> <span className="hidden sm:inline">{t("nav.signOut")}</span>
                 </button>
               </>
             ) : (
@@ -48,7 +67,7 @@ export function Layout() {
                 to="/login"
                 className="rounded-full px-4 py-2 text-sm font-bold text-brand ring-1 ring-brand/30 transition hover:bg-brand hover:text-white"
               >
-                Sign in
+                {t("nav.signIn")}
               </NavLink>
             )}
           </nav>
@@ -64,26 +83,26 @@ export function Layout() {
           <div className="space-y-3">
             <img src="/logo.png" alt="Outreach — Study in Malta" width={1102} height={180} className="h-8 w-auto" loading="lazy" />
             <p className="max-w-sm text-sm leading-relaxed text-slate-500">
-              Study in Malta with clear guidance, fast support and step-by-step help — from your first call to your first day.
+              {t("footer.tagline")}
             </p>
           </div>
           <div>
-            <p className="mb-3 text-xs font-extrabold uppercase tracking-wider text-navy">Your application</p>
+            <p className="mb-3 text-xs font-extrabold uppercase tracking-wider text-navy">{t("footer.yourApplication")}</p>
             <ul className="space-y-2 text-sm">
               <li>
                 <Link to="/" className="text-slate-600 hover:text-brand">
-                  Apply for free
+                  {t("footer.apply")}
                 </Link>
               </li>
               <li>
                 <Link to={session ? (isAdmin ? "/admin" : "/dashboard") : "/login"} className="text-slate-600 hover:text-brand">
-                  {session ? (isAdmin ? "Admin" : "My application") : "Open my dashboard"}
+                  {session ? (isAdmin ? t("nav.admin") : t("nav.myApplication")) : t("footer.openDashboard")}
                 </Link>
               </li>
             </ul>
           </div>
           <div>
-            <p className="mb-3 text-xs font-extrabold uppercase tracking-wider text-navy">Contact</p>
+            <p className="mb-3 text-xs font-extrabold uppercase tracking-wider text-navy">{t("footer.contact")}</p>
             <ul className="space-y-2 text-sm">
               {whatsappNumber && (
                 <li>
@@ -102,7 +121,7 @@ export function Layout() {
         </div>
         <div className="border-t border-slate-100">
           <p className="mx-auto max-w-6xl px-4 py-4 text-xs text-slate-400 sm:px-6">
-            © {new Date().getFullYear()} Outreach — Study in Malta. All rights reserved.
+            © {new Date().getFullYear()} Outreach — Study in Malta. {t("footer.rights")}
           </p>
         </div>
       </footer>

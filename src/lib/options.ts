@@ -1,3 +1,4 @@
+import { currentLocale } from "./i18n";
 import type { Status } from "./types";
 
 export const STUDY_PATHS = [
@@ -185,7 +186,7 @@ export const labelFor = (list: { value: string; label: string }[], v: string | n
   list.find((x) => x.value === v)?.label ?? v ?? "—";
 
 export function formatSlot(iso: string, opts: Intl.DateTimeFormatOptions = {}) {
-  return new Intl.DateTimeFormat(undefined, {
+  return new Intl.DateTimeFormat(currentLocale(), {
     weekday: "short",
     day: "numeric",
     month: "short",

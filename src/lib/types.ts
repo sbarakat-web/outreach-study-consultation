@@ -35,6 +35,7 @@ export interface Consultation {
   review_checklist: Record<string, boolean>;
   call_reviewed_at: string | null;
   call_declined_at: string | null;
+  referral_code: string;
   tracking: Record<string, string>;
   created_at: string;
   updated_at: string;
@@ -47,5 +48,7 @@ export interface DocumentRow {
   file_path: string;
   file_name: string;
   doc_type: string | null;
+  review_status: "pending" | "approved" | "rejected";
+  review_note: string | null;
   created_at: string;
 }

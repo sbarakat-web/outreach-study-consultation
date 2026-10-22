@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { supabase } from "../lib/supabase";
 import { Alert, Button } from "./ui";
+import { useI18n } from "../lib/i18n";
 
 /**
  * Passwordless sign-in: emails a one-time code plus a link (supabase/templates/*.html).
@@ -21,6 +22,7 @@ export function EmailCode({
   next?: string;
   onSignedIn: () => void;
 }) {
+  const { t } = useI18n();
   const [email, setEmail] = useState(fixedEmail ?? "");
   const [sent, setSent] = useState(false);
   const [code, setCode] = useState("");
@@ -46,9 +48,7 @@ export function EmailCode({
     setLoading(false);
     if (error) {
       setError(
-        error.status === 429
-          ? "Too many emails were sent just now. Please wait a minute and try again."
-          : error.message,
+        error.status === 429 ? t("code.err429") : error.message,
       );
       return;
     }
@@ -69,7 +69,7 @@ export function EmailCode({
     setLoading(true);
     const { error } = await supabase.auth.verifyOtp({ email: email.trim(), token: code.trim(), type: "email" });
     setLoading(false);
-    if (error) return setError("That code is not valid or has expired. Check the latest email or send a new code.");
+    if (error) return setError(t("code.errInvalid"));
     onSignedIn();
   };
 
@@ -79,7 +79,7 @@ export function EmailCode({
         {!fixedEmail && (
           <div>
             <label className="label" htmlFor="code-email">
-              Email
+              {t("code.email")}
             </label>
             <input
               id="code-email"
@@ -94,7 +94,7 @@ export function EmailCode({
         )}
         {error && <Alert>{error}</Alert>}
         <Button type="submit" loading={loading} className="w-full">
-          Email me a sign-in code
+          {t("code.send")}
         </Button>
       </form>
     );
@@ -103,12 +103,12 @@ export function EmailCode({
   return (
     <div className="space-y-3">
       <p className="text-sm text-slate-600">
-        We sent a code to <strong className="text-navy">{email}</strong>. Enter it below — or click the button in the email.
+        {t("code.sentA")} <strong className="text-navy">{email}</strong>. {t("code.sentB")}
       </p>
       <form onSubmit={verify} className="space-y-3">
         <div>
           <label className="label" htmlFor="otp">
-            Code from the email
+            {t("code.label")}
           </label>
           <input
             id="otp"
@@ -117,6 +117,7 @@ export function EmailCode({
             pattern="[0-9]{6,10}"
             maxLength={10}
             required
+            dir="ltr"
             className="field text-center text-2xl font-black tracking-[0.4em]"
             placeholder="••••••"
             value={code}
@@ -125,10 +126,10 @@ export function EmailCode({
         </div>
         {error && <Alert>{error}</Alert>}
         <Button type="submit" loading={loading} className="w-full">
-          Open my dashboard
+          {t("code.open")}
         </Button>
       </form>
-      <p className="text-xs text-slate-500">Can’t find it? Check your spam or promotions folder.</p>
+      <p className="text-xs text-slate-500">{t("code.spam")}</p>
       <div className="flex flex-wrap justify-between gap-2 text-sm">
         <button
           type="button"
@@ -136,7 +137,7 @@ export function EmailCode({
           onClick={() => send()}
           className="font-bold text-brand hover:underline disabled:text-slate-400 disabled:no-underline"
         >
-          {cooldown > 0 ? `Send a new code in ${cooldown}s` : "Send a new code"}
+          {cooldown > 0 ? t("code.resendIn", { s: cooldown }) : t("code.resend")}
         </button>
         {!fixedEmail && (
           <button
@@ -147,7 +148,7 @@ export function EmailCode({
               setCode("");
             }}
           >
-            Use a different email
+            {t("code.otherEmail")}
           </button>
         )}
       </div>
