@@ -1,0 +1,62 @@
+// Outreach email brand layout (shared by all functions): centred logo, #442DFA accents,
+// table-based markup so it renders in Gmail, Outlook and mobile mail apps.
+export const BRAND = "#442DFA";
+export const INK = "#14123a";
+export const MUTED = "#5b6080";
+
+const appUrl = () => Deno.env.get("APP_URL") || "https://consultation.outreachstudy.eu";
+
+export const escape = (s: string) =>
+  s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
+
+/** Full email: preheader (inbox preview), centred logo, content card and footer. */
+export function layout(inner: string, preheader = "") {
+  return `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light"></head>
+<body style="margin:0;padding:0;background:#f4f5fb;-webkit-text-size-adjust:100%">
+<span style="display:none;max-height:0;overflow:hidden;opacity:0">${escape(preheader)}</span>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f5fb;padding:24px 12px;font-family:Arial,Helvetica,sans-serif">
+  <tr><td align="center">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#ffffff;border-radius:20px;overflow:hidden">
+      <tr><td style="height:6px;background:${BRAND};line-height:6px;font-size:0">&nbsp;</td></tr>
+      <tr><td align="center" style="padding:30px 28px 6px">
+        <img src="${appUrl()}/logo.png" alt="Outreach — Study in Malta" width="200" style="display:block;margin:0 auto;border:0;width:200px;max-width:70%;height:auto">
+      </td></tr>
+      <tr><td style="padding:18px 28px 30px;color:${INK};font-size:15px;line-height:1.65">${inner}</td></tr>
+      <tr><td align="center" style="padding:20px 28px;background:#f8f8fc;color:#8a8ea8;font-size:12px;line-height:1.7">
+        <strong style="color:${INK}">Outreach — Study in Malta</strong><br>
+        <a href="https://outreachstudy.eu" style="color:${BRAND};text-decoration:none">outreachstudy.eu</a> &nbsp;·&nbsp;
+        <a href="https://wa.me/35677200984" style="color:${BRAND};text-decoration:none">WhatsApp +356 7720 0984</a>
+      </td></tr>
+    </table>
+  </td></tr>
+</table></body></html>`;
+}
+
+export const eyebrow = (text: string) =>
+  `<p style="margin:0 0 6px;text-align:center;font-size:12px;font-weight:bold;letter-spacing:1.5px;text-transform:uppercase;color:${BRAND}">${escape(text)}</p>`;
+
+export const title = (text: string) => `<h1 style="margin:0 0 14px;text-align:center;font-size:24px;line-height:1.3;color:${INK}">${text}</h1>`;
+
+export const para = (html: string, center = false) => `<p style="margin:0 0 14px;color:${MUTED};${center ? "text-align:center;" : ""}">${html}</p>`;
+
+export const button = (href: string, label: string, color = BRAND) =>
+  `<a href="${href}" style="display:inline-block;background:${color};color:#ffffff;padding:14px 28px;border-radius:999px;text-decoration:none;font-weight:bold;font-size:15px;margin:4px 4px">${escape(label)}</a>`;
+
+/** Centred row of buttons. */
+export const actions = (...buttons: string[]) => `<p style="margin:22px 0;text-align:center">${buttons.filter(Boolean).join(" ")}</p>`;
+
+/** Light brand box for key facts (time, programme, code…). */
+export const highlight = (html: string) =>
+  `<div style="margin:0 0 16px;padding:16px 18px;background:#f0eeff;border-radius:14px;text-align:center;color:${INK}">${html}</div>`;
+
+export const facts = (rows: [string, string | null | undefined][]) =>
+  `<table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;margin:0 0 16px;font-size:14px">${rows
+    .filter(([, v]) => v)
+    .map(
+      ([k, v]) =>
+        `<tr><td style="padding:6px 12px 6px 0;color:#8a8ea8;white-space:nowrap;vertical-align:top">${escape(k)}</td><td style="padding:6px 0;color:${INK}"><strong>${escape(v!)}</strong></td></tr>`,
+    )
+    .join("")}</table>`;
+
+export const list = (items: string[]) =>
+  `<ol style="margin:0 0 16px;padding-left:20px;color:${MUTED}">${items.map((i) => `<li style="margin:4px 0">${escape(i)}</li>`).join("")}</ol>`;

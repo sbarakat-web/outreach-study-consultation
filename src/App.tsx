@@ -9,7 +9,7 @@ import { Alert, Spinner } from "./components/ui";
 import { Apply } from "./pages/Apply";
 import { Login } from "./pages/Login";
 import { ResetPassword } from "./pages/ResetPassword";
-import { CallPage, CandidateLayout, DocumentsPage, InvitePage } from "./pages/Dashboard";
+import { CallPage, CandidateLayout, DocumentsPage, InvitePage, SettingsPage } from "./pages/Dashboard";
 
 // Heavy, staff-only screens (PDF, animation, admin tables) load on demand.
 const OnlineSessions = lazy(() => import("./pages/sessions/OnlineSessions").then((m) => ({ default: m.OnlineSessions })));
@@ -17,6 +17,7 @@ const AdminLayout = lazy(() => import("./pages/admin/AdminLayout").then((m) => (
 const Requests = lazy(() => import("./pages/admin/Requests").then((m) => ({ default: m.Requests })));
 const CalendarPage = lazy(() => import("./pages/admin/CalendarPage").then((m) => ({ default: m.CalendarPage })));
 const SessionsDashboard = lazy(() => import("./pages/admin/SessionsDashboard").then((m) => ({ default: m.SessionsDashboard })));
+const AdminAccount = lazy(() => import("./pages/admin/AdminLayout").then((m) => ({ default: m.AdminAccount })));
 const Team = lazy(() => import("./pages/admin/Team").then((m) => ({ default: m.Team })));
 
 export function App() {
@@ -53,6 +54,7 @@ export function App() {
               <Route index element={<CallPage />} />
               <Route path="documents" element={<DocumentsPage />} />
               <Route path="invite" element={<InvitePage />} />
+              <Route path="settings" element={<SettingsPage />} />
             </Route>
             <Route
               path="admin"
@@ -66,6 +68,7 @@ export function App() {
               <Route path="calendar" element={<CalendarPage />} />
               <Route path="sessions" element={<SessionsDashboard />} />
               <Route path="team" element={<Team />} />
+              <Route path="settings" element={<AdminAccount />} />
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>

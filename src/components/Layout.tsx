@@ -1,15 +1,17 @@
-import { Link, NavLink, Outlet, useNavigate } from "react-router-dom";
-import { Globe, Languages, LogOut, MessageCircle } from "lucide-react";
+import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
+import { Globe, LogOut, MessageCircle } from "lucide-react";
 import { useAuth } from "../lib/auth";
 import { waLink, whatsappNumber } from "../lib/options";
-import { LANGS, useI18n, type Lang } from "../lib/i18n";
+import { useI18n } from "../lib/i18n";
 
 const WEBSITE = "https://outreachstudy.eu";
 
 export function Layout() {
   const { session, isAdmin, signOut } = useAuth();
   const navigate = useNavigate();
-  const { lang, setLang, t } = useI18n();
+  const { t } = useI18n();
+  // Inside the signed-in app (dashboard/admin): no footer, tab bar on phones.
+  const inApp = /^\/(dashboard|admin)(\/|$)/.test(useLocation().pathname);
 
   const navClass = ({ isActive }: { isActive: boolean }) =>
     `rounded-full px-4 py-2 text-sm font-bold transition ${isActive ? "bg-brand text-white shadow-sm" : "text-navy hover:bg-brand/5"}`;
@@ -23,33 +25,27 @@ export function Layout() {
             <img src="/logo.png" alt="Outreach — Study in Malta" width={1102} height={180} className="h-8 w-auto sm:h-10" />
           </Link>
           <nav className="flex items-center gap-1">
-            {!isAdmin && (
-              <label className="relative inline-flex items-center rounded-full px-2 py-2 text-sm font-bold text-slate-600 hover:bg-brand/5">
-                <Languages aria-hidden className="h-4 w-4" />
-                <span className="sr-only">{t("nav.language")}</span>
-                <select
-                  value={lang}
-                  onChange={(e) => setLang(e.target.value as Lang)}
-                  className="cursor-pointer appearance-none bg-transparent ps-1.5 pe-1 font-bold text-navy outline-none"
-                >
-                  {LANGS.map((l) => (
-                    <option key={l.code} value={l.code}>
-                      {l.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            )}
             {session ? (
               <>
-                {isAdmin ? (
-                  <NavLink to="/admin" className={navClass}>
-                    {t("nav.admin")}
-                  </NavLink>
-                ) : (
-                  <NavLink to="/dashboard" className={navClass}>
-                    {t("nav.myApplication")}
-                  </NavLink>
+                {!inApp &&
+                  (isAdmin ? (
+                    <NavLink to="/admin" className={navClass}>
+                      {t("nav.admin")}
+                    </NavLink>
+                  ) : (
+                    <NavLink to="/dashboard" className={navClass}>
+                      {t("nav.myApplication")}
+                    </NavLink>
+                  ))}
+                {inApp && (
+                  <Link
+                    to={isAdmin ? "/admin/settings" : "/dashboard/settings"}
+                    aria-label="My account"
+                    title={session.user.email ?? ""}
+                    className="grid h-9 w-9 place-items-center rounded-full bg-brand text-sm font-black uppercase text-white"
+                  >
+                    {(session.user.email ?? "?")[0]}
+                  </Link>
                 )}
                 <button
                   aria-label={t("nav.signOut")}
@@ -74,10 +70,11 @@ export function Layout() {
         </div>
       </header>
 
-      <main className="mx-auto w-full max-w-6xl flex-1 px-4 pb-16 pt-2 sm:px-6">
+      <main className={`mx-auto w-full max-w-6xl flex-1 px-4 pt-2 sm:px-6 ${inApp ? "pb-8" : "pb-16"}`}>
         <Outlet />
       </main>
 
+      {!inApp && (
       <footer className="border-t border-slate-200 bg-white">
         <div className="mx-auto grid max-w-6xl gap-8 px-4 py-10 sm:px-6 md:grid-cols-[1.4fr_1fr_1fr]">
           <div className="space-y-3">
@@ -125,6 +122,7 @@ export function Layout() {
           </p>
         </div>
       </footer>
+      )}
     </div>
   );
 }

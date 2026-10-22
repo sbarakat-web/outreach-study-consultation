@@ -1,31 +1,24 @@
 <!-- Supabase "Magic Link" template: returning candidates and admins signing in. -->
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f5fb;padding:24px 12px;font-family:Arial,Helvetica,sans-serif">
-  <tr>
-    <td align="center">
-      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;background:#ffffff;border-radius:20px;overflow:hidden">
-        <tr><td style="height:6px;background:#442DFA;line-height:6px;font-size:0">&nbsp;</td></tr>
-        <tr>
-          <td style="padding:28px 32px 8px">
-            <img src="https://consultation.outreachstudy.eu/logo.png" alt="Outreach — Study in Malta" width="190" style="display:block;border:0">
-          </td>
-        </tr>
-        <tr>
-          <td style="padding:8px 32px 0;color:#14123a">
-            <h1 style="margin:0 0 12px;font-size:24px;line-height:1.3">Your sign-in code</h1>
-            <p style="margin:0 0 20px;font-size:15px;line-height:1.6;color:#4b4f6b">Enter this code to open your Outreach dashboard:</p>
-            <p style="margin:0 0 20px;padding:18px;background:#f0eeff;border-radius:14px;text-align:center;font-size:34px;font-weight:bold;letter-spacing:10px;color:#442DFA">{{ .Token }}</p>
-            <p style="margin:0 0 28px;text-align:center">
-              <a href="{{ .ConfirmationURL }}" style="display:inline-block;background:#442DFA;color:#ffffff;padding:14px 28px;border-radius:999px;text-decoration:none;font-weight:bold;font-size:15px">Open my dashboard</a>
-            </p>
-          </td>
-        </tr>
-        <tr>
-          <td style="padding:18px 32px;background:#f8f8fc;color:#8a8ea8;font-size:12px;line-height:1.6">
-            The code expires in 1 hour. If you didn't request it, you can ignore this email.<br>
-            Outreach — Study in Malta · <a href="https://outreachstudy.eu" style="color:#442DFA;text-decoration:none">outreachstudy.eu</a>
-          </td>
-        </tr>
-      </table>
-    </td>
-  </tr>
+  <tr><td align="center">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#ffffff;border-radius:20px;overflow:hidden">
+      <tr><td style="height:6px;background:#442DFA;line-height:6px;font-size:0">&nbsp;</td></tr>
+      <tr><td align="center" style="padding:30px 28px 6px">
+        <img src="https://consultation.outreachstudy.eu/logo.png" alt="Outreach — Study in Malta" width="200" style="display:block;margin:0 auto;border:0;width:200px;max-width:70%;height:auto">
+      </td></tr>
+      <tr><td style="padding:18px 28px 30px;color:#14123a;font-size:15px;line-height:1.65">
+        <p style="margin:0 0 6px;text-align:center;font-size:12px;font-weight:bold;letter-spacing:1.5px;text-transform:uppercase;color:#442DFA">Sign in</p>
+        <h1 style="margin:0 0 14px;text-align:center;font-size:24px;line-height:1.3">Your sign-in code</h1>
+        <p style="margin:0 0 16px;text-align:center;color:#5b6080">Enter this code to open your Outreach dashboard:</p>
+        <p style="margin:0 0 18px;padding:18px;background:#f0eeff;border-radius:14px;text-align:center;font-size:34px;font-weight:bold;letter-spacing:10px;color:#442DFA">{{ .Token }}</p>
+        <p style="margin:22px 0;text-align:center"><a href="{{ .ConfirmationURL }}" style="display:inline-block;background:#442DFA;color:#ffffff;padding:14px 28px;border-radius:999px;text-decoration:none;font-weight:bold;font-size:15px">Open my dashboard</a></p>
+        <p style="margin:0;text-align:center;font-size:12px;color:#8a8ea8">The code expires in 1 hour. If you didn't request it, you can ignore this email.</p>
+      </td></tr>
+      <tr><td align="center" style="padding:20px 28px;background:#f8f8fc;color:#8a8ea8;font-size:12px;line-height:1.7">
+        <strong style="color:#14123a">Outreach — Study in Malta</strong><br>
+        <a href="https://outreachstudy.eu" style="color:#442DFA;text-decoration:none">outreachstudy.eu</a> &nbsp;·&nbsp;
+        <a href="https://wa.me/35677200984" style="color:#442DFA;text-decoration:none">WhatsApp +356 7720 0984</a>
+      </td></tr>
+    </table>
+  </td></tr>
 </table>

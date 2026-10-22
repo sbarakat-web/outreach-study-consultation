@@ -1,21 +1,6 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { Link, NavLink, Outlet, useLocation, useOutletContext } from "react-router-dom";
-import {
-  AlertCircle,
-  CalendarCheck,
-  Camera,
-  CheckCircle2,
-  Circle,
-  Clock,
-  Copy,
-  FileText,
-  Gift,
-  KeyRound,
-  MessageCircle,
-  Star,
-  Trash2,
-  Upload,
-} from "lucide-react";
+import { AlertCircle, CalendarCheck, Camera, CheckCircle2, Circle, Clock, Copy, FileText, Gift, MessageCircle, Settings, Star, Trash2, Upload } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
 import { ENGLISH_LEVELS, STATUSES, STUDY_PATHS, documentTypesFor, formatSlot, labelFor, statusLabel, waLink, type DocumentType } from "../lib/options";
@@ -23,6 +8,8 @@ import { useI18n } from "../lib/i18n";
 import type { Consultation, DocumentRow } from "../lib/types";
 import { Alert, Button, Card, Spinner, StatusBadge } from "../components/ui";
 import { BookingCalendar } from "../components/BookingCalendar";
+import { MobileTabBar, sideLinkClass, type TabItem } from "../components/TabBar";
+import { AccountSettings } from "./Settings";
 
 // Candidate-facing milestones (a subset of the CRM stages).
 const MILESTONES = ["consultation_booked", "documents_requested", "application_submitted", "offer_received", "visa_process", "enrolled"];
@@ -93,49 +80,48 @@ export function CandidateLayout() {
   const myDocs = docs.filter((d) => d.consultation_id === c.id);
   const progress = requiredProgress(c, myDocs);
   const rejected = myDocs.filter((d) => d.review_status === "rejected").length;
-  const navClass = ({ isActive }: { isActive: boolean }) =>
-    `flex items-center justify-between gap-2 whitespace-nowrap rounded-xl px-3 py-2.5 text-sm font-bold transition ${
-      isActive ? "bg-brand text-white" : "text-navy hover:bg-white"
-    }`;
+  const docBadge = (
+    <span
+      className={`rounded-full px-1.5 text-[11px] ${
+        rejected ? "bg-brand-red/15 text-brand-red" : progress.done === progress.total ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"
+      }`}
+    >
+      {rejected ? `!${rejected}` : `${progress.done}/${progress.total}`}
+    </span>
+  );
+  const tabs: TabItem[] = [
+    { to: "/dashboard", label: t("side.call"), icon: CalendarCheck, end: true },
+    { to: "/dashboard/documents", label: t("side.documents"), icon: FileText, badge: progress.done < progress.total || rejected ? docBadge : undefined },
+    { to: "/dashboard/invite", label: t("side.invite"), icon: Gift },
+    { to: "/dashboard/settings", label: t("side.settings"), icon: Settings },
+  ];
 
   return (
-    <div className="grid gap-6 pt-4 md:grid-cols-[13rem_1fr]">
-      <aside className="md:sticky md:top-24 md:self-start">
-        <nav aria-label={t("side.label")} className="flex gap-1 overflow-x-auto rounded-2xl bg-white/60 p-1.5 ring-1 ring-slate-200 md:flex-col">
-          <NavLink to="/dashboard" end className={navClass}>
-            <span className="flex items-center gap-2">
-              <CalendarCheck className="h-4 w-4" /> {t("side.call")}
-            </span>
-          </NavLink>
-          <NavLink to="/dashboard/documents" className={navClass}>
-            <span className="flex items-center gap-2">
-              <FileText className="h-4 w-4" /> {t("side.documents")}
-            </span>
-            <span
-              className={`rounded-full px-1.5 text-[11px] ${
-                rejected
-                  ? "bg-brand-red/15 text-brand-red"
-                  : progress.done === progress.total
-                    ? "bg-emerald-100 text-emerald-800"
-                    : "bg-amber-100 text-amber-800"
-              }`}
-            >
-              {rejected ? `!${rejected}` : `${progress.done}/${progress.total}`}
-            </span>
-          </NavLink>
-          <NavLink to="/dashboard/invite" className={navClass}>
-            <span className="flex items-center gap-2">
-              <Gift className="h-4 w-4" /> {t("side.invite")}
-            </span>
-          </NavLink>
+    <div className="grid gap-6 pb-24 pt-2 md:grid-cols-[13rem_1fr] md:pb-0 md:pt-4">
+      <aside className="hidden md:sticky md:top-24 md:block md:self-start">
+        <nav aria-label={t("side.label")} className="flex flex-col gap-1 rounded-2xl bg-white/60 p-1.5 ring-1 ring-slate-200">
+          {tabs.map((tab) => (
+            <NavLink key={tab.to} to={tab.to} end={tab.end} className={sideLinkClass}>
+              <span className="flex items-center gap-2">
+                <tab.icon className="h-4 w-4" /> {tab.label}
+              </span>
+              {tab.to === "/dashboard/documents" && docBadge}
+            </NavLink>
+          ))}
         </nav>
       </aside>
       <div className="min-w-0 max-w-3xl space-y-6">
         {error && <Alert>{error}</Alert>}
         <Outlet context={{ c, docs: myDocs, reload, userId } satisfies CandidateContext} />
       </div>
+      <MobileTabBar items={tabs} label={t("side.label")} />
     </div>
   );
+}
+
+export function SettingsPage() {
+  const { c, reload } = useCandidate();
+  return <AccountSettings c={c} onSaved={reload} />;
 }
 
 export function CallPage() {
@@ -228,7 +214,6 @@ export function CallPage() {
 
       {c.session_outcome === "interviewed" && <SessionFeedback c={c} onSent={reload} />}
 
-      <SetPassword />
     </>
   );
 }
@@ -567,62 +552,5 @@ export function InvitePage() {
         </div>
       </div>
     </Card>
-  );
-}
-
-// Optional: candidates sign in with an email code, but can add a password for faster sign-in.
-function SetPassword() {
-  const { t } = useI18n();
-  const [open, setOpen] = useState(false);
-  const [password, setPassword] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [msg, setMsg] = useState<{ tone: "error" | "success"; text: string } | null>(null);
-
-  const save = async (e: FormEvent) => {
-    e.preventDefault();
-    if (password.length < 8) return setMsg({ tone: "error", text: t("pw.short") });
-    setSaving(true);
-    const { error } = await supabase.auth.updateUser({ password });
-    setSaving(false);
-    if (error) return setMsg({ tone: "error", text: error.message });
-    setMsg({ tone: "success", text: t("pw.saved") });
-    setPassword("");
-    setOpen(false);
-  };
-
-  return (
-    <div className="rounded-2xl border border-slate-200 bg-white px-5 py-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="flex items-center gap-2 text-sm text-slate-600">
-          <KeyRound className="h-4 w-4 text-slate-400" /> {t("pw.info")}
-        </p>
-        {!open && (
-          <Button variant="ghost" onClick={() => setOpen(true)}>
-            {t("pw.set")}
-          </Button>
-        )}
-      </div>
-      {open && (
-        <form onSubmit={save} className="mt-3 flex flex-col gap-2 sm:flex-row">
-          <input
-            type="password"
-            aria-label={t("pw.label")}
-            autoComplete="new-password"
-            placeholder={t("pw.placeholder")}
-            className="field"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-          />
-          <Button type="submit" loading={saving}>
-            {t("pw.save")}
-          </Button>
-        </form>
-      )}
-      {msg && (
-        <div className="mt-3">
-          <Alert tone={msg.tone}>{msg.text}</Alert>
-        </div>
-      )}
-    </div>
   );
 }

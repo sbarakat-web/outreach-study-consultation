@@ -4,6 +4,7 @@
 // Returns waUrl (WhatsApp Web link with the same short message). Staff only.
 // Secrets: RESEND_API_KEY; optional MAIL_FROM, APP_URL
 import { createClient } from "npm:@supabase/supabase-js@2.45.4";
+import { actions, button, eyebrow, highlight, layout, para, title, escape } from "../_shared/email.ts";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -16,26 +17,18 @@ const CALL_MINUTES = 20;
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { ...cors, "Content-Type": "application/json" } });
-const escape = (s: string) => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 const b64 = (s: string) => btoa(String.fromCharCode(...new TextEncoder().encode(s)));
 const stamp = (d: Date) => d.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
-
-const layout = (inner: string) => `<div style="font-family:Arial,sans-serif;color:#14123a;line-height:1.6;max-width:560px">
-  <div style="height:6px;background:#442DFA;border-radius:6px 6px 0 0"></div>
-  <img src="${APP_URL()}/logo.png" alt="Outreach — Study in Malta" width="180" style="display:block;margin:20px 0">
-  ${inner}
-  <p style="color:#94a3b8;font-size:12px;margin-top:24px">Outreach — Study in Malta · <a href="https://outreachstudy.eu" style="color:#442DFA">outreachstudy.eu</a></p>
-</div>`;
-const button = (href: string, label: string) =>
-  `<a href="${href}" style="display:inline-block;background:#442DFA;color:#fff;padding:13px 26px;border-radius:999px;text-decoration:none;font-weight:bold;margin:4px 6px 4px 0">${label}</a>`;
 
 function whenIn(iso: string, tz: string) {
   const fmt = (zone: string) =>
     new Intl.DateTimeFormat("en-GB", { dateStyle: "full", timeStyle: "short", timeZone: zone }).format(new Date(iso));
   try {
-    return tz && tz !== "Europe/Malta" ? `${fmt(tz)} (your time) · ${fmt("Europe/Malta")} Malta time` : `${fmt("Europe/Malta")} (Malta time)`;
+    return tz && tz !== "Europe/Malta"
+      ? { main: `${fmt(tz)} (your time)`, sub: `${fmt("Europe/Malta")} Malta time` }
+      : { main: fmt("Europe/Malta"), sub: "Malta time" };
   } catch {
-    return `${fmt("Europe/Malta")} (Malta time)`;
+    return { main: fmt("Europe/Malta"), sub: "Malta time" };
   }
 }
 
@@ -96,23 +89,33 @@ Deno.serve(async (req) => {
       .join("\r\n");
     attachments = [{ filename: "outreach-call.ics", content: b64(ics) }];
     subject = `Your free call is confirmed — ${new Intl.DateTimeFormat("en-GB", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: tz }).format(start)}`;
-    html = layout(`
-      <h2 style="margin:0 0 8px">Hi ${escape(first)}, your call is confirmed!</h2>
-      <p style="font-size:16px"><strong>${escape(when)}</strong><br>${CALL_MINUTES} minutes${c.meeting_url ? " · online (Google Meet)" : " · your advisor will call you on WhatsApp"}</p>
-      <p>${c.meeting_url ? button(c.meeting_url, "Join the call") : ""}${button(`${APP_URL()}/dashboard`, "Open my dashboard")}</p>
-      <div style="background:#f0eeff;border-radius:14px;padding:14px 18px;margin:16px 0">
-        <p style="margin:0 0 6px"><strong>Prepare for your call</strong></p>
-        <p style="margin:0">Please upload your <strong>passport</strong> and your <strong>latest certificate</strong> before the call, so your advisor can review your profile.</p>
-        <p style="margin:10px 0 0"><a href="${APP_URL()}/dashboard/documents" style="color:#442DFA;font-weight:bold">Upload documents →</a></p>
-      </div>
-      <p style="color:#64748b;font-size:13px">The calendar invite is attached. Need another time? Reply to this email or message us on WhatsApp.</p>`);
-    wa = `Hi ${first}, your free call with Outreach is confirmed for ${when}.${c.meeting_url ? ` Join here: ${c.meeting_url}` : ""} Please upload your passport and latest certificate before the call: ${APP_URL()}/dashboard/documents`;
+    html = layout(
+      eyebrow("Call confirmed") +
+        title(`Hi ${escape(first)}, see you soon!`) +
+        highlight(
+          `<strong style="font-size:18px">${escape(when.main)}</strong><br><span style="color:#8a8ea8;font-size:13px">${escape(when.sub)} · ${CALL_MINUTES} minutes${
+            c.meeting_url ? " · Google Meet" : " · WhatsApp call"
+          }</span>`,
+        ) +
+        actions(c.meeting_url ? button(c.meeting_url, "Join the call") : "", button(`${APP_URL()}/dashboard`, "Open my dashboard", c.meeting_url ? "#14123a" : undefined)) +
+        `<div style="margin:0 0 14px;padding:16px 18px;border:2px solid #f0eeff;border-radius:14px">
+          <p style="margin:0 0 6px;color:#14123a"><strong>Prepare for your call</strong></p>
+          <p style="margin:0;color:#5b6080">Please upload your <strong>passport</strong> and your <strong>latest certificate</strong> before the call, so your advisor can review your profile.</p>
+          <p style="margin:10px 0 0"><a href="${APP_URL()}/dashboard/documents" style="color:#442DFA;font-weight:bold;text-decoration:none">Upload documents →</a></p>
+        </div>` +
+        para("The calendar invite is attached. Need another time? Reply to this email or message us on WhatsApp.", true),
+      `Your call: ${when.main}`,
+    );
+    wa = `Hi ${first}, your free call with Outreach is confirmed for ${when.main}.${c.meeting_url ? ` Join here: ${c.meeting_url}` : ""} Please upload your passport and latest certificate before the call: ${APP_URL()}/dashboard/documents`;
   } else if (type === "rebook") {
     subject = `${first}, let's find a new time for your call`;
-    html = layout(`
-      <h2 style="margin:0 0 8px">Hi ${escape(first)}, we missed you!</h2>
-      <p>We couldn't reach you at your scheduled call. No problem — pick a new time that suits you and we'll confirm it.</p>
-      <p>${button(`${APP_URL()}/dashboard`, "Pick a new time")}</p>`);
+    html = layout(
+      eyebrow("New time") +
+        title(`Hi ${escape(first)}, we missed you!`) +
+        para("We couldn't reach you at your scheduled call. No problem — pick a new time that suits you and we'll confirm it.", true) +
+        actions(button(`${APP_URL()}/dashboard`, "Pick a new time")),
+      "Pick a new time for your free call",
+    );
     wa = `Hi ${first}, we missed you at your Outreach call today. Please pick a new time here: ${APP_URL()}/dashboard`;
   } else {
     return json({ error: "Unknown type" }, 400);

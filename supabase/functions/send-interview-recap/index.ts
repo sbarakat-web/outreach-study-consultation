@@ -5,6 +5,7 @@
 //
 // Secrets: RESEND_API_KEY; optional overrides MAIL_FROM, APP_URL
 import { createClient } from "npm:@supabase/supabase-js@2.45.4";
+import { actions, button, eyebrow, facts, layout, list, para, title, escape } from "../_shared/email.ts";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -28,9 +29,6 @@ const DOCUMENTS = [
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { ...cors, "Content-Type": "application/json" } });
-
-const escape = (s: string) =>
-  s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
@@ -71,8 +69,6 @@ Deno.serve(async (req) => {
   if (!env("RESEND_API_KEY")) {
     result.email = "not-configured";
   } else {
-    const row = (k: string, v?: string) =>
-      v ? `<tr><td style="padding:4px 14px 4px 0;color:#64748b">${k}</td><td style="padding:4px 0"><strong>${escape(v)}</strong></td></tr>` : "";
     const res = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: { Authorization: `Bearer ${env("RESEND_API_KEY")}`, "Content-Type": "application/json" },
@@ -80,20 +76,21 @@ Deno.serve(async (req) => {
         from: setting("MAIL_FROM"),
         to: c.email,
         subject: `${first}, your Malta study dashboard is ready`,
-        html: `<div style="font-family:Arial,sans-serif;color:#14123a;line-height:1.6;max-width:560px">
-          <div style="height:6px;background:#442DFA;border-radius:6px 6px 0 0"></div>
-          <img src="${appUrl}/logo.png" alt="Outreach — Study in Malta" width="180" style="display:block;margin:20px 0">
-          <h2 style="margin:0 0 8px">Hi ${escape(first)}, thank you for your session!</h2>
-          <p>Here is a summary of your study path. Your personalised presentation is attached as a PDF.</p>
-          <table style="border-collapse:collapse;font-size:14px;margin:8px 0 16px">
-            ${row("Programme", programme)}${row("School", school)}${row("English requirement", englishRequirement)}
-          </table>
-          <p style="margin-bottom:6px"><strong>Please prepare these documents:</strong></p>
-          <ol style="margin-top:0;padding-left:20px">${DOCUMENTS.map((d) => `<li>${escape(d)}</li>`).join("")}</ol>
-          <p><a href="${dashboardLink}" style="display:inline-block;background:#442DFA;color:#fff;padding:13px 26px;border-radius:999px;text-decoration:none;font-weight:bold">Open your dashboard</a></p>
-          <p style="color:#64748b;font-size:13px">The button signs you in directly. Upload your documents in the Documents section.</p>
-          <p>— The Outreach team</p>
-        </div>`,
+        html: layout(
+          eyebrow("Your study path") +
+            title(`Hi ${escape(first)}, thank you for your session!`) +
+            para("Here is a summary of your study path. Your personalised presentation is attached as a PDF.", true) +
+            facts([
+              ["Programme", programme],
+              ["School", school],
+              ["English requirement", englishRequirement],
+            ]) +
+            `<p style="margin:0 0 6px;color:#14123a"><strong>Please prepare these documents:</strong></p>` +
+            list(DOCUMENTS) +
+            actions(button(dashboardLink, "Open your dashboard")) +
+            para("The button signs you in directly. Upload your documents in the Documents section.", true),
+          `Your Malta study path${programme ? `: ${programme}` : ""}`,
+        ),
         attachments:
           typeof presentationPdfBase64 === "string" && presentationPdfBase64
             ? [{ filename: presentationPdfFilename || "Malta-Study-Presentation.pdf", content: presentationPdfBase64 }]

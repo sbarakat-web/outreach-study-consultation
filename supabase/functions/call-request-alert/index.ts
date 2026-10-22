@@ -1,10 +1,11 @@
-// Instant admin alert when a candidate requests call times, with one-tap
+// Instant admin alert when a candidate requests a call time, with one-tap
 // "Send booking link" (WhatsApp) and "Open in admin" buttons.
 // Called by the dashboard right after request_call_times(). The caller must be
 // signed in and own the application; at most one alert per 2 minutes per application.
 //
 // Secrets: RESEND_API_KEY; optional overrides MAIL_FROM, ADMIN_NOTIFY_EMAIL, APP_URL, BOOKING_LINK
 import { createClient } from "npm:@supabase/supabase-js@2.45.4";
+import { actions, button, eyebrow, facts, highlight, layout, title, escape } from "../_shared/email.ts";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -23,9 +24,6 @@ const setting = (k: string) => env(k) || DEFAULTS[k] || "";
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { ...cors, "Content-Type": "application/json" } });
-
-const escape = (s: string) =>
-  s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 
 const malta = (iso: string) =>
   new Intl.DateTimeFormat("en-GB", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "Europe/Malta" }).format(
@@ -70,8 +68,6 @@ Deno.serve(async (req) => {
   const appUrl = setting("APP_URL");
   const digits = (c.whatsapp ?? "").replace(/\D/g, "");
   const reply = `Hi ${first}, this is Outreach. Thank you for your application for ${course} — we've reviewed your profile and would love to talk. Please confirm your free call here: ${setting("BOOKING_LINK")}`;
-  const btn = (href: string, label: string, bg: string) =>
-    `<a href="${href}" style="display:inline-block;background:${bg};color:#fff;padding:12px 22px;border-radius:999px;text-decoration:none;font-weight:bold;margin:0 6px 6px 0">${label}</a>`;
 
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",
@@ -80,16 +76,21 @@ Deno.serve(async (req) => {
       from: setting("MAIL_FROM"),
       to: setting("ADMIN_NOTIFY_EMAIL"),
       subject: `Call request: ${c.full_name} — ${times.join(" / ")}`,
-      html: `<div style="font-family:Arial,sans-serif;color:#172554;line-height:1.5;max-width:560px">
-        <h2 style="margin-bottom:4px">${escape(c.full_name)} requested a call</h2>
-        <p style="margin-top:0;color:#64748b">${escape(course)} · ${escape(c.country ?? "")} · Malta time</p>
-        <ol style="font-size:16px;font-weight:bold;padding-left:20px">${times.map((t) => `<li>${escape(t)}</li>`).join("")}</ol>
-        <p>${digits ? btn(`https://wa.me/${digits}?text=${encodeURIComponent(reply)}`, "Send booking link", "#25D366") : ""}${btn(
-          `${appUrl}/admin?lead=${c.id}`,
-          "Open in admin",
-          "#442DFA",
-        )}</p>
-      </div>`,
+      html: layout(
+        eyebrow("Call request") +
+          title(`${escape(c.full_name)} asked for a call`) +
+          highlight(`<strong style="font-size:18px">${times.map(escape).join("<br>")}</strong><br><span style="color:#8a8ea8;font-size:13px">Malta time</span>`) +
+          facts([
+            ["Course", course],
+            ["Country", c.country],
+            ["WhatsApp", c.whatsapp],
+          ]) +
+          actions(
+            digits ? button(`https://wa.me/${digits}?text=${encodeURIComponent(reply)}`, "Send booking link", "#25D366") : "",
+            button(`${appUrl}/admin/calendar`, "Open calendar"),
+          ),
+        `${c.full_name} requested ${times.join(" / ")}`,
+      ),
     }),
   });
   return json({ ok: res.ok, email: res.ok ? "sent" : await res.text() });

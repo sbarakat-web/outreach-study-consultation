@@ -5,6 +5,7 @@
 //   documents due in ≤3 days / due now, required files missing → email
 // Secrets: RESEND_API_KEY; optional MAIL_FROM, APP_URL, TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_WHATSAPP_FROM
 import { createClient } from "npm:@supabase/supabase-js@2.45.4";
+import { actions, button, eyebrow, highlight, layout, para, title, escape } from "../_shared/email.ts";
 
 const env = (k: string) => Deno.env.get(k) ?? "";
 const APP_URL = () => env("APP_URL") || "https://consultation.outreachstudy.eu";
@@ -17,13 +18,6 @@ const REQUIRED: Record<string, string[]> = {
   higher_education: ["passport", "diploma", "transcripts"],
 };
 const LABELS: Record<string, string> = { passport: "Passport", diploma: "Highest diploma", transcripts: "Transcripts" };
-
-const escape = (s: string) => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
-const layout = (inner: string) => `<div style="font-family:Arial,sans-serif;color:#14123a;line-height:1.6;max-width:560px">
-  <div style="height:6px;background:#442DFA;border-radius:6px 6px 0 0"></div>
-  <img src="${APP_URL()}/logo.png" alt="Outreach — Study in Malta" width="180" style="display:block;margin:20px 0">${inner}</div>`;
-const button = (href: string, label: string) =>
-  `<a href="${href}" style="display:inline-block;background:#442DFA;color:#fff;padding:13px 26px;border-radius:999px;text-decoration:none;font-weight:bold;margin:4px 6px 4px 0">${label}</a>`;
 
 function when(iso: string, tz: string) {
   const f = (zone: string) => new Intl.DateTimeFormat("en-GB", { weekday: "long", day: "numeric", month: "long", hour: "2-digit", minute: "2-digit", timeZone: zone }).format(new Date(iso));
@@ -86,9 +80,13 @@ Deno.serve(async () => {
       await sendEmail(
         c.email,
         `Starting soon: your Outreach call at ${t}`,
-        layout(`<h2 style="margin:0 0 8px">Hi ${escape(first)}, your call starts in about an hour</h2>
-          <p style="font-size:16px"><strong>${escape(t)}</strong></p>
-          <p>${c.meeting_url ? button(c.meeting_url, "Join the call") : "Your advisor will call you on WhatsApp."}</p>`),
+        layout(
+          eyebrow("Starting soon") +
+            title(`Hi ${escape(first)}, your call starts in about an hour`) +
+            highlight(`<strong style="font-size:18px">${escape(t)}</strong>`) +
+            (c.meeting_url ? actions(button(c.meeting_url, "Join the call")) : para("Your advisor will call you on WhatsApp.", true)),
+          `Your call starts at ${t}`,
+        ),
       );
       if (c.whatsapp) await sendWhatsApp(c.whatsapp, `Hi ${first}, your Outreach call starts in about 1 hour (${t}).${c.meeting_url ? ` Join: ${c.meeting_url}` : ""}`);
       sent.h1++;
@@ -96,10 +94,14 @@ Deno.serve(async () => {
       await sendEmail(
         c.email,
         `Reminder: your free call tomorrow — ${t}`,
-        layout(`<h2 style="margin:0 0 8px">Hi ${escape(first)}, see you tomorrow!</h2>
-          <p style="font-size:16px"><strong>${escape(t)}</strong></p>
-          <p>Please upload your passport and latest certificate before the call.</p>
-          <p>${c.meeting_url ? button(c.meeting_url, "Join link") : ""}${button(`${APP_URL()}/dashboard/documents`, "Upload documents")}</p>`),
+        layout(
+          eyebrow("Reminder") +
+            title(`Hi ${escape(first)}, see you tomorrow!`) +
+            highlight(`<strong style="font-size:18px">${escape(t)}</strong>`) +
+            para("Please upload your passport and latest certificate before the call.", true) +
+            actions(c.meeting_url ? button(c.meeting_url, "Join link") : "", button(`${APP_URL()}/dashboard/documents`, "Upload documents")),
+          `Your call tomorrow: ${t}`,
+        ),
       );
       sent.h24++;
     }
@@ -125,10 +127,14 @@ Deno.serve(async () => {
     await sendEmail(
       c.email,
       isFinal ? `${c.full_name.split(" ")[0]}, your documents are due today` : `Reminder: please upload your documents by ${dueText}`,
-      layout(`<h2 style="margin:0 0 8px">Hi ${escape(c.full_name.split(" ")[0])},</h2>
-        <p>${isFinal ? "Your documents are due today." : `Please upload your documents by <strong>${dueText}</strong>.`} Still missing:</p>
-        <ul>${missing.map((k) => `<li>${LABELS[k] ?? k}</li>`).join("")}</ul>
-        <p>${button(`${APP_URL()}/dashboard/documents`, "Upload documents")}</p>`),
+      layout(
+        eyebrow(isFinal ? "Due today" : "Documents reminder") +
+          title(`Hi ${escape(c.full_name.split(" ")[0])}, a few documents are missing`) +
+          para(isFinal ? "Your documents are due today. Still missing:" : `Please upload your documents by <strong>${dueText}</strong>. Still missing:`, true) +
+          highlight(missing.map((k) => `<strong>${LABELS[k] ?? k}</strong>`).join("<br>")) +
+          actions(button(`${APP_URL()}/dashboard/documents`, "Upload documents")),
+        "Your documents are almost due",
+      ),
     );
     sent.docs++;
   }
