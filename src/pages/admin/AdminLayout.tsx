@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Outlet, useNavigate } from "react-router-dom";
-import { BarChart3, Bell, CalendarDays, Presentation, Settings, Users, UsersRound } from "lucide-react";
+import { BarChart3, Bell, CalendarDays, Mail, Presentation, Settings, Users, UsersRound } from "lucide-react";
 import type { TabItem } from "../../components/TabBar";
 import { AppShell, Fab } from "../../components/dash";
 import { supabase } from "../../lib/supabase";
@@ -12,6 +12,7 @@ const sidebar: TabItem[] = [
   { to: "/admin/calendar", label: "Calendar", icon: CalendarDays },
   { to: "/onlinesessions?present=1", label: "Online sessions", icon: Presentation },
   { to: "/admin/sessions", label: "Session stats", icon: BarChart3 },
+  { to: "/admin/email-marketing", label: "Email marketing", icon: Mail },
   { to: "/admin/team", label: "Team", icon: Users },
   { to: "/admin/settings", label: "My account", icon: Settings },
 ];

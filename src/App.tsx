@@ -20,6 +20,7 @@ const CalendarPage = lazy(() => import("./pages/admin/CalendarPage").then((m) =>
 const SessionsDashboard = lazy(() => import("./pages/admin/SessionsDashboard").then((m) => ({ default: m.SessionsDashboard })));
 const AdminAccount = lazy(() => import("./pages/admin/AdminLayout").then((m) => ({ default: m.AdminAccount })));
 const Team = lazy(() => import("./pages/admin/Team").then((m) => ({ default: m.Team })));
+const EmailMarketing = lazy(() => import("./pages/admin/EmailMarketing").then((m) => ({ default: m.EmailMarketing })));
 
 export function App() {
   if (!supabaseConfigured) {
@@ -70,6 +71,7 @@ export function App() {
               <Route path="calendar" element={<CalendarPage />} />
               <Route path="sessions" element={<SessionsDashboard />} />
               <Route path="team" element={<Team />} />
+              <Route path="email-marketing" element={<EmailMarketing />} />
               <Route path="settings" element={<AdminAccount />} />
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />
