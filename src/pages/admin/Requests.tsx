@@ -12,6 +12,7 @@ import {
   statusLabel,
   waLink,
   callStage,
+  noReply24h,
 } from "../../lib/options";
 import { CallPanel } from "./CallPanel";
 import { SessionPanel, sessionHref } from "./SessionPanel";
@@ -220,7 +221,7 @@ const STAGE_BADGE = {
 function CallBadge({ c }: { c: Row }) {
   const stage = callStage(c);
   if (stage === "none") return <span className="text-slate-400">—</span>;
-  const [label, style] = STAGE_BADGE[stage];
+  const [label, style] = noReply24h(c) ? (["No reply 24h+", "bg-brand-red/10 text-brand-red"] as const) : STAGE_BADGE[stage];
   return <span className={`inline-flex shrink-0 rounded-full px-2 py-0.5 text-[11px] font-bold ${style}`}>{label}</span>;
 }
 

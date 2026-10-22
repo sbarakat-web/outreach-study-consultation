@@ -91,6 +91,10 @@ export function callStage(c: {
   return c.requested_call_times.length ? "requested" : "none";
 }
 
+/** Suggested time sent more than 24h ago and still not confirmed (an automatic reminder has gone out). */
+export const noReply24h = (c: { suggested_call_at?: string | null; call_suggested_at?: string | null; call_status: string }) =>
+  !!c.suggested_call_at && c.call_status !== "confirmed" && !!c.call_suggested_at && Date.now() - new Date(c.call_suggested_at).getTime() > 24 * 3_600_000;
+
 // Documents candidates upload before their call, per study path.
 export interface DocumentType {
   key: string;

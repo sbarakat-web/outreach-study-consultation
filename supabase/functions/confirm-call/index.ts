@@ -7,7 +7,7 @@
 // Secrets: RESEND_API_KEY; optional GOOGLE_CLIENT_ID/SECRET, ADMIN_NOTIFY_EMAIL, APP_URL
 import { createClient } from "npm:@supabase/supabase-js@2.45.4";
 import { actions, button, eyebrow, facts, highlight, layout, title, escape } from "../_shared/email.ts";
-import { APP_URL, CALL_MINUTES, confirmedEmail, sendEmail, tzOf } from "../_shared/call.ts";
+import { APP_URL, CALL_MINUTES, confirmedEmail, loadAdvisor, sendEmail, tzOf } from "../_shared/call.ts";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -112,10 +112,10 @@ Deno.serve(async (req) => {
   const meetUrl = await createMeet(db, updated, at).catch(() => null);
   const row = { ...updated, meeting_url: meetUrl ?? updated.meeting_url };
 
-  const mail = confirmedEmail(row);
+  const mail = confirmedEmail(row, await loadAdvisor(db, row.call_suggested_by));
   await sendEmail({ to: row.email, subject: mail.subject, html: mail.html, attachments: mail.attachments });
   await sendEmail({
-    to: env("ADMIN_NOTIFY_EMAIL") || "sbarakat@outreachrecruitment.net",
+    to: [...new Set([env("ADMIN_NOTIFY_EMAIL") || "sbarakat@outreachrecruitment.net", row.call_suggested_by].filter(Boolean))],
     subject: `✅ ${row.full_name} confirmed the call — ${malta(at)}`,
     html: layout(
       eyebrow("Call confirmed by candidate") +

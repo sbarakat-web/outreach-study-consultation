@@ -7,7 +7,7 @@
 // Secrets: RESEND_API_KEY; optional MAIL_FROM, APP_URL, BOOKING_LINK
 import { createClient } from "npm:@supabase/supabase-js@2.45.4";
 import { actions, button, eyebrow, highlight, layout, para, title, escape } from "../_shared/email.ts";
-import { APP_URL, BOOKING_LINK, CALL_MINUTES, confirmedEmail, firstName, sendEmail, tzOf, whenIn } from "../_shared/call.ts";
+import { APP_URL, BOOKING_LINK, confirmByFor, confirmedEmail, firstName, loadAdvisor, sendEmail, suggestEmail, tzOf, whenIn } from "../_shared/call.ts";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -47,7 +47,7 @@ Deno.serve(async (req) => {
 
   if (type === "call-confirmed") {
     if (!c.preferred_call_at) return json({ error: "No confirmed time" }, 400);
-    ({ subject, html, wa, attachments } = confirmedEmail(c));
+    ({ subject, html, wa, attachments } = confirmedEmail(c, await loadAdvisor(db, c.call_suggested_by ?? email)));
   } else if (type === "rebook") {
     subject = `${first}, let's find a new time for your call`;
     html = layout(
@@ -76,29 +76,21 @@ Deno.serve(async (req) => {
     if (isNaN(when.getTime()) || when.getTime() < Date.now()) return json({ error: "Pick a future time" }, 400);
     if (c.call_status === "confirmed") return json({ error: "This call is already confirmed" }, 409);
     const token = c.call_confirm_token ?? crypto.randomUUID();
+    const confirmBy = confirmByFor(when.toISOString());
     const { error } = await db
       .from("consultations")
-      .update({ suggested_call_at: when.toISOString(), call_suggested_at: new Date().toISOString(), call_confirm_token: token, call_reviewed_at: c.call_reviewed_at ?? new Date().toISOString() })
+      .update({
+        suggested_call_at: when.toISOString(),
+        call_suggested_at: new Date().toISOString(),
+        call_suggested_by: email,
+        call_confirm_by: confirmBy,
+        call_confirm_token: token,
+        suggest_reminder_at: null,
+        call_reviewed_at: c.call_reviewed_at ?? new Date().toISOString(),
+      })
       .eq("id", c.id);
     if (error) return json({ error: error.message }, 500);
-    const t = whenIn(when.toISOString(), tz);
-    const confirmUrl = `${APP_URL()}/confirm-call?t=${token}`;
-    subject = `${first}, please confirm your free call — ${new Intl.DateTimeFormat("en-GB", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: tz }).format(when)}`;
-    html = layout(
-      eyebrow("Confirm your call") +
-        title(`Hi ${escape(first)}, does this time work for you?`) +
-        para("We've reviewed your application and would love to talk. Here is the time we suggest for your free call:", true) +
-        highlight(
-          `<strong style="font-size:18px">${escape(t.main)}</strong><br><span style="color:#8a8ea8;font-size:13px">${escape(t.sub)} · ${CALL_MINUTES} minutes</span>`,
-        ) +
-        actions(button(confirmUrl, "Yes, confirm this time")) +
-        para(
-          `Doesn't suit you? <a href="${BOOKING_LINK()}" style="color:#442DFA;font-weight:bold;text-decoration:none">Choose another time</a>, reply to this email or message us on WhatsApp.`,
-          true,
-        ),
-      `Suggested time: ${t.main} — one click to confirm`,
-    );
-    wa = `Hi ${first}, this is Outreach 👋 Thank you for your application for ${c.desired_course || "your studies"}! We suggest your free ${CALL_MINUTES}-minute call on ${t.main}. Please confirm here: ${confirmUrl} (or reply YES). Another time? ${BOOKING_LINK()}`;
+    ({ subject, html, wa } = suggestEmail(c, { at: when.toISOString(), token, advisor: await loadAdvisor(db, email), confirmBy }));
   } else {
     return json({ error: "Unknown type" }, 400);
   }

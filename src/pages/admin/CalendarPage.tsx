@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import { supabase } from "../../lib/supabase";
 import { useAuth } from "../../lib/auth";
-import { callStage } from "../../lib/options";
+import { callStage, noReply24h } from "../../lib/options";
 import type { Consultation, Task } from "../../lib/types";
 import { Alert, Button, Card, Spinner } from "../../components/ui";
 import {
@@ -520,6 +520,7 @@ function RequestRow({
           </Link>
           {c.session_outcome === "no_attendance" && <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-800">Rebook</span>}
           {waiting && <span className="ml-2 rounded-full bg-sky-100 px-2 py-0.5 text-[11px] font-bold text-sky-800">Waiting for candidate</span>}
+          {noReply24h(c) && <span className="ml-2 rounded-full bg-brand-red/10 px-2 py-0.5 text-[11px] font-bold text-brand-red">No reply 24h+</span>}
           <p className="text-xs text-slate-500">
             {c.desired_course || "No course yet"} · {sourceOf(c)}
           </p>

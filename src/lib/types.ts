@@ -38,6 +38,10 @@ export interface Consultation {
   suggested_call_at: string | null; // time sent to the candidate, waiting for their confirmation
   call_suggested_at: string | null;
   call_confirm_token: string | null;
+  call_suggested_by: string | null;
+  call_confirm_by: string | null;
+  suggest_reminder_at: string | null;
+  language: "en" | "fr" | "es" | "ar" | null;
   referral_code: string;
   session_outcome: "interviewed" | "no_attendance" | "no_longer_interested" | null;
   session_outcome_at: string | null;

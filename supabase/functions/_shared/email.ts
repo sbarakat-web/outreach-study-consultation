@@ -9,9 +9,11 @@ const appUrl = () => Deno.env.get("APP_URL") || "https://consultation.outreachst
 export const escape = (s: string) =>
   s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 
-/** Full email: preheader (inbox preview), centred logo, content card and footer. */
-export function layout(inner: string, preheader = "") {
-  return `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light"></head>
+/** Full email: preheader (inbox preview), centred logo, content card and footer. `lang` "ar" turns it right-to-left. */
+export function layout(inner: string, preheader = "", lang = "en") {
+  const dir = lang === "ar" ? "rtl" : "ltr";
+  if (dir === "rtl") inner = inner.replaceAll("letter-spacing:1.5px;", "").replaceAll("letter-spacing:1px;", ""); // spacing breaks Arabic letter joins
+  return `<!doctype html><html lang="${lang}" dir="${dir}"><head><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light"></head>
 <body style="margin:0;padding:0;background:#f4f5fb;-webkit-text-size-adjust:100%">
 <span style="display:none;max-height:0;overflow:hidden;opacity:0">${escape(preheader)}</span>
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f5fb;padding:24px 12px;font-family:Arial,Helvetica,sans-serif">
@@ -21,7 +23,7 @@ export function layout(inner: string, preheader = "") {
       <tr><td align="center" style="padding:30px 28px 6px">
         <img src="${appUrl()}/logo.png" alt="Outreach — Study in Malta" width="200" style="display:block;margin:0 auto;border:0;width:200px;max-width:70%;height:auto">
       </td></tr>
-      <tr><td style="padding:18px 28px 30px;color:${INK};font-size:15px;line-height:1.65">${inner}</td></tr>
+      <tr><td dir="${dir}" style="padding:18px 28px 30px;color:${INK};font-size:15px;line-height:1.65">${inner}</td></tr>
       <tr><td align="center" style="padding:20px 28px;background:#f8f8fc;color:#8a8ea8;font-size:12px;line-height:1.7">
         <strong style="color:${INK}">Outreach — Study in Malta</strong><br>
         <a href="https://outreachstudy.eu" style="color:${BRAND};text-decoration:none">outreachstudy.eu</a> &nbsp;·&nbsp;
@@ -60,3 +62,23 @@ export const facts = (rows: [string, string | null | undefined][]) =>
 
 export const list = (items: string[]) =>
   `<ol style="margin:0 0 16px;padding-left:20px;color:${MUTED}">${items.map((i) => `<li style="margin:4px 0">${escape(i)}</li>`).join("")}</ol>`;
+
+/** Advisor card: round photo (or initial) + "Your call with …". */
+export const advisorCard = (line: string, role: string, name: string, photoUrl?: string | null) =>
+  `<table role="presentation" cellpadding="0" cellspacing="0" align="center" style="margin:0 auto 16px"><tr>
+    <td style="padding:0 10px">${
+      photoUrl
+        ? `<img src="${escape(photoUrl)}" alt="" width="48" height="48" style="display:block;width:48px;height:48px;border-radius:50%;object-fit:cover;border:0">`
+        : `<div style="width:48px;height:48px;border-radius:50%;background:${BRAND};color:#fff;font-weight:bold;font-size:20px;line-height:48px;text-align:center">${escape(name.slice(0, 1).toUpperCase())}</div>`
+    }</td>
+    <td style="padding:0 10px;font-size:14px;line-height:1.4"><strong style="color:${INK}">${escape(line)}</strong><br><span style="color:#8a8ea8;font-size:13px">${escape(role)}</span></td>
+  </tr></table>`;
+
+/** "What happens next": three numbered steps in a row (wraps on small screens). */
+export const steps = (heading: string, items: string[]) =>
+  `<div style="margin:6px 0 18px;padding:14px 16px;border:2px solid #f0eeff;border-radius:14px;text-align:center">
+    <p style="margin:0 0 8px;font-size:12px;font-weight:bold;letter-spacing:1px;text-transform:uppercase;color:#8a8ea8">${escape(heading)}</p>
+    <p style="margin:0;font-size:14px;color:${INK}">${items
+      .map((s, i) => `<span style="display:inline-block;margin:3px 6px;white-space:nowrap"><span style="display:inline-block;width:22px;height:22px;border-radius:50%;background:${BRAND};color:#fff;font-size:12px;font-weight:bold;line-height:22px;text-align:center">${i + 1}</span> ${escape(s)}</span>`)
+      .join(`<span style="color:#c7c9d9">→</span>`)}</p>
+  </div>`;

@@ -1,6 +1,6 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type ChangeEvent, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { CalendarDays, Globe2, KeyRound, LogOut, MessageCircle, UserRound, Users } from "lucide-react";
+import { CalendarDays, Camera, Globe2, KeyRound, LogOut, MessageCircle, UserRound, Users } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
 import { LANGS, useI18n, type Lang } from "../lib/i18n";
@@ -19,6 +19,7 @@ export function AccountSettings({ c, onSaved, staff }: { c?: Consultation; onSav
       <h1 className="text-2xl font-black">{t("set.title")}</h1>
 
       {c && <ProfileCard c={c} onSaved={onSaved} />}
+      {staff && <AdvisorProfileCard />}
 
       <Card>
         <div className="space-y-4 px-5 py-5 sm:px-7">
@@ -98,6 +99,91 @@ export function AccountSettings({ c, onSaved, staff }: { c?: Consultation; onSav
         </Card>
       )}
     </div>
+  );
+}
+
+/** Staff: name + photo shown to candidates in call emails ("Your call with …"). */
+function AdvisorProfileCard() {
+  const { session } = useAuth();
+  const email = (session?.user.email ?? "").toLowerCase();
+  const [name, setName] = useState("");
+  const [photo, setPhoto] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<{ tone: "error" | "success"; text: string } | null>(null);
+
+  useEffect(() => {
+    supabase
+      .from("staff_profiles")
+      .select("display_name, photo_url")
+      .eq("email", email)
+      .maybeSingle()
+      .then(({ data }) => {
+        setName(data?.display_name ?? "");
+        setPhoto(data?.photo_url ?? null);
+      });
+  }, [email]);
+
+  const save = async (patch: { display_name?: string; photo_url?: string | null }) => {
+    const { error } = await supabase
+      .from("staff_profiles")
+      .upsert({ email, display_name: name.trim() || null, photo_url: photo, ...patch, updated_at: new Date().toISOString() });
+    return error;
+  };
+
+  const submit = async (e: FormEvent) => {
+    e.preventDefault();
+    setBusy(true);
+    const error = await save({});
+    setBusy(false);
+    setMsg(error ? { tone: "error", text: error.message } : { tone: "success", text: "Saved — candidates will see this in their call emails." });
+  };
+
+  const upload = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024) return setMsg({ tone: "error", text: "Please use a photo under 2 MB." });
+    setBusy(true);
+    const path = `${email}/photo-${Date.now()}.${file.type === "image/png" ? "png" : file.type === "image/webp" ? "webp" : "jpg"}`;
+    const up = await supabase.storage.from("staff-photos").upload(path, file, { contentType: file.type });
+    if (up.error) {
+      setBusy(false);
+      return setMsg({ tone: "error", text: up.error.message });
+    }
+    const url = supabase.storage.from("staff-photos").getPublicUrl(path).data.publicUrl;
+    const error = await save({ photo_url: url });
+    setBusy(false);
+    if (error) return setMsg({ tone: "error", text: error.message });
+    setPhoto(url);
+    setMsg({ tone: "success", text: "Photo updated." });
+  };
+
+  return (
+    <Card>
+      <form onSubmit={submit} className="space-y-4 px-5 py-5 sm:px-7">
+        <SectionTitle icon={<UserRound className="h-4 w-4" />} label="Advisor profile (shown in call emails)" />
+        <div className="flex items-center gap-4">
+          <label className="relative grid h-16 w-16 shrink-0 cursor-pointer place-items-center overflow-hidden rounded-full bg-brand text-xl font-black text-white">
+            {photo ? <img src={photo} alt="" className="h-full w-full object-cover" /> : (name || email).slice(0, 1).toUpperCase()}
+            <span className="absolute inset-x-0 bottom-0 grid place-items-center bg-black/40 py-0.5">
+              <Camera className="h-3.5 w-3.5" />
+            </span>
+            <input type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" onChange={upload} aria-label="Upload photo" />
+          </label>
+          <div className="min-w-0 flex-1">
+            <label className="label" htmlFor="adv-name">
+              Name candidates see
+            </label>
+            <input id="adv-name" className="field" placeholder="e.g. Sofyane" value={name} onChange={(e) => setName(e.target.value)} />
+          </div>
+        </div>
+        <p className="text-xs text-slate-500">Emails say “Your call with {name || "…"}” with this photo. Leave empty to sign as “Outreach”.</p>
+        {msg && <Alert tone={msg.tone}>{msg.text}</Alert>}
+        <Button type="submit" variant="secondary" loading={busy}>
+          Save advisor profile
+        </Button>
+      </form>
+    </Card>
   );
 }
 

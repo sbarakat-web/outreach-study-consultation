@@ -160,7 +160,7 @@ export function Apply() {
       p_preferred_contact_time: null,
       p_message: d.notes,
       p_slot_id: null,
-      p_tracking: getTracking(),
+      p_tracking: { ...getTracking(), lang },
     });
     setSubmitting(false);
     if (error) return setError(error.message.includes("INVALID_INPUT") ? t("apply.errNameEmail") : error.message);

@@ -3,9 +3,11 @@
 //   24h before a confirmed call  → email
 //   1h before                    → email (+ WhatsApp via Twilio when configured)
 //   documents due in ≤3 days / due now, required files missing → email
+//   suggested call time not confirmed after 24h → one "please confirm" email (candidate's language)
 // Secrets: RESEND_API_KEY; optional MAIL_FROM, APP_URL, TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_WHATSAPP_FROM
 import { createClient } from "npm:@supabase/supabase-js@2.45.4";
 import { actions, button, eyebrow, highlight, layout, para, title, escape } from "../_shared/email.ts";
+import { loadAdvisor, sendEmail as sendCallEmail, suggestEmail } from "../_shared/call.ts";
 
 const env = (k: string) => Deno.env.get(k) ?? "";
 const APP_URL = () => env("APP_URL") || "https://consultation.outreachstudy.eu";
@@ -53,7 +55,7 @@ Deno.serve(async () => {
   const db = createClient(env("SUPABASE_URL"), env("SUPABASE_SERVICE_ROLE_KEY"));
   const now = Date.now();
   const iso = (ms: number) => new Date(ms).toISOString();
-  const sent = { h24: 0, h1: 0, docs: 0 };
+  const sent = { h24: 0, h1: 0, docs: 0, confirm: 0 };
 
   // Claim a reminder column atomically; returns the row only if this call won it.
   const claim = async (id: string, column: string) => {
@@ -84,7 +86,7 @@ Deno.serve(async () => {
           eyebrow("Starting soon") +
             title(`Hi ${escape(first)}, your call starts in about an hour`) +
             highlight(`<strong style="font-size:18px">${escape(t)}</strong>`) +
-            (c.meeting_url ? actions(button(c.meeting_url, "Join the call")) : para("Your advisor will call you on WhatsApp.", true)),
+            (c.meeting_url ? actions(button(c.meeting_url, "Join the call")) : para("Your advisor will send you the Google Meet link before the call.", true)),
           `Your call starts at ${t}`,
         ),
       );
@@ -105,6 +107,29 @@ Deno.serve(async () => {
       );
       sent.h24++;
     }
+  }
+
+  // Suggested time still not confirmed after 24h → one reminder with the same link
+  const { data: waiting } = await db
+    .from("consultations")
+    .select("*")
+    .neq("call_status", "confirmed")
+    .is("call_declined_at", null)
+    .is("suggest_reminder_at", null)
+    .not("call_confirm_token", "is", null)
+    .lt("call_suggested_at", iso(now - 24 * H))
+    .gt("suggested_call_at", iso(now + 3 * H));
+  for (const c of waiting ?? []) {
+    if (!(await claim(c.id, "suggest_reminder_at"))) continue;
+    const mail = suggestEmail(c, {
+      at: c.suggested_call_at,
+      token: c.call_confirm_token,
+      advisor: await loadAdvisor(db, c.call_suggested_by),
+      confirmBy: c.call_confirm_by && new Date(c.call_confirm_by).getTime() > now ? c.call_confirm_by : null,
+      reminder: true,
+    });
+    await sendCallEmail({ to: c.email, subject: mail.subject, html: mail.html });
+    sent.confirm++;
   }
 
   // Document deadline reminders (after an interviewed session)

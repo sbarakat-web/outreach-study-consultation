@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { CalendarCheck, Clock, Mail, MessageCircle, Send } from "lucide-react";
 import { supabase } from "../../lib/supabase";
-import { BOOKING_LINK, CALL_STAGE_LABELS, callStage, waLink } from "../../lib/options";
+import { BOOKING_LINK, CALL_STAGE_LABELS, callStage, noReply24h, waLink } from "../../lib/options";
 import type { Consultation } from "../../lib/types";
 import { Alert, Button } from "../../components/ui";
 import { bookingMessage, confirmAndNotify, maltaTime, notifyCandidate, suggestTime, toLocalInput } from "./calls";
@@ -17,6 +17,8 @@ export function CallPanel({ c, onSaved }: { c: Consultation; onSaved: () => void
   const requested = c.requested_call_times[0];
   const [at, setAt] = useState(toLocalInput(c.suggested_call_at ?? requested ?? null));
   const [editing, setEditing] = useState(false);
+  // Changing the candidate's own time sends the "can we move your call?" version of the email.
+  const reschedule = !!requested && !!at && Math.abs(new Date(at).getTime() - new Date(requested).getTime()) > 60_000;
 
   const send = async () => {
     if (!at) return setMsg({ tone: "error", text: "Pick a time first." });
@@ -59,10 +61,15 @@ export function CallPanel({ c, onSaved }: { c: Consultation; onSaved: () => void
       <div className="flex flex-col gap-2 sm:flex-row">
         <input type="datetime-local" className="field w-auto py-2" value={at} onChange={(e) => setAt(e.target.value)} aria-label="Suggested call time" />
         <Button loading={busy === "suggest"} onClick={send}>
-          <Send className="h-4 w-4" /> Send for confirmation
+          <Send className="h-4 w-4" /> {reschedule ? "Send reschedule request" : "Send for confirmation"}
         </Button>
       </div>
-      <p className="text-xs text-slate-500">Emails and WhatsApps the candidate this time with a “Yes, confirm” button. Your local time.</p>
+      <p className="text-xs text-slate-500">
+        {reschedule
+          ? "Email + WhatsApp: “Can we move your call?” — shows their time crossed out and the new one."
+          : "Email + WhatsApp: “Good news, your time is available” with a “Yes, confirm” button."}{" "}
+        In their language · your local time.
+      </p>
     </div>
   );
 
@@ -105,6 +112,11 @@ export function CallPanel({ c, onSaved }: { c: Consultation; onSaved: () => void
               {c.call_suggested_at && <span className="text-slate-500"> · {new Date(c.call_suggested_at).toLocaleString([], { dateStyle: "medium", timeStyle: "short" })}</span>}
               <br />
               <span className="text-slate-500">Waiting for the candidate to confirm.</span>
+              {noReply24h(c) && (
+                <span className="mt-1 block text-xs font-bold text-brand-red">
+                  No reply for 24h+{c.suggest_reminder_at ? " · reminder email sent" : ""} — maybe message them on WhatsApp.
+                </span>
+              )}
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
