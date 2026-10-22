@@ -1,151 +1,113 @@
-import { useEffect, useMemo, useState, type FormEvent } from "react";
-import { Link } from "react-router-dom";
-import { ArrowLeft, ArrowRight, CalendarCheck, CheckCircle2, MessageCircle } from "lucide-react";
+import { useEffect, useState, type FormEvent } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { ArrowLeft, ArrowRight, BookOpen, GraduationCap, MailCheck, Send } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
 import { getTracking } from "../lib/tracking";
-import {
-  BUDGETS,
-  CONTACT_TIMES,
-  ENGLISH_LEVELS,
-  START_DATES,
-  STUDY_PATHS,
-  VISA_OPTIONS,
-  formatSlot,
-  waLink,
-  whatsappNumber,
-} from "../lib/options";
-import type { Slot } from "../lib/types";
-import { Alert, Button, Card, ChoiceCard, Spinner } from "../components/ui";
+import { COUNTRIES, countryByCode, detectCountry } from "../lib/countries";
+import { PROGRAMMES } from "../lib/options";
+import { Alert, Button, Card } from "../components/ui";
 
-const STEPS = [
-  { label: "Welcome", title: "Choose your path", subtitle: "Tell us what you'd like to study in Malta." },
-  { label: "English", title: "Your English level", subtitle: "So we can match you with the right course." },
-  { label: "Details", title: "About you", subtitle: "Your advisor will use these details to prepare for your call." },
-  { label: "Time", title: "Pick a consultation time", subtitle: "Free 30-minute call with a study advisor." },
-  { label: "Confirm", title: "Confirm your request", subtitle: "Create your account to follow your request." },
-];
+type Path = "english" | "higher_education";
+type Stage = "choose" | "form" | "password" | "check_email";
 
-const empty = {
-  study_path: "",
-  english_level: "",
-  full_name: "",
-  email: "",
-  whatsapp: "",
-  country: "",
-  age: "",
-  desired_course: "",
-  start_date: "",
-  budget: "",
-  visa_support: "",
-  preferred_contact_time: "",
-  message: "",
-};
-
-type Form = typeof empty;
+const STEPS = ["English level", "Your details", "Password"];
 
 export function Apply() {
   const { session } = useAuth();
-  const [step, setStep] = useState(0);
-  const [form, setForm] = useState<Form>(empty);
-  const [slotId, setSlotId] = useState<string | null | undefined>(undefined); // undefined = not chosen, null = "none work"
-  const [slots, setSlots] = useState<Slot[] | null>(null);
-  const [password, setPassword] = useState("");
-  const [consent, setConsent] = useState(false);
+  const navigate = useNavigate();
+  const [stage, setStage] = useState<Stage>("choose");
+  const [path, setPath] = useState<Path>("english");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [done, setDone] = useState<{ slot: Slot | null; needsEmailConfirm: boolean } | null>(null);
 
-  const set = (k: keyof Form) => (v: string) => setForm((f) => ({ ...f, [k]: v }));
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [country, setCountry] = useState(detectCountry);
+  const [dialCountry, setDialCountry] = useState(country);
+  const [phone, setPhone] = useState("");
+  const [course, setCourse] = useState("");
+  const [notes, setNotes] = useState("");
+  const [password, setPassword] = useState("");
+  const [consent, setConsent] = useState(false);
 
   const sessionEmail = session?.user.email ?? "";
   useEffect(() => {
-    if (sessionEmail) setForm((f) => (f.email ? f : { ...f, email: sessionEmail }));
+    if (sessionEmail) setEmail((e) => e || sessionEmail);
   }, [sessionEmail]);
 
-  const loadSlots = async () => {
-    setSlots(null);
-    const { data } = await supabase
-      .from("slots")
-      .select("id, starts_at, duration_minutes, consultation_id")
-      .is("consultation_id", null)
-      .gt("starts_at", new Date().toISOString())
-      .order("starts_at")
-      .limit(200);
-    setSlots(data ?? []);
-  };
-
-  useEffect(() => {
-    if (step === 3 && slots === null) loadSlots();
-  }, [step, slots]);
-
-  const go = (n: number) => {
+  const go = (s: Stage) => {
     setError("");
-    setStep(n);
+    setStage(s);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  const next = (e?: FormEvent) => {
-    e?.preventDefault();
-    if (step === 0 && !form.study_path) return setError("Please choose a path.");
-    if (step === 1 && !form.english_level) return setError("Please choose your English level.");
-    if (step === 3 && slotId === undefined) return setError("Please pick a time, or tell us none of them work.");
-    go(step + 1);
+  const choose = (p: Path) => {
+    setPath(p);
+    setCourse(p === "english" ? "English Course" : "");
+    go("form");
   };
 
-  const submit = async (e: FormEvent) => {
+  const changeCountry = (code: string) => {
+    // Keep the dial code in step with the country unless the user picked a different one.
+    if (dialCountry === country) setDialCountry(code);
+    setCountry(code);
+  };
+
+  const submitDetails = (e: FormEvent) => {
     e.preventDefault();
-    if (!consent) return setError("Please accept so we can contact you about your request.");
+    if (!course) return setError("Please choose a programme.");
+    if (phone.replace(/\D/g, "").length < 6) return setError("Please enter a valid WhatsApp number.");
+    if (session) return createApplication();
+    go("password");
+  };
+
+  const createApplication = async (e?: FormEvent) => {
+    e?.preventDefault();
+    if (!consent) return setError("Please accept so we can contact you about your application.");
     setError("");
     setSubmitting(true);
     try {
-      let needsEmailConfirm = false;
+      let signedIn = !!session;
       if (!session) {
         if (password.length < 8) throw new Error("Your password needs at least 8 characters.");
         const { data, error } = await supabase.auth.signUp({
-          email: form.email.trim(),
+          email: email.trim(),
           password,
-          options: { emailRedirectTo: `${window.location.origin}/dashboard`, data: { full_name: form.full_name } },
+          options: { emailRedirectTo: `${window.location.origin}/dashboard`, data: { full_name: name } },
         });
         if (error) throw error;
         if (data.user && data.user.identities?.length === 0) {
-          throw new Error("An account with this email already exists. Please sign in first, then come back to this page.");
+          throw new Error("An account with this email already exists. Please open your dashboard and sign in.");
         }
-        needsEmailConfirm = !data.session;
+        signedIn = !!data.session;
       }
 
+      const dial = countryByCode(dialCountry)?.dial ?? "";
       const { data: id, error } = await supabase.rpc("book_consultation", {
-        p_full_name: form.full_name,
-        p_email: form.email,
-        p_whatsapp: form.whatsapp,
-        p_country: form.country,
-        p_age: form.age ? Number(form.age) : null,
-        p_study_path: form.study_path,
-        p_english_level: form.english_level,
-        p_desired_course: form.desired_course,
-        p_start_date: form.start_date || null,
-        p_budget: form.budget || null,
-        p_visa_support: form.visa_support || null,
-        p_preferred_contact_time: form.preferred_contact_time || null,
-        p_message: form.message,
-        p_slot_id: slotId ?? null,
+        p_full_name: name,
+        p_email: email,
+        p_whatsapp: `+${dial} ${phone.trim()}`,
+        p_country: countryByCode(country)?.name ?? country,
+        p_age: null,
+        p_study_path: path,
+        p_english_level: path === "english" ? "below_b2" : "b2_plus",
+        p_desired_course: course,
+        p_start_date: null,
+        p_budget: null,
+        p_visa_support: null,
+        p_preferred_contact_time: null,
+        p_message: notes,
+        p_slot_id: null,
         p_tracking: getTracking(),
       });
-      if (error) {
-        if (error.message.includes("SLOT_TAKEN")) {
-          setSlotId(undefined);
-          setSlots(null);
-          setStep(3);
-          throw new Error("Sorry, that time was just taken. Please pick another one.");
-        }
-        throw error;
-      }
+      if (error) throw error;
 
-      // Confirmation email/WhatsApp is best-effort; the booking is already saved.
+      // Confirmation email is best-effort; the application is already saved.
       supabase.functions.invoke("send-confirmation", { body: { consultation_id: id } }).catch(() => {});
 
-      setDone({ slot: slots?.find((s) => s.id === slotId) ?? null, needsEmailConfirm });
-      window.scrollTo({ top: 0, behavior: "smooth" });
+      if (signedIn) navigate("/dashboard", { state: { justApplied: true } });
+      else go("check_email");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong. Please try again.");
     } finally {
@@ -153,331 +115,275 @@ export function Apply() {
     }
   };
 
-  if (done) return <Success {...done} name={form.full_name.split(" ")[0]} loggedIn={!!session} />;
+  if (stage === "check_email") return <CheckEmail email={email} />;
 
-  const s = STEPS[step];
+  const stepIndex = stage === "choose" ? 0 : stage === "form" ? 1 : 2;
+  const steps = session ? STEPS.slice(0, 2) : STEPS;
 
   return (
-    <div className="mx-auto max-w-3xl pt-2 sm:pt-6">
+    <div className="mx-auto max-w-3xl pt-2 sm:pt-4">
       <Card>
         <div className="px-5 pb-8 pt-6 sm:px-9 sm:pb-9 sm:pt-8">
           <div className="mb-7 text-center">
             <p className="text-xs font-extrabold uppercase tracking-[0.2em] text-brand-blue">
-              Step {step + 1} of {STEPS.length}
+              Step {stepIndex + 1} of {steps.length}
             </p>
-            <h1 className="mt-2 text-2xl font-black leading-tight sm:text-3xl">{s.title}</h1>
-            <p className="mx-auto mt-2 max-w-xl text-sm text-slate-500">{s.subtitle}</p>
-            <ol className="mx-auto mt-5 grid max-w-lg grid-cols-5 gap-2" aria-label={`Step ${step + 1} of ${STEPS.length}`}>
-              {STEPS.map((x, i) => (
-                <li key={x.label} className="space-y-1">
-                  <span className={`block h-1.5 rounded-full transition-colors ${i <= step ? "bg-navy" : "bg-slate-200"}`} />
+            <h1 className="mt-2 text-2xl font-black leading-tight sm:text-3xl">
+              {stage === "choose" ? "Choose your English path" : stage === "form" ? "Tell us about you" : "Create your password"}
+            </h1>
+            <p className="mx-auto mt-2 max-w-xl text-sm text-slate-500">
+              {stage === "choose"
+                ? "Select one option and we’ll open the correct application form immediately."
+                : stage === "form"
+                  ? "It only takes a minute. Our team will guide you from here."
+                  : "You’ll use it to open your personal dashboard anytime."}
+            </p>
+            <ol className={`mx-auto mt-5 grid max-w-sm gap-2 ${steps.length === 3 ? "grid-cols-3" : "grid-cols-2"}`}>
+              {steps.map((label, i) => (
+                <li key={label} className="space-y-1">
+                  <span className={`block h-1.5 rounded-full transition-colors ${i <= stepIndex ? "bg-navy" : "bg-slate-200"}`} />
                   <span
-                    className={`block text-center text-[10px] font-medium ${i <= step ? "text-navy" : "text-slate-400"}`}
-                    aria-current={i === step ? "step" : undefined}
+                    className={`block text-center text-[10px] font-medium ${i <= stepIndex ? "text-navy" : "text-slate-400"}`}
+                    aria-current={i === stepIndex ? "step" : undefined}
                   >
-                    {x.label}
+                    {label}
                   </span>
                 </li>
               ))}
             </ol>
           </div>
 
-          <form key={step} className="step-in min-h-[300px] space-y-4" onSubmit={step === 4 ? submit : next} noValidate={step !== 2}>
-            {step === 0 && (
-              <div className="grid gap-3 sm:grid-cols-2">
-                {STUDY_PATHS.map((p) => (
-                  <ChoiceCard
-                    key={p.value}
-                    label={p.label}
-                    hint={p.hint}
-                    selected={form.study_path === p.value}
-                    onClick={() => set("study_path")(p.value)}
+          <div key={stage} className="step-in min-h-[300px]">
+            {stage === "choose" && (
+              <div className="space-y-4">
+                <div className="rounded-2xl bg-mist p-5 text-center sm:p-6">
+                  <span className="inline-grid h-12 w-12 place-items-center rounded-full bg-brand-violet text-lg font-black text-white">B2</span>
+                  <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-slate-600 sm:text-base">
+                    Diploma, Bachelor’s and Master’s programmes require <strong className="text-navy">B2 English</strong>. If you are
+                    not at B2 yet, we’ll help you begin with an English course.
+                  </p>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <PathButton
+                    icon={<BookOpen className="h-6 w-6" />}
+                    title="My level is below B2"
+                    text="Start with an English course. We’ll guide you every step of the way."
+                    accent="red"
+                    onClick={() => choose("english")}
                   />
-                ))}
+                  <PathButton
+                    icon={<GraduationCap className="h-6 w-6" />}
+                    title="I have B2 or above"
+                    text="Continue directly to the programmes we offer and choose your course."
+                    accent="violet"
+                    onClick={() => choose("higher_education")}
+                  />
+                </div>
               </div>
             )}
 
-            {step === 1 && (
-              <div className="grid gap-3">
-                {ENGLISH_LEVELS.map((p) => (
-                  <ChoiceCard
-                    key={p.value}
-                    label={p.label}
-                    hint={p.hint}
-                    selected={form.english_level === p.value}
-                    onClick={() => set("english_level")(p.value)}
+            {stage === "form" && (
+              <form onSubmit={submitDetails} className="space-y-4">
+                {path === "higher_education" && (
+                  <div className="rounded-xl border border-brand-violet/20 bg-brand-violet/5 p-4 text-sm font-medium leading-relaxed sm:text-base">
+                    You already have the required English level — these are the programmes we offer.
+                  </div>
+                )}
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <Field label="Full name *" id="name">
+                    <input id="name" required autoComplete="name" className="field" value={name} onChange={(e) => setName(e.target.value)} />
+                  </Field>
+                  <Field label="Email *" id="email">
+                    <input
+                      id="email"
+                      type="email"
+                      required
+                      autoComplete="email"
+                      readOnly={!!session}
+                      className="field"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                    />
+                  </Field>
+                  <Field label="Country *" id="country" hint="Detected automatically. Type a country name to change it.">
+                    <select id="country" required className="field" value={country} onChange={(e) => changeCountry(e.target.value)}>
+                      {COUNTRIES.map((c) => (
+                        <option key={c.code} value={c.code}>
+                          {c.flag} {c.name}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                  <Field label="WhatsApp number *" id="phone" hint="Choose the code if your number is from another country.">
+                    <div className="flex gap-2">
+                      <select
+                        aria-label="Country code"
+                        className="field w-28 shrink-0 px-2"
+                        value={dialCountry}
+                        onChange={(e) => setDialCountry(e.target.value)}
+                      >
+                        {COUNTRIES.map((c) => (
+                          <option key={c.code} value={c.code}>
+                            {c.flag} +{c.dial}
+                          </option>
+                        ))}
+                      </select>
+                      <input
+                        id="phone"
+                        type="tel"
+                        required
+                        inputMode="tel"
+                        autoComplete="tel-national"
+                        placeholder="1234 5678"
+                        className="field"
+                        value={phone}
+                        onChange={(e) => setPhone(e.target.value)}
+                      />
+                    </div>
+                  </Field>
+                </div>
+                <Field label="Course *" id="course">
+                  {path === "english" ? (
+                    <input id="course" readOnly className="field bg-mist font-bold text-brand-blue" value={course} />
+                  ) : (
+                    <select id="course" required className="field" value={course} onChange={(e) => setCourse(e.target.value)}>
+                      <option value="">Select a programme</option>
+                      {PROGRAMMES.map((p) => (
+                        <option key={p}>{p}</option>
+                      ))}
+                    </select>
+                  )}
+                </Field>
+                <Field label="Notes" id="notes">
+                  <textarea
+                    id="notes"
+                    rows={3}
+                    className="field"
+                    placeholder="Tell us anything that will help our team guide you."
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
                   />
-                ))}
-              </div>
+                </Field>
+                <div className="rounded-xl bg-brand-blue/5 p-3 text-xs leading-relaxed text-navy">
+                  <strong>What happens next?</strong> We’ll create your application, let you choose a password, and then open your
+                  personal dashboard. You can return anytime using your email and password.
+                </div>
+                {session && <Consent consent={consent} setConsent={setConsent} />}
+                {error && <Alert>{error}</Alert>}
+                <Button type="submit" loading={submitting} className="min-h-12 w-full">
+                  <Send className="h-4 w-4" /> Submit my interest
+                </Button>
+                <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-between">
+                  <Button type="button" variant="ghost" onClick={() => go("choose")}>
+                    <ArrowLeft className="h-4 w-4" /> Change English path
+                  </Button>
+                  {!session && (
+                    <Link to="/login?next=/dashboard" className="self-center text-sm font-bold text-brand-blue hover:underline">
+                      Already have an account? Open Dashboard
+                    </Link>
+                  )}
+                </div>
+              </form>
             )}
 
-            {step === 2 && <DetailsStep form={form} set={set} emailLocked={!!session} />}
-
-            {step === 3 && <SlotStep slots={slots} slotId={slotId} setSlotId={setSlotId} />}
-
-            {step === 4 && (
-              <ConfirmStep
-                form={form}
-                slot={slots?.find((x) => x.id === slotId) ?? null}
-                loggedIn={!!session}
-                password={password}
-                setPassword={setPassword}
-                consent={consent}
-                setConsent={setConsent}
-              />
-            )}
-
-            {error && <Alert>{error}</Alert>}
-
-            <div className="flex items-center justify-between gap-3 pt-4">
-              {step > 0 ? (
-                <Button type="button" variant="ghost" onClick={() => go(step - 1)}>
+            {stage === "password" && (
+              <form onSubmit={createApplication} className="space-y-4">
+                <div className="rounded-2xl bg-mist px-5 py-4 text-sm">
+                  <p className="text-slate-500">Your account email</p>
+                  <p className="font-extrabold">{email}</p>
+                </div>
+                <Field label="Password *" id="password" hint="At least 8 characters.">
+                  <input
+                    id="password"
+                    type="password"
+                    minLength={8}
+                    required
+                    autoComplete="new-password"
+                    className="field"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                  />
+                </Field>
+                <Consent consent={consent} setConsent={setConsent} />
+                {error && <Alert>{error}</Alert>}
+                <Button type="submit" loading={submitting} className="min-h-12 w-full">
+                  Create my application <ArrowRight className="h-4 w-4" />
+                </Button>
+                <Button type="button" variant="ghost" onClick={() => go("form")}>
                   <ArrowLeft className="h-4 w-4" /> Back
                 </Button>
-              ) : (
-                <span />
-              )}
-              <Button type="submit" loading={submitting} className="min-h-12 px-8">
-                {step === 4 ? "Confirm request" : "Continue"} <ArrowRight className="h-4 w-4" />
-              </Button>
-            </div>
-          </form>
+              </form>
+            )}
+          </div>
         </div>
       </Card>
-      {!session && (
-        <p className="mt-6 text-center text-sm text-slate-500">
-          Already have an account?{" "}
-          <Link to="/login" className="font-bold text-brand-blue hover:underline">
-            Sign in
-          </Link>
-        </p>
-      )}
     </div>
   );
 }
 
-function DetailsStep({ form, set, emailLocked }: { form: Form; set: (k: keyof Form) => (v: string) => void; emailLocked: boolean }) {
-  const input = (k: keyof Form, label: string, props: React.InputHTMLAttributes<HTMLInputElement> = {}) => (
+function PathButton({
+  icon,
+  title,
+  text,
+  accent,
+  onClick,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  text: string;
+  accent: "red" | "violet";
+  onClick: () => void;
+}) {
+  const color = accent === "red" ? "text-brand-red bg-brand-red/10" : "text-brand-violet bg-brand-violet/10";
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="group flex h-full flex-col items-start gap-3 rounded-2xl border-2 border-slate-100 bg-white p-5 text-left shadow-sm transition outline-none hover:-translate-y-0.5 hover:border-brand-blue hover:shadow-lg focus-visible:ring-2 focus-visible:ring-brand-blue"
+    >
+      <span className={`grid h-11 w-11 place-items-center rounded-xl ${color}`}>{icon}</span>
+      <span className="text-lg font-black text-navy">{title}</span>
+      <span className="text-sm leading-relaxed text-slate-500">{text}</span>
+      <span className="mt-auto inline-flex items-center gap-1 text-sm font-extrabold text-brand-blue">
+        Continue <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+      </span>
+    </button>
+  );
+}
+
+function Field({ label, id, hint, children }: { label: string; id: string; hint?: string; children: React.ReactNode }) {
+  return (
     <div>
-      <label className="label" htmlFor={k}>
+      <label className="label" htmlFor={id}>
         {label}
       </label>
-      <input id={k} className="field" value={form[k]} onChange={(e) => set(k)(e.target.value)} {...props} />
-    </div>
-  );
-  const select = (k: keyof Form, label: string, options: string[]) => (
-    <div>
-      <label className="label" htmlFor={k}>
-        {label}
-      </label>
-      <select id={k} className="field" value={form[k]} onChange={(e) => set(k)(e.target.value)}>
-        <option value="">Select…</option>
-        {options.map((o) => (
-          <option key={o}>{o}</option>
-        ))}
-      </select>
-    </div>
-  );
-
-  return (
-    <div className="grid gap-4 sm:grid-cols-2">
-      {input("full_name", "Full name *", { required: true, autoComplete: "name" })}
-      {input("email", "Email *", { required: true, type: "email", autoComplete: "email", readOnly: emailLocked })}
-      {input("whatsapp", "WhatsApp number *", { required: true, type: "tel", autoComplete: "tel", placeholder: "+44 7700 900123" })}
-      {input("country", "Country *", { required: true, autoComplete: "country-name" })}
-      {input("age", "Age", { type: "number", min: 12, max: 99, inputMode: "numeric" })}
-      {input("desired_course", "Course you're interested in", { placeholder: "e.g. General English, MBA" })}
-      {select("start_date", "When do you want to start?", START_DATES)}
-      {select("budget", "Budget range", BUDGETS)}
-      {select("visa_support", "Do you need visa support?", VISA_OPTIONS)}
-      {select("preferred_contact_time", "Best time to contact you", CONTACT_TIMES)}
-      <div className="sm:col-span-2">
-        <label className="label" htmlFor="message">
-          Anything else we should know?
-        </label>
-        <textarea id="message" rows={3} className="field" value={form.message} onChange={(e) => set("message")(e.target.value)} />
-      </div>
+      {children}
+      {hint && <p className="mt-1.5 text-xs text-slate-500">{hint}</p>}
     </div>
   );
 }
 
-function SlotStep({
-  slots,
-  slotId,
-  setSlotId,
-}: {
-  slots: Slot[] | null;
-  slotId: string | null | undefined;
-  setSlotId: (v: string | null) => void;
-}) {
-  const days = useMemo(() => {
-    const map = new Map<string, Slot[]>();
-    for (const s of slots ?? []) {
-      const key = new Date(s.starts_at).toDateString();
-      map.set(key, [...(map.get(key) ?? []), s]);
-    }
-    return [...map.values()];
-  }, [slots]);
-
-  if (!slots) return <Spinner />;
-
-  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-
+function Consent({ consent, setConsent }: { consent: boolean; setConsent: (v: boolean) => void }) {
   return (
-    <div className="space-y-5">
-      {days.length === 0 ? (
-        <Alert tone="info">No times are open right now. Continue and an advisor will contact you to arrange a call.</Alert>
-      ) : (
-        <>
-          <p className="text-center text-xs text-slate-500">Times shown in your time zone ({tz})</p>
-          {days.map((daySlots) => (
-            <div key={daySlots[0].id}>
-              <h3 className="mb-2 text-sm font-extrabold">
-                {formatSlot(daySlots[0].starts_at, { hour: undefined, minute: undefined, weekday: "long" })}
-              </h3>
-              <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
-                {daySlots.map((s) => (
-                  <button
-                    key={s.id}
-                    type="button"
-                    aria-pressed={slotId === s.id}
-                    onClick={() => setSlotId(s.id)}
-                    className={`rounded-xl border-2 py-2.5 text-sm font-bold transition outline-none focus-visible:ring-2 focus-visible:ring-brand-blue ${
-                      slotId === s.id ? "border-brand-blue bg-brand-blue text-white" : "border-slate-100 bg-mist hover:border-slate-200"
-                    }`}
-                  >
-                    {new Date(s.starts_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                  </button>
-                ))}
-              </div>
-            </div>
-          ))}
-        </>
-      )}
-      <ChoiceCard
-        selected={slotId === null}
-        label={days.length ? "None of these times work for me" : "Contact me to arrange a time"}
-        hint="An advisor will reach out on WhatsApp or by email."
-        onClick={() => setSlotId(null)}
-      />
-    </div>
+    <label className="flex items-start gap-3 text-sm text-slate-600">
+      <input type="checkbox" className="mt-0.5 h-4 w-4 accent-navy" checked={consent} onChange={(e) => setConsent(e.target.checked)} />
+      I agree that Outreach can contact me by email and WhatsApp about my application.
+    </label>
   );
 }
 
-function ConfirmStep({
-  form,
-  slot,
-  loggedIn,
-  password,
-  setPassword,
-  consent,
-  setConsent,
-}: {
-  form: Form;
-  slot: Slot | null;
-  loggedIn: boolean;
-  password: string;
-  setPassword: (v: string) => void;
-  consent: boolean;
-  setConsent: (v: boolean) => void;
-}) {
-  const rows: [string, string][] = [
-    ["Path", STUDY_PATHS.find((x) => x.value === form.study_path)?.label ?? "—"],
-    ["English", ENGLISH_LEVELS.find((x) => x.value === form.english_level)?.label ?? "—"],
-    ["Name", form.full_name],
-    ["Email", form.email],
-    ["WhatsApp", form.whatsapp],
-    ["Consultation", slot ? formatSlot(slot.starts_at) : "Advisor will contact you"],
-  ];
+function CheckEmail({ email }: { email: string }) {
   return (
-    <div className="space-y-5">
-      <dl className="divide-y divide-slate-200/70 rounded-2xl bg-mist px-5 py-2">
-        {rows.map(([k, v]) => (
-          <div key={k} className="flex justify-between gap-4 py-2.5 text-sm">
-            <dt className="text-slate-500">{k}</dt>
-            <dd className="text-right font-bold">{v}</dd>
-          </div>
-        ))}
-      </dl>
-      {!loggedIn && (
-        <div>
-          <label className="label" htmlFor="password">
-            Create a password *
-          </label>
-          <input
-            id="password"
-            type="password"
-            className="field"
-            minLength={8}
-            autoComplete="new-password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-          />
-          <p className="mt-1.5 text-xs text-slate-500">
-            At least 8 characters. You'll use it to follow your request and upload documents.
-          </p>
-        </div>
-      )}
-      <label className="flex items-start gap-3 text-sm text-slate-600">
-        <input
-          type="checkbox"
-          className="mt-0.5 h-4 w-4 accent-navy"
-          checked={consent}
-          onChange={(e) => setConsent(e.target.checked)}
-        />
-        I agree that Outreach Recruitment can contact me by email and WhatsApp about my study request.
-      </label>
-    </div>
-  );
-}
-
-function Success({
-  slot,
-  needsEmailConfirm,
-  name,
-  loggedIn,
-}: {
-  slot: Slot | null;
-  needsEmailConfirm: boolean;
-  name: string;
-  loggedIn: boolean;
-}) {
-  return (
-    <div className="mx-auto max-w-2xl pt-2 sm:pt-6">
+    <div className="mx-auto max-w-2xl pt-2 sm:pt-4">
       <Card>
         <div className="step-in px-6 py-10 text-center sm:px-10">
-          <CheckCircle2 className="mx-auto h-14 w-14 text-emerald-500" />
-          <h1 className="mt-4 text-2xl font-black sm:text-3xl">Thank you{name ? `, ${name}` : ""}!</h1>
-          {slot ? (
-            <div className="mx-auto mt-5 inline-flex items-center gap-3 rounded-2xl bg-mist px-5 py-3 text-left">
-              <CalendarCheck className="h-6 w-6 shrink-0 text-brand-blue" />
-              <div>
-                <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Your consultation</p>
-                <p className="font-extrabold">{formatSlot(slot.starts_at, { weekday: "long", month: "long" })}</p>
-              </div>
-            </div>
-          ) : (
-            <p className="mx-auto mt-3 max-w-md text-slate-600">An advisor will contact you shortly to arrange your consultation.</p>
-          )}
-          <p className="mx-auto mt-5 max-w-md text-sm text-slate-500">
-            {needsEmailConfirm
-              ? "We've sent you an email. Click the link in it to activate your account, then you can follow your request and upload documents."
-              : "We've sent a confirmation to your email."}
+          <MailCheck className="mx-auto h-14 w-14 text-brand-blue" />
+          <h1 className="mt-4 text-2xl font-black sm:text-3xl">Your application is created!</h1>
+          <p className="mx-auto mt-3 max-w-md text-slate-600">
+            We sent an email to <strong className="text-navy">{email}</strong>. Click the link in it to activate your account and open
+            your personal dashboard, where you can book your free call and upload documents.
           </p>
-          <div className="mt-7 flex flex-wrap justify-center gap-3">
-            {loggedIn && (
-              <Link to="/dashboard">
-                <Button>View my requests</Button>
-              </Link>
-            )}
-            {whatsappNumber && (
-              <a href={waLink(whatsappNumber, "Hi! I just booked a consultation on your website.")} target="_blank" rel="noreferrer">
-                <Button variant="secondary">
-                  <MessageCircle className="h-4 w-4" /> Chat on WhatsApp
-                </Button>
-              </a>
-            )}
-          </div>
+          <p className="mx-auto mt-4 max-w-md text-xs text-slate-500">Can’t find it? Check your spam or promotions folder.</p>
         </div>
       </Card>
     </div>

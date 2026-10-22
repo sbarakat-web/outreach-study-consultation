@@ -1,10 +1,10 @@
-import { useCallback, useEffect, useState } from "react";
-import { Link } from "react-router-dom";
-import { CalendarCheck, FileText, Plus, Upload } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Link, useLocation } from "react-router-dom";
+import { CalendarCheck, CheckCircle2, FileText, Plus, Upload } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
 import { ENGLISH_LEVELS, STATUSES, STUDY_PATHS, formatSlot, labelFor, statusLabel } from "../lib/options";
-import { slotOf, type Consultation, type DocumentRow } from "../lib/types";
+import { slotOf, type Consultation, type DocumentRow, type Slot } from "../lib/types";
 import { Alert, Button, Card, Spinner, StatusBadge } from "../components/ui";
 
 // Candidate-facing milestones (a subset of the CRM stages).
@@ -12,6 +12,7 @@ const MILESTONES = ["consultation_booked", "documents_requested", "application_s
 
 export function Dashboard() {
   const { session } = useAuth();
+  const justApplied = (useLocation().state as { justApplied?: boolean } | null)?.justApplied;
   const [items, setItems] = useState<Consultation[] | null>(null);
   const [docs, setDocs] = useState<DocumentRow[]>([]);
   const [error, setError] = useState("");
@@ -39,20 +40,27 @@ export function Dashboard() {
   return (
     <div className="mx-auto max-w-3xl space-y-6 pt-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-black sm:text-3xl">My requests</h1>
+        <h1 className="text-2xl font-black sm:text-3xl">My applications</h1>
         <Link to="/">
           <Button variant="secondary">
-            <Plus className="h-4 w-4" /> New consultation
+            <Plus className="h-4 w-4" /> New application
           </Button>
         </Link>
       </div>
+      {justApplied && (
+        <Alert tone="success">
+          <span className="flex items-center gap-2">
+            <CheckCircle2 className="h-4 w-4 shrink-0" /> Your application is created. Next step: book your free call below.
+          </span>
+        </Alert>
+      )}
       {error && <Alert>{error}</Alert>}
       {items.length === 0 && (
         <Card>
           <div className="px-6 py-10 text-center">
-            <p className="text-slate-600">You don't have any consultation requests yet.</p>
+            <p className="text-slate-600">You don't have any applications yet.</p>
             <Link to="/" className="mt-4 inline-block">
-              <Button>Book a free consultation</Button>
+              <Button>Start your application</Button>
             </Link>
           </div>
         </Card>
@@ -107,24 +115,14 @@ function RequestCard({ c, docs, onChange, userId }: { c: Consultation; docs: Doc
               Requested {new Date(c.created_at).toLocaleDateString()}
             </p>
             <h2 className="mt-1 text-lg font-black">
-              {labelFor(STUDY_PATHS, c.study_path)} · {labelFor(ENGLISH_LEVELS, c.english_level)}
+              {c.desired_course || labelFor(STUDY_PATHS, c.study_path)}
             </h2>
+            <p className="text-sm text-slate-500">English level: {labelFor(ENGLISH_LEVELS, c.english_level)}</p>
           </div>
           <StatusBadge label={statusLabel(c.status)} muted={lost} />
         </div>
 
-        <div className="flex items-center gap-3 rounded-2xl bg-mist px-4 py-3">
-          <CalendarCheck className="h-5 w-5 shrink-0 text-brand-blue" />
-          <p className="text-sm">
-            {slot ? (
-              <>
-                Consultation on <strong>{formatSlot(slot.starts_at, { weekday: "long", month: "long" })}</strong>
-              </>
-            ) : (
-              "An advisor will contact you to arrange a time."
-            )}
-          </p>
-        </div>
+        <CallBooking c={c} slot={slot} onBooked={onChange} />
 
         {!lost && (
           <ol className="grid grid-cols-3 gap-2 sm:grid-cols-6" aria-label="Progress">
@@ -178,5 +176,113 @@ function RequestCard({ c, docs, onChange, userId }: { c: Consultation; docs: Doc
         </div>
       </div>
     </Card>
+  );
+}
+
+function CallBooking({ c, slot, onBooked }: { c: Consultation; slot: ReturnType<typeof slotOf>; onBooked: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [slots, setSlots] = useState<Slot[] | null>(null);
+  const [saving, setSaving] = useState<string | null>(null);
+  const [error, setError] = useState("");
+
+  const load = async () => {
+    setSlots(null);
+    const { data } = await supabase
+      .from("slots")
+      .select("id, starts_at, duration_minutes, consultation_id")
+      .is("consultation_id", null)
+      .gt("starts_at", new Date().toISOString())
+      .order("starts_at")
+      .limit(200);
+    setSlots(data ?? []);
+  };
+
+  const days = useMemo(() => {
+    const map = new Map<string, Slot[]>();
+    for (const s of slots ?? []) {
+      const key = new Date(s.starts_at).toDateString();
+      map.set(key, [...(map.get(key) ?? []), s]);
+    }
+    return [...map.values()];
+  }, [slots]);
+
+  const pick = async (s: Slot) => {
+    setError("");
+    setSaving(s.id);
+    const { error } = await supabase.rpc("choose_slot", { p_consultation_id: c.id, p_slot_id: s.id });
+    setSaving(null);
+    if (error) {
+      setError(error.message.includes("SLOT_TAKEN") ? "Sorry, that time was just taken. Please pick another one." : error.message);
+      return load();
+    }
+    setOpen(false);
+    onBooked();
+  };
+
+  const lost = c.status === "lost";
+
+  return (
+    <div className="rounded-2xl bg-mist px-4 py-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="flex items-center gap-3 text-sm">
+          <CalendarCheck className="h-5 w-5 shrink-0 text-brand-blue" />
+          {slot ? (
+            <span>
+              Free call on <strong>{formatSlot(slot.starts_at, { weekday: "long", month: "long" })}</strong>
+            </span>
+          ) : (
+            <span>Book a free 30-minute call with your advisor.</span>
+          )}
+        </p>
+        {!lost && !open && (
+          <Button
+            variant={slot ? "ghost" : "primary"}
+            onClick={() => {
+              setOpen(true);
+              load();
+            }}
+          >
+            {slot ? "Change time" : "Book your free call"}
+          </Button>
+        )}
+      </div>
+      {open && (
+        <div className="mt-4 space-y-4 border-t border-slate-200 pt-4">
+          {!slots ? (
+            <Spinner />
+          ) : days.length === 0 ? (
+            <p className="text-sm text-slate-500">No times are open right now. Your advisor will contact you to arrange a call.</p>
+          ) : (
+            <>
+              <p className="text-xs text-slate-500">Times shown in your time zone ({Intl.DateTimeFormat().resolvedOptions().timeZone})</p>
+              {days.map((ds) => (
+                <div key={ds[0].id}>
+                  <h3 className="mb-2 text-sm font-extrabold">
+                    {formatSlot(ds[0].starts_at, { hour: undefined, minute: undefined, weekday: "long" })}
+                  </h3>
+                  <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
+                    {ds.map((s) => (
+                      <button
+                        key={s.id}
+                        type="button"
+                        disabled={!!saving}
+                        onClick={() => pick(s)}
+                        className="rounded-xl border-2 border-white bg-white py-2.5 text-sm font-bold transition outline-none hover:border-brand-blue focus-visible:ring-2 focus-visible:ring-brand-blue disabled:opacity-50"
+                      >
+                        {saving === s.id ? "…" : new Date(s.starts_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </>
+          )}
+          {error && <Alert>{error}</Alert>}
+          <Button variant="ghost" onClick={() => setOpen(false)}>
+            Cancel
+          </Button>
+        </div>
+      )}
+    </div>
   );
 }
