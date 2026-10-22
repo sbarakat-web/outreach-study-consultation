@@ -1,11 +1,12 @@
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { CalendarCheck, CheckCircle2, FileText, KeyRound, Plus, Upload } from "lucide-react";
+import { CheckCircle2, FileText, KeyRound, Plus, Upload } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
-import { ENGLISH_LEVELS, STATUSES, STUDY_PATHS, formatSlot, labelFor, statusLabel } from "../lib/options";
-import { slotOf, type Consultation, type DocumentRow, type Slot } from "../lib/types";
+import { ENGLISH_LEVELS, STATUSES, STUDY_PATHS, labelFor, statusLabel } from "../lib/options";
+import { slotOf, type Consultation, type DocumentRow } from "../lib/types";
 import { Alert, Button, Card, Spinner, StatusBadge } from "../components/ui";
+import { BookingCalendar } from "../components/BookingCalendar";
 
 // Candidate-facing milestones (a subset of the CRM stages).
 const MILESTONES = ["consultation_booked", "documents_requested", "application_submitted", "offer_received", "visa_process", "enrolled"];
@@ -123,7 +124,9 @@ function RequestCard({ c, docs, onChange, userId }: { c: Consultation; docs: Doc
           <StatusBadge label={statusLabel(c.status)} muted={lost} />
         </div>
 
-        <CallBooking c={c} slot={slot} onBooked={onChange} />
+        {!lost && (
+          <BookingCalendar consultationId={c.id} course={c.desired_course || "your studies"} slot={slot} onBooked={onChange} />
+        )}
 
         {!lost && (
           <ol className="grid grid-cols-3 gap-2 sm:grid-cols-6" aria-label="Progress">
@@ -177,114 +180,6 @@ function RequestCard({ c, docs, onChange, userId }: { c: Consultation; docs: Doc
         </div>
       </div>
     </Card>
-  );
-}
-
-function CallBooking({ c, slot, onBooked }: { c: Consultation; slot: ReturnType<typeof slotOf>; onBooked: () => void }) {
-  const [open, setOpen] = useState(false);
-  const [slots, setSlots] = useState<Slot[] | null>(null);
-  const [saving, setSaving] = useState<string | null>(null);
-  const [error, setError] = useState("");
-
-  const load = async () => {
-    setSlots(null);
-    const { data } = await supabase
-      .from("slots")
-      .select("id, starts_at, duration_minutes, consultation_id")
-      .is("consultation_id", null)
-      .gt("starts_at", new Date().toISOString())
-      .order("starts_at")
-      .limit(200);
-    setSlots(data ?? []);
-  };
-
-  const days = useMemo(() => {
-    const map = new Map<string, Slot[]>();
-    for (const s of slots ?? []) {
-      const key = new Date(s.starts_at).toDateString();
-      map.set(key, [...(map.get(key) ?? []), s]);
-    }
-    return [...map.values()];
-  }, [slots]);
-
-  const pick = async (s: Slot) => {
-    setError("");
-    setSaving(s.id);
-    const { error } = await supabase.rpc("choose_slot", { p_consultation_id: c.id, p_slot_id: s.id });
-    setSaving(null);
-    if (error) {
-      setError(error.message.includes("SLOT_TAKEN") ? "Sorry, that time was just taken. Please pick another one." : error.message);
-      return load();
-    }
-    setOpen(false);
-    onBooked();
-  };
-
-  const lost = c.status === "lost";
-
-  return (
-    <div className="rounded-2xl bg-mist px-4 py-3">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="flex items-center gap-3 text-sm">
-          <CalendarCheck className="h-5 w-5 shrink-0 text-brand-blue" />
-          {slot ? (
-            <span>
-              Free call on <strong>{formatSlot(slot.starts_at, { weekday: "long", month: "long" })}</strong>
-            </span>
-          ) : (
-            <span>Book a free 30-minute call with your advisor.</span>
-          )}
-        </p>
-        {!lost && !open && (
-          <Button
-            variant={slot ? "ghost" : "primary"}
-            onClick={() => {
-              setOpen(true);
-              load();
-            }}
-          >
-            {slot ? "Change time" : "Book your free call"}
-          </Button>
-        )}
-      </div>
-      {open && (
-        <div className="mt-4 space-y-4 border-t border-slate-200 pt-4">
-          {!slots ? (
-            <Spinner />
-          ) : days.length === 0 ? (
-            <p className="text-sm text-slate-500">No times are open right now. Your advisor will contact you to arrange a call.</p>
-          ) : (
-            <>
-              <p className="text-xs text-slate-500">Times shown in your time zone ({Intl.DateTimeFormat().resolvedOptions().timeZone})</p>
-              {days.map((ds) => (
-                <div key={ds[0].id}>
-                  <h3 className="mb-2 text-sm font-extrabold">
-                    {formatSlot(ds[0].starts_at, { hour: undefined, minute: undefined, weekday: "long" })}
-                  </h3>
-                  <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
-                    {ds.map((s) => (
-                      <button
-                        key={s.id}
-                        type="button"
-                        disabled={!!saving}
-                        onClick={() => pick(s)}
-                        className="rounded-xl border-2 border-white bg-white py-2.5 text-sm font-bold transition outline-none hover:border-brand-blue focus-visible:ring-2 focus-visible:ring-brand-blue disabled:opacity-50"
-                      >
-                        {saving === s.id ? "…" : new Date(s.starts_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </>
-          )}
-          {error && <Alert>{error}</Alert>}
-          <Button variant="ghost" onClick={() => setOpen(false)}>
-            Cancel
-          </Button>
-        </div>
-      )}
-    </div>
   );
 }
 
