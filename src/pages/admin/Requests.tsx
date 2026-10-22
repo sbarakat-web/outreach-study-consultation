@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { CalendarCheck, CheckCircle2, Clock, FileText, MessageCircle, Play, Presentation, Search, Star, UsersRound, Video, X } from "lucide-react";
+import { CalendarCheck, CheckCircle2, Clock, FileText, Play, Presentation, Search, Star, UsersRound, Video, X } from "lucide-react";
 import { supabase } from "../../lib/supabase";
 import {
   ENGLISH_LEVELS,
@@ -10,13 +10,11 @@ import {
   formatSlot,
   labelFor,
   statusLabel,
-  waLink,
   callStage,
   noReply24h,
 } from "../../lib/options";
 import { CallPanel } from "./CallPanel";
 import { SessionPanel, sessionHref } from "./SessionPanel";
-import { LeadTasks } from "./LeadTasks";
 import type { Consultation, DocumentRow, Status } from "../../lib/types";
 import { Alert, Button, Card, Spinner, StatusBadge } from "../../components/ui";
 import { MeetingCard, PageTitle, StatStrip } from "../../components/dash";
@@ -379,24 +377,9 @@ function Detail({ c, all, onClose, onSaved }: { c: Row; all: Row[]; onClose: () 
         </div>
 
         <div className="space-y-6 px-6 py-5">
-          <div className="flex flex-wrap gap-2">
-            {c.whatsapp && (
-              <a href={waLink(c.whatsapp, `Hi ${c.full_name.split(" ")[0]}, this is Outreach about your application for ${c.desired_course || "your studies"}.`)} target="_blank" rel="noreferrer">
-                <Button variant="secondary">
-                  <MessageCircle className="h-4 w-4" /> WhatsApp
-                </Button>
-              </a>
-            )}
-            <a href={`mailto:${c.email}`}>
-              <Button variant="secondary">Email</Button>
-            </a>
-          </div>
-
           <CallPanel c={c} onSaved={onSaved} />
 
           <SessionPanel c={c} />
-
-          <LeadTasks c={c} />
 
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
             <label htmlFor="meet-link" className="flex shrink-0 items-center gap-1.5 text-sm font-bold">
