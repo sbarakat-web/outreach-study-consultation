@@ -56,6 +56,9 @@ const en = {
   waMeetJoin: "Join here: {url}",
   waMeetPending: "We'll send you the Google Meet link by email.",
   icsTitle: "Free call with Outreach",
+  icsAttached: "The calendar invite is attached.",
+  needOther: "Need another time?",
+  changeTime: "Change my call time",
 };
 export type MailKey = keyof typeof en;
 
@@ -106,6 +109,9 @@ const fr: Record<MailKey, string> = {
   waMeetJoin: "Rejoindre ici : {url}",
   waMeetPending: "Nous vous enverrons le lien Google Meet par e-mail.",
   icsTitle: "Appel gratuit avec Outreach",
+  icsAttached: "L’invitation d’agenda est jointe.",
+  needOther: "Besoin d’un autre horaire ?",
+  changeTime: "Changer l’horaire de mon appel",
 };
 
 const es: Record<MailKey, string> = {
@@ -155,6 +161,9 @@ const es: Record<MailKey, string> = {
   waMeetJoin: "Únete aquí: {url}",
   waMeetPending: "Te enviaremos el enlace de Google Meet por correo.",
   icsTitle: "Llamada gratuita con Outreach",
+  icsAttached: "La invitación de calendario va adjunta.",
+  needOther: "¿Necesitas otro horario?",
+  changeTime: "Cambiar la hora de mi llamada",
 };
 
 const ar: Record<MailKey, string> = {
@@ -204,6 +213,9 @@ const ar: Record<MailKey, string> = {
   waMeetJoin: "انضم من هنا: {url}",
   waMeetPending: "سنرسل لك رابط Google Meet عبر البريد.",
   icsTitle: "مكالمة مجانية مع Outreach",
+  icsAttached: "دعوة التقويم مرفقة.",
+  needOther: "تحتاج موعدًا آخر؟",
+  changeTime: "تغيير موعد مكالمتي",
 };
 
 const DICTS: Record<MailLang, Record<MailKey, string>> = { en, fr, es, ar };

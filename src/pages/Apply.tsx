@@ -5,8 +5,9 @@ import { parsePhoneNumberFromString, type CountryCode } from "libphonenumber-js/
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
 import { getTracking } from "../lib/tracking";
+import { CountryPicker } from "../components/CountryPicker";
 import { countriesFor, countryByCode, detectCountry, fetchGeoCountry } from "../lib/countries";
-import { PROGRAMMES, START_OPTIONS, parseCourseParam, parsePathParam, waLink, whatsappNumber } from "../lib/options";
+import { PROGRAMMES, parseCourseParam, parsePathParam, waLink, whatsappNumber } from "../lib/options";
 import { Alert, Button, Card } from "../components/ui";
 import { EmailCode } from "../components/EmailCode";
 import { useI18n } from "../lib/i18n";
@@ -264,28 +265,19 @@ export function Apply() {
                     />
                   </Field>
                   <Field label={t("apply.country")} id="country" hint={t("apply.countryHint")}>
-                    <select id="country" required className="field" value={d.country} onChange={(e) => changeCountry(e.target.value)}>
-                      {countries.map((c) => (
-                        <option key={c.code} value={c.code}>
-                          {c.flag} {c.name}
-                        </option>
-                      ))}
-                    </select>
+                    <CountryPicker id="country" value={d.country} onChange={changeCountry} countries={countries} searchPlaceholder={t("apply.searchCountry")} />
                   </Field>
                   <Field label={t("apply.whatsapp")} id="phone">
                     <div className="flex gap-2">
-                      <select
-                        aria-label={t("apply.countryCode")}
-                        className="field w-28 shrink-0 px-2"
+                      <CountryPicker
+                        variant="dial"
+                        className="w-32 shrink-0"
+                        ariaLabel={t("apply.countryCode")}
                         value={d.dialCountry}
-                        onChange={(e) => set("dialCountry", e.target.value)}
-                      >
-                        {countries.map((c) => (
-                          <option key={c.code} value={c.code}>
-                            {c.flag} +{c.dial}
-                          </option>
-                        ))}
-                      </select>
+                        onChange={(code) => set("dialCountry", code)}
+                        countries={countries}
+                        searchPlaceholder={t("apply.searchCountry")}
+                      />
                       <input
                         id="phone"
                         type="tel"
@@ -331,26 +323,6 @@ export function Apply() {
                     </select>
                   )}
                 </Field>
-                <fieldset>
-                  <legend className="label">
-                    {t("apply.start")} <span className="font-normal text-slate-400">{t("apply.optional")}</span>
-                  </legend>
-                  <div className="flex flex-wrap gap-2">
-                    {START_OPTIONS.map((o) => (
-                      <button
-                        key={o}
-                        type="button"
-                        aria-pressed={d.start === o}
-                        onClick={() => set("start", d.start === o ? "" : o)}
-                        className={`rounded-full border-2 px-4 py-2 text-sm font-bold transition outline-none focus-visible:ring-2 focus-visible:ring-brand ${
-                          d.start === o ? "border-brand bg-brand text-white" : "border-slate-200 bg-white text-navy hover:border-slate-300"
-                        }`}
-                      >
-                        {tv(o)}
-                      </button>
-                    ))}
-                  </div>
-                </fieldset>
                 <Field label={t("apply.notes")} id="notes">
                   <textarea
                     id="notes"

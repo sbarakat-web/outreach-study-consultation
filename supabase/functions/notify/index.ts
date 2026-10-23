@@ -47,6 +47,11 @@ Deno.serve(async (req) => {
 
   if (type === "call-confirmed") {
     if (!c.preferred_call_at) return json({ error: "No confirmed time" }, 400);
+    // Give the candidate a self-service link ("Change my call time") in the confirmed email.
+    if (!c.call_confirm_token) {
+      c.call_confirm_token = crypto.randomUUID();
+      await db.from("consultations").update({ call_confirm_token: c.call_confirm_token }).eq("id", c.id);
+    }
     ({ subject, html, wa, attachments } = confirmedEmail(c, await loadAdvisor(db, c.call_suggested_by ?? email)));
   } else if (type === "rebook") {
     subject = `${first}, let's find a new time for your call`;

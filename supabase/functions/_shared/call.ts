@@ -69,6 +69,8 @@ export function suggestEmail(c: Row, o: { at: string; token: string; advisor: Ad
   const moved = !!asked && Math.abs(new Date(asked).getTime() - new Date(o.at).getTime()) > 60_000;
   const old = asked ? whenIn(asked, tz, lang) : null;
   const url = `${APP_URL()}/confirm-call?t=${o.token}`;
+  // "Choose another time" opens our own picker (free Google Calendar slots, confirmed instantly).
+  const pickUrl = `${url}&pick=1`;
   const who = o.advisor ? t("whoAdvisor", { name: o.advisor.name }) : t("whoTeam");
 
   const timeBox = highlight(
@@ -95,12 +97,12 @@ export function suggestEmail(c: Row, o: { at: string; token: string; advisor: Ad
       para(t("meetAfter"), true) +
       (o.confirmBy ? para(t("deadline", { when: escape(whenIn(o.confirmBy, tz, lang).short) }), true) : "") +
       steps(t("nextTitle"), [t("step1"), t("step2"), t("step3")]) +
-      para(`${escape(moved ? t("movedOther") : t("keptOther"))} <a href="${BOOKING_LINK()}" style="color:#442DFA;font-weight:bold;text-decoration:none">${escape(t("chooseOther"))}</a>`, true),
+      para(`${escape(moved ? t("movedOther") : t("keptOther"))} <a href="${pickUrl}" style="color:#442DFA;font-weight:bold;text-decoration:none">${escape(t("chooseOther"))}</a>`, true),
     `${when.main}`,
     lang,
   );
 
-  const wa = t(moved ? "waMoved" : "waKept", { name: first, who, when: when.main, old: old?.short ?? "", url, booking: BOOKING_LINK() });
+  const wa = t(moved ? "waMoved" : "waKept", { name: first, who, when: when.main, old: old?.short ?? "", url, booking: pickUrl });
 
   return { subject, html, wa, moved };
 }
@@ -154,7 +156,12 @@ export function confirmedEmail(c: Row, advisor: Advisor | null = null) {
         <p style="margin:0;color:#5b6080">${t("prepareText")}</p>
         <p style="margin:10px 0 0"><a href="${APP_URL()}/dashboard/documents" style="color:#442DFA;font-weight:bold;text-decoration:none">${escape(t("uploadDocs"))}</a></p>
       </div>` +
-      para(escape(t("inviteAttached")), true),
+      (c.call_confirm_token
+        ? para(
+            `${escape(t("icsAttached"))}<br>${escape(t("needOther"))} <a href="${APP_URL()}/confirm-call?t=${c.call_confirm_token}&pick=1" style="color:#442DFA;font-weight:bold;text-decoration:none">${escape(t("changeTime"))}</a>`,
+            true,
+          )
+        : para(escape(t("inviteAttached")), true)),
     when.main,
     lang,
   );

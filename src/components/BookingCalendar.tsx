@@ -262,6 +262,11 @@ function CallStatus({ c, stage, onChange }: { c: Consultation; stage: ReturnType
       <div className="space-y-4 rounded-2xl bg-emerald-50 px-4 py-4 ring-1 ring-emerald-200 sm:px-5">
         <Timeline reached={2} />
         <ConfirmedCall at={c.preferred_call_at} course={c.desired_course || "your studies"} />
+        {c.call_confirm_token && new Date(c.preferred_call_at).getTime() > Date.now() + 12 * 3_600_000 && (
+          <Link to={`/confirm-call?t=${c.call_confirm_token}&pick=1`} className="inline-block text-sm font-bold text-brand hover:underline">
+            {t("confirm.change")}
+          </Link>
+        )}
       </div>
     );
   }
@@ -281,9 +286,15 @@ function CallStatus({ c, stage, onChange }: { c: Consultation; stage: ReturnType
               <Button>{t("call.confirmBtn")}</Button>
             </Link>
           )}
-          <Button variant="ghost" onClick={onChange}>
-            {t("call.otherTime")}
-          </Button>
+          {c.call_confirm_token ? (
+            <Link to={`/confirm-call?t=${c.call_confirm_token}&pick=1`}>
+              <Button variant="ghost">{t("call.otherTime")}</Button>
+            </Link>
+          ) : (
+            <Button variant="ghost" onClick={onChange}>
+              {t("call.otherTime")}
+            </Button>
+          )}
         </div>
       </div>
     );

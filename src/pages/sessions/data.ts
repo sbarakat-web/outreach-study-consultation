@@ -24,7 +24,7 @@ import {
 
 export const BRAND = "Outreach Recruitment Agency";
 export const BOOKING_URL = "https://calendar.app.google/qTS8FRBH5BZdGgCx7";
-export const WHATSAPP = "+356 7720 0984";
+export const WHATSAPP = "+356 9972 8213";
 export const DASHBOARD_URL = "https://consultation.outreachstudy.eu/dashboard";
 
 // Optional photos: drop files with these names into public/onlinesessions/ and they appear.
