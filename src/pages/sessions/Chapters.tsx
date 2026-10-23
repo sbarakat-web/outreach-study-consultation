@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { ArrowRightCircle, BookOpen, CheckCircle2, ExternalLink, HelpCircle, MapPin, MessageCircle, ShieldCheck, Star, X } from "lucide-react";
+import { ArrowRightCircle, BookOpen, CheckCircle2, Download, ExternalLink, FileCheck2, HelpCircle, MapPin, MessageCircle, ShieldCheck, Star, X } from "lucide-react";
 import {
   AREAS,
   BRAND,
@@ -483,11 +483,112 @@ function ChecklistCard({ card, index, number }: { card: InfoCard; index: number;
 }
 
 export function VisaChapter() {
+  const [checklistOpen, setChecklistOpen] = useState(false);
+  const checklistPath = "/documents/student-national-visa-checklist.pdf";
+  const officialChecklistUrl = "https://identita.gov.mt/wp-content/uploads/2025/08/03a.-List-of-Required-Documents-Student_National_Visa.pdf";
+
+  useEffect(() => {
+    if (!checklistOpen) return;
+    const onKey = (event: globalThis.KeyboardEvent) => event.key === "Escape" && setChecklistOpen(false);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [checklistOpen]);
+
   return (
-    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-      {VISA_STEPS.map((c, i) => (
-        <ChecklistCard key={c.title} card={c} index={i} number={i + 1} />
-      ))}
+    <div className="space-y-5">
+      <section className="flex flex-col gap-4 rounded-2xl border-2 border-red-100 bg-gradient-to-r from-red-50 to-white p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
+        <div className="flex items-start gap-4">
+          <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-red-600 text-white shadow-sm">
+            <FileCheck2 className="h-6 w-6" />
+          </span>
+          <div>
+            <Eyebrow className="text-red-600">Official Identità checklist</Eyebrow>
+            <h3 className="mt-1 text-xl font-black text-[#092553]">Student National Visa documents</h3>
+            <p className="mt-1 max-w-2xl text-sm leading-relaxed text-slate-600">
+              Review the official two-page checklist for study visas longer than 90 days before preparing or submitting the application.
+            </p>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={() => setChecklistOpen(true)}
+          className="inline-flex min-h-12 shrink-0 items-center justify-center gap-2 rounded-full bg-red-600 px-5 text-sm font-extrabold text-white outline-none hover:bg-red-700 focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2"
+        >
+          <FileCheck2 className="h-4 w-4" /> View visa checklist
+        </button>
+      </section>
+
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {VISA_STEPS.map((c, i) => (
+          <ChecklistCard key={c.title} card={c} index={i} number={i + 1} />
+        ))}
+      </div>
+
+      <AnimatePresence>
+        {checklistOpen && (
+          <motion.div
+            className="fixed inset-0 z-[80] flex items-center justify-center bg-[#031128]/80 p-2 backdrop-blur-sm sm:p-5"
+            role="presentation"
+            onMouseDown={(event) => event.target === event.currentTarget && setChecklistOpen(false)}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            <motion.section
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="visa-checklist-title"
+              className="flex h-[96svh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl sm:h-[92svh] sm:rounded-3xl"
+              initial={{ opacity: 0, y: 24, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 16, scale: 0.98 }}
+            >
+              <header className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-200 px-4 py-3 sm:px-5">
+                <div className="min-w-0">
+                  <p className="text-[10px] font-black uppercase tracking-[0.18em] text-red-600">Identità · Central Visa Unit</p>
+                  <h3 id="visa-checklist-title" className="truncate text-base font-black text-[#092553] sm:text-lg">Student National Visa checklist</h3>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <a
+                    href={checklistPath}
+                    download="Identita-Student-National-Visa-Checklist.pdf"
+                    className="hidden h-10 items-center gap-1.5 rounded-full bg-slate-100 px-3 text-xs font-bold text-slate-700 hover:bg-slate-200 sm:inline-flex"
+                  >
+                    <Download className="h-4 w-4" /> Download
+                  </a>
+                  <a
+                    href={officialChecklistUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="hidden h-10 items-center gap-1.5 rounded-full bg-slate-100 px-3 text-xs font-bold text-slate-700 hover:bg-slate-200 sm:inline-flex"
+                  >
+                    Official source <ExternalLink className="h-4 w-4" />
+                  </a>
+                  <button
+                    type="button"
+                    onClick={() => setChecklistOpen(false)}
+                    aria-label="Close visa checklist"
+                    className="grid h-10 w-10 place-items-center rounded-full bg-[#092553] text-white outline-none hover:bg-[#153d77] focus-visible:ring-2 focus-visible:ring-[#5424c7] focus-visible:ring-offset-2"
+                  >
+                    <X className="h-5 w-5" />
+                  </button>
+                </div>
+              </header>
+              <div className="min-h-0 flex-1 bg-slate-200">
+                <iframe
+                  src={`${checklistPath}#view=FitH&toolbar=1&navpanes=0`}
+                  title="Identità student national visa required documents checklist"
+                  className="h-full w-full border-0"
+                />
+              </div>
+              <footer className="flex shrink-0 items-center justify-between gap-2 border-t border-slate-200 bg-white px-4 py-2 text-[11px] text-slate-500 sm:hidden">
+                <a href={checklistPath} download="Identita-Student-National-Visa-Checklist.pdf" className="inline-flex items-center gap-1 font-bold text-[#092553]"><Download className="h-3.5 w-3.5" /> Download PDF</a>
+                <a href={officialChecklistUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 font-bold text-[#092553]">Official source <ExternalLink className="h-3.5 w-3.5" /></a>
+              </footer>
+            </motion.section>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
