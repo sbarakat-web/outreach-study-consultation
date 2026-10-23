@@ -11,7 +11,7 @@ import { BookingCalendar } from "../components/BookingCalendar";
 import type { TabItem } from "../components/TabBar";
 import { AppShell, Fab, StatStrip } from "../components/dash";
 import { AccountSettings } from "./Settings";
-import { AREAS, LEVEL_STYLE, PROGRAMMES, SCHOLARSHIPS } from "./sessions/data";
+import { AREAS, ENGLISH_PROVIDERS, LEVEL_STYLE, PROGRAMMES, SCHOLARSHIPS } from "./sessions/data";
 
 // Candidate-facing milestones (a subset of the CRM stages).
 const MILESTONES = ["new", "consultation_booked", "interviewed"];
@@ -144,6 +144,7 @@ export function ProgrammePage() {
   const [savingQuestions, setSavingQuestions] = useState(false);
   const [questionStatus, setQuestionStatus] = useState<"" | "saved" | "error">("");
   const selectedName = c.desired_course?.trim() || labelFor(STUDY_PATHS, c.study_path);
+  const isEnglishCourse = c.study_path === "english" || selectedName.toLowerCase().includes("english");
   const isStudyArea = STUDY_AREAS.some((area) => area.toLowerCase() === selectedName.toLowerCase());
   const normaliseArea = (value: string) => value.toLowerCase().replaceAll("&", "and").replace(/[^a-z0-9]+/g, " ").trim();
   const selectedArea = isStudyArea ? AREAS.find((area) => normaliseArea(area.name) === normaliseArea(selectedName)) : undefined;
@@ -294,6 +295,73 @@ export function ProgrammePage() {
                     </div>
                     <p className="mt-4 rounded-xl bg-amber-50 px-4 py-3 text-xs leading-relaxed text-amber-900 ring-1 ring-amber-200">
                       These programme details use the same information shown during Online Sessions. Fees, scholarships, admission requirements, intake dates and availability must be reconfirmed before enrolment.
+                    </p>
+                  </section>
+                )}
+
+                {isEnglishCourse && (
+                  <section>
+                    <div className="flex flex-wrap items-end justify-between gap-2">
+                      <div>
+                        <p className="text-xs font-black uppercase tracking-wider text-brand">Course details and prices</p>
+                        <h2 className="mt-1 text-xl font-black text-navy">Available English courses</h2>
+                      </div>
+                      <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-500">{ENGLISH_PROVIDERS.length} providers</span>
+                    </div>
+                    <div className="mt-4 space-y-5">
+                      {ENGLISH_PROVIDERS.map((provider) => (
+                        <article key={provider.name} className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+                          <div className="flex flex-wrap items-start justify-between gap-2 border-b border-slate-100 p-5">
+                            <div>
+                              <p className="text-[10px] font-black uppercase tracking-wider text-brand">{provider.eyebrow}</p>
+                              <h3 className="mt-1 text-lg font-black text-navy">{provider.name}</h3>
+                            </div>
+                            <span className="rounded-full bg-violet-100 px-3 py-1 text-xs font-bold text-brand">{provider.pill}</span>
+                          </div>
+                          <div className="overflow-x-auto">
+                            <table className="w-full min-w-[720px] text-left text-xs">
+                              <thead className="bg-[#092553] text-white">
+                                <tr>
+                                  {provider.columns.map((column) => (
+                                    <th key={column} className="whitespace-nowrap px-3 py-2.5 font-bold">{column}</th>
+                                  ))}
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {provider.rows.map((row, rowIndex) => (
+                                  <tr key={`${provider.name}-${rowIndex}`} className={rowIndex % 2 ? "bg-slate-50" : "bg-white"}>
+                                    {row.map((cell, cellIndex) => (
+                                      <td key={`${cell}-${cellIndex}`} className={`whitespace-nowrap px-3 py-2.5 ${cellIndex < 2 ? "font-bold text-slate-800" : "text-slate-600"}`}>
+                                        {cell}
+                                      </td>
+                                    ))}
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                          {(provider.notes.length > 0 || provider.offer) && (
+                            <div className="space-y-2 border-t border-slate-100 p-4">
+                              {provider.notes.map((note) => (
+                                <p key={note.text} className={`rounded-xl px-3 py-2 text-xs ${note.tone === "amber" ? "bg-amber-50 text-amber-900" : "bg-sky-50 text-sky-900"}`}>
+                                  {note.text}
+                                </p>
+                              ))}
+                              {provider.offer && (
+                                <div className="rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-900 ring-1 ring-rose-200">
+                                  <p className="text-[10px] font-black uppercase tracking-wider">Special offer</p>
+                                  <p className="mt-1 font-black">{provider.offer.title} — <s className="font-semibold opacity-60">{provider.offer.was}</s> {provider.offer.now}</p>
+                                  <p>{provider.offer.detail}</p>
+                                  <p>{provider.offer.admission}</p>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </article>
+                      ))}
+                    </div>
+                    <p className="mt-4 rounded-xl bg-amber-50 px-4 py-3 text-xs leading-relaxed text-amber-900 ring-1 ring-amber-200">
+                      English-course prices, schedules and availability use the same information shown in Online Sessions and must be reconfirmed before enrolment.
                     </p>
                   </section>
                 )}
