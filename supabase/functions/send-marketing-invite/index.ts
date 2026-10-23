@@ -22,10 +22,13 @@ Deno.serve(async (req) => {
   const email = String(input.email ?? "").trim().toLowerCase();
   if (!fullName || !emailPattern.test(email)) return json({ error: "A full name and valid email are required" }, 400);
 
+  const { data: existingContact } = await db.from("marketing_contacts").select("status").eq("email", email).maybeSingle();
+  if (existingContact?.status === "unsubscribed") return json({ error: "This candidate unsubscribed from marketing emails" }, 409);
+
   const { data: existingAccount } = await db.auth.admin.listUsers({ page: 1, perPage: 1000 });
   if (existingAccount?.users.some((user) => user.email?.toLowerCase() === email)) return json({ error: "This email already has an account" }, 409);
 
-  const { data: template } = await db.from("marketing_email_templates").select("subject, body").eq("id", "account-invite").maybeSingle();
+  const { data: template } = await db.from("marketing_email_templates").select("subject, body, image_url").eq("id", "account-invite").maybeSingle();
   const { data: contact, error: upsertError } = await db.from("marketing_contacts").upsert({ full_name: fullName, email, created_by: auth.user.id, status: "draft", last_error: null, follow_up_count: 0, last_follow_up_at: null, next_follow_up_at: null }, { onConflict: "email" }).select("id, tracking_token, send_count").single();
   if (upsertError || !contact) return json({ error: upsertError?.message ?? "Could not save candidate" }, 500);
 
@@ -33,22 +36,27 @@ Deno.serve(async (req) => {
   const functionsUrl = `${env("SUPABASE_URL")}/functions/v1`;
   const clickUrl = `${functionsUrl}/marketing-track?token=${contact.tracking_token}&action=click`;
   const openUrl = `${functionsUrl}/marketing-track?token=${contact.tracking_token}&action=open`;
+  const unsubscribeUrl = `${functionsUrl}/marketing-track?token=${contact.tracking_token}&action=unsubscribe`;
   const firstName = fullName.split(/\s+/)[0];
   const subject = (template?.subject || "{name}, create your free Outreach Study account").replaceAll("{name}", firstName);
   const message = (template?.body || "Your personal account keeps your Malta study consultation, documents and next steps together in one secure place.").replaceAll("{name}", firstName);
+  const image = template?.image_url
+    ? `<img src="${escape(template.image_url)}" alt="Study in Malta" width="504" style="display:block;width:100%;max-height:280px;object-fit:cover;height:auto;border-radius:16px;margin:0 0 20px">`
+    : "";
   const html = layout(
     eyebrow("Your Malta study journey") +
       title(`Welcome, ${escape(firstName)}`) +
-      `<img src="${appUrl}/onlinesessions/online-session-hero-v2.webp" alt="Study in Malta" width="504" style="display:block;width:100%;height:auto;border-radius:14px;margin:0 0 18px">` +
+      image +
       para(escape(message), true) +
       highlight("<strong>One account for your consultation, documents and personalised next steps.</strong>") +
       actions(button(clickUrl, "Create my free account", "#28A77A")) +
       para("It takes about two minutes. If you need help, reply to this email and our team will guide you.", true) +
+      `<p style="margin:22px 0 0;text-align:center;font-size:12px;color:#8a8ea8">No longer interested? <a href="${unsubscribeUrl}" style="color:#5b6080;text-decoration:underline">Unsubscribe</a></p>` +
       `<img src="${openUrl}" width="1" height="1" alt="" style="display:block;border:0;width:1px;height:1px">`,
     `Create your Outreach Study account and continue your Malta journey.`,
   );
 
-  const sent = await fetch("https://api.resend.com/emails", { method: "POST", headers: { Authorization: `Bearer ${env("RESEND_API_KEY")}`, "Content-Type": "application/json" }, body: JSON.stringify({ from: env("MAIL_FROM") || "Outreach Study <hello@consultation.outreachstudy.eu>", to: email, reply_to: "study@outreachrecruitment.net", subject, html }) });
+  const sent = await fetch("https://api.resend.com/emails", { method: "POST", headers: { Authorization: `Bearer ${env("RESEND_API_KEY")}`, "Content-Type": "application/json" }, body: JSON.stringify({ from: env("MAIL_FROM") || "Outreach Study <hello@consultation.outreachstudy.eu>", to: email, reply_to: "study@outreachrecruitment.net", subject, html, headers: { "List-Unsubscribe": `<${unsubscribeUrl}>`, "List-Unsubscribe-Post": "List-Unsubscribe=One-Click" } }) });
   const result = await sent.json().catch(() => ({}));
   const sentAt = new Date();
   await db.from("marketing_contacts").update(sent.ok ? { status: "sent", send_count: (contact.send_count || 0) + 1, last_sent_at: sentAt.toISOString(), next_follow_up_at: new Date(sentAt.getTime() + 24 * 60 * 60 * 1000).toISOString(), provider_email_id: result.id ?? null, last_error: null } : { status: "failed", next_follow_up_at: null, last_error: result.message ?? `Email provider returned ${sent.status}` }).eq("id", contact.id);
