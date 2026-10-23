@@ -483,7 +483,7 @@ function Detail({ c, all, onClose, onSaved }: { c: Row; all: Row[]; onClose: () 
   };
 
   const remove = async () => {
-    if (!confirm(`Permanently delete ${c.full_name}'s lead, all uploaded documents and email records, and their login account? This cannot be undone.`)) return;
+    if (!confirm(`Permanently delete all leads for ${c.email}, all uploaded documents and email records, and their login account? This cannot be undone.`)) return;
     setDeleting(true);
     setMsg(null);
     try {
@@ -669,7 +669,7 @@ function Detail({ c, all, onClose, onSaved }: { c: Row; all: Row[]; onClose: () 
 
           <div className="space-y-3 border-t border-slate-100 pt-5">
             {msg && <Alert tone={msg.tone}>{msg.text}</Alert>}
-            <p className="text-xs text-slate-500">Permanently removes this lead, its uploaded documents and email records, and its linked login account.</p>
+            <p className="text-xs text-slate-500">Permanently removes all leads for this email, their uploaded documents and email records, and the linked login account.</p>
             <Button variant="danger" onClick={remove} loading={deleting} disabled={deleting}>
               Delete lead and account
             </Button>

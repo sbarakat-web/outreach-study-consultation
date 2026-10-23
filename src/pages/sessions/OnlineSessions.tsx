@@ -449,7 +449,7 @@ export function OnlineSessions() {
         {open && (
           <motion.div
             key="presentation"
-            className="fixed inset-0 z-50 flex items-stretch justify-center bg-[#031128] sm:p-4"
+            className="fixed inset-0 z-50 flex items-stretch justify-center bg-white"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -459,7 +459,7 @@ export function OnlineSessions() {
               role="dialog"
               aria-modal="true"
               aria-labelledby="chapter-title"
-              className="relative flex w-full max-w-6xl flex-col overflow-hidden bg-white sm:rounded-3xl"
+              className="relative flex h-full w-full max-w-none flex-col overflow-hidden bg-white"
               initial={reduce ? { opacity: 0 } : { opacity: 0, y: 45, scale: 0.96 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0 }}

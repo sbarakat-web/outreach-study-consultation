@@ -57,44 +57,69 @@ Deno.serve(async (req) => {
     if (protectedPresenterError) throw new Error("Could not check whether this account has a presenter role");
     if (protectedPresenter) return json({ error: "This email belongs to a session presenter and cannot be removed as a lead" }, 409);
 
-    let candidateUserId: string | null = lead.user_id;
-    if (candidateUserId) {
-      const { data, error } = await db.auth.admin.getUserById(candidateUserId);
-      if (error) throw new Error("Could not verify the lead's linked login account");
+    const associatedLeads: { id: string; user_id: string | null }[] = [];
+    for (let start = 0; ; start += 1000) {
+      const { data, error } = await db
+        .from("consultations")
+        .select("id, user_id")
+        .eq("email", email)
+        .range(start, start + 999);
+      if (error) throw new Error("Could not load all leads associated with this email");
+      associatedLeads.push(...(data ?? []));
+      if (!data || data.length < 1000) break;
+    }
+    const consultationIds = associatedLeads.map((item) => item.id);
+    const userIds = new Set(associatedLeads.flatMap((item) => (item.user_id ? [item.user_id] : [])));
+
+    let candidateUserId: string | null = null;
+    for (let page = 1; !candidateUserId; page += 1) {
+      const { data, error } = await db.auth.admin.listUsers({ page, perPage: 1000 });
+      if (error) throw new Error("Could not check for a login account linked to this lead");
+      const matchingUser = data.users.find((user) => user.email?.toLowerCase() === email);
+      candidateUserId = matchingUser?.id ?? null;
+      if (candidateUserId || data.users.length < 1000) break;
+    }
+    if (candidateUserId) userIds.add(candidateUserId);
+
+    for (const userId of userIds) {
+      const { data, error } = await db.auth.admin.getUserById(userId);
+      if (error) throw new Error("Could not verify a login account linked to this lead");
       if (data.user.email?.toLowerCase() !== email) {
-        return json({ error: "The lead's linked login email does not match; no data was deleted" }, 409);
-      }
-    } else {
-      for (let page = 1; !candidateUserId; page += 1) {
-        const { data, error } = await db.auth.admin.listUsers({ page, perPage: 1000 });
-        if (error) throw new Error("Could not check for a login account linked to this lead");
-        candidateUserId = data.users.find((user) => user.email?.toLowerCase() === email)?.id ?? null;
-        if (candidateUserId || data.users.length < 1000) break;
+        return json({ error: "A linked login email does not match; no data was deleted" }, 409);
       }
     }
 
-    const { data: documents, error: documentsError } = await db
-      .from("documents")
-      .select("file_path, user_id")
-      .eq("consultation_id", consultationId);
-    if (documentsError) throw new Error("Could not load the lead's uploaded documents");
-
-    const ownerIds = new Set((documents ?? []).map((document) => document.user_id));
-    if (candidateUserId) ownerIds.add(candidateUserId);
-    if (lead.user_id) ownerIds.add(lead.user_id);
-    const filePaths = new Set((documents ?? []).map((document) => document.file_path));
-    for (const ownerId of ownerIds) {
-      let offset = 0;
-      while (true) {
-        const { data: files, error } = await db.storage
+    const documents: { file_path: string; user_id: string }[] = [];
+    for (let start = 0; start < consultationIds.length; start += 500) {
+      const ids = consultationIds.slice(start, start + 500);
+      for (let offset = 0; ; offset += 1000) {
+        const { data, error } = await db
           .from("documents")
-          .list(`${ownerId}/${consultationId}`, { limit: 1000, offset });
-        if (error) throw new Error(`Could not list uploaded documents: ${error.message}`);
-        for (const file of files ?? []) {
-          if (file.id) filePaths.add(`${ownerId}/${consultationId}/${file.name}`);
+          .select("file_path, user_id")
+          .in("consultation_id", ids)
+          .range(offset, offset + 999);
+        if (error) throw new Error("Could not load all uploaded documents for this email");
+        documents.push(...(data ?? []));
+        if (!data || data.length < 1000) break;
+      }
+    }
+
+    const filePaths = new Set(documents.map((document) => document.file_path));
+    const ownerIds = new Set([...userIds, ...documents.map((document) => document.user_id)]);
+    for (const ownerId of ownerIds) {
+      for (const id of consultationIds) {
+        let offset = 0;
+        while (true) {
+          const { data: files, error } = await db.storage
+            .from("documents")
+            .list(`${ownerId}/${id}`, { limit: 1000, offset });
+          if (error) throw new Error(`Could not list uploaded documents: ${error.message}`);
+          for (const file of files ?? []) {
+            if (file.id) filePaths.add(`${ownerId}/${id}/${file.name}`);
+          }
+          if (!files || files.length < 1000) break;
+          offset += 1000;
         }
-        if (!files || files.length < 1000) break;
-        offset += 1000;
       }
     }
 
@@ -104,8 +129,6 @@ Deno.serve(async (req) => {
       if (error) throw new Error(`Could not remove uploaded documents: ${error.message}`);
     }
 
-    const { error: sendsByLeadError } = await db.from("marketing_sends").delete().eq("consultation_id", consultationId);
-    if (sendsByLeadError) throw new Error("Could not remove the lead's email send history");
     const { error: sendsByEmailError } = await db.from("marketing_sends").delete().eq("email", email);
     if (sendsByEmailError) throw new Error("Could not remove the email address's send history");
     const { error: contactsError } = await db.from("marketing_contacts").delete().eq("email", email);
@@ -113,13 +136,18 @@ Deno.serve(async (req) => {
     const { error: preferencesError } = await db.from("marketing_preferences").delete().eq("email", email);
     if (preferencesError) throw new Error("Could not remove the lead's email preferences");
 
-    if (candidateUserId) {
-      const { error } = await db.auth.admin.deleteUser(candidateUserId);
-      if (error) throw new Error(`Documents and email records were removed, but the lead and login account remain because account deletion failed: ${error.message}. You can retry.`);
+    for (const userId of userIds) {
+      const { error } = await db.auth.admin.deleteUser(userId);
+      if (error) throw new Error(`Documents and email records were removed, but the leads and login account remain because account deletion failed: ${error.message}. You can retry.`);
     }
 
+    const otherConsultationIds = consultationIds.filter((id) => id !== consultationId);
+    for (let start = 0; start < otherConsultationIds.length; start += 500) {
+      const { error: deleteLeadError } = await db.from("consultations").delete().in("id", otherConsultationIds.slice(start, start + 500));
+      if (deleteLeadError) throw new Error(`The login account was removed, but some related lead records could not be deleted: ${deleteLeadError.message}. Retry using the remaining lead.`);
+    }
     const { error: deleteLeadError } = await db.from("consultations").delete().eq("id", consultationId);
-    if (deleteLeadError) throw new Error(`The login account was removed, but lead records could not be deleted: ${deleteLeadError.message}`);
+    if (deleteLeadError) throw new Error(`Related lead records were removed, but this lead could not be deleted: ${deleteLeadError.message}. Retry the deletion.`);
 
     return json({ ok: true });
   } catch (error) {
