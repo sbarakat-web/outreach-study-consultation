@@ -11,7 +11,7 @@ import { BookingCalendar } from "../components/BookingCalendar";
 import type { TabItem } from "../components/TabBar";
 import { AppShell, Fab, StatStrip } from "../components/dash";
 import { AccountSettings } from "./Settings";
-import { LEVEL_STYLE, PROGRAMMES, SCHOLARSHIPS } from "./sessions/data";
+import { AREAS, LEVEL_STYLE, PROGRAMMES, SCHOLARSHIPS } from "./sessions/data";
 
 // Candidate-facing milestones (a subset of the CRM stages).
 const MILESTONES = ["new", "consultation_booked", "interviewed"];
@@ -145,6 +145,9 @@ export function ProgrammePage() {
   const [questionStatus, setQuestionStatus] = useState<"" | "saved" | "error">("");
   const selectedName = c.desired_course?.trim() || labelFor(STUDY_PATHS, c.study_path);
   const isStudyArea = STUDY_AREAS.some((area) => area.toLowerCase() === selectedName.toLowerCase());
+  const normaliseArea = (value: string) => value.toLowerCase().replaceAll("&", "and").replace(/[^a-z0-9]+/g, " ").trim();
+  const selectedArea = isStudyArea ? AREAS.find((area) => normaliseArea(area.name) === normaliseArea(selectedName)) : undefined;
+  const availableProgrammes = selectedArea ? PROGRAMMES.filter((item) => item.area === selectedArea.key) : [];
   const programme = isStudyArea
     ? undefined
     : PROGRAMMES.find((item) => {
@@ -235,13 +238,66 @@ export function ProgrammePage() {
                 </p>
               </>
             ) : (
-              <div className="rounded-2xl bg-violet-50 p-5 ring-1 ring-violet-100">
-                <Sparkles className="h-7 w-7 text-brand" />
-                <h2 className="mt-3 text-lg font-black text-navy">Let us find the right programme for you</h2>
-                <p className="mt-1 text-sm leading-relaxed text-slate-600">
-                  You selected {selectedName}. Book a free guidance call and we will compare the available institutions, levels, entry requirements and fees with you before confirming your exact programme.
-                </p>
-              </div>
+              <>
+                <div className="rounded-2xl bg-violet-50 p-5 ring-1 ring-violet-100">
+                  <Sparkles className="h-7 w-7 text-brand" />
+                  <h2 className="mt-3 text-lg font-black text-navy">Let us find the right programme for you</h2>
+                  <p className="mt-1 text-sm leading-relaxed text-slate-600">
+                    You selected {selectedName}. Review the attached programme details below, then book a free guidance call so we can confirm the best level, institution and option for your profile.
+                  </p>
+                </div>
+
+                {availableProgrammes.length > 0 && (
+                  <section>
+                    <div className="flex flex-wrap items-end justify-between gap-2">
+                      <div>
+                        <p className="text-xs font-black uppercase tracking-wider text-brand">Programme details</p>
+                        <h2 className="mt-1 text-xl font-black text-navy">Available {selectedArea?.name} options</h2>
+                      </div>
+                      <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-500">{availableProgrammes.length} programmes</span>
+                    </div>
+                    <div className="mt-4 grid gap-4 lg:grid-cols-2">
+                      {availableProgrammes.map((option) => {
+                        const optionScholarships = SCHOLARSHIPS[option.area]?.[option.level] ?? [];
+                        return (
+                          <article key={option.id} className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+                            <div className="border-b border-slate-100 p-5">
+                              <span className={`text-xs font-black uppercase tracking-wider ${LEVEL_STYLE[option.level].text}`}>
+                                {LEVEL_STYLE[option.level].label.replace(" programmes", "")}
+                              </span>
+                              <h3 className="mt-2 text-lg font-black leading-tight text-navy">{option.course}</h3>
+                              <p className="mt-1 text-sm font-semibold text-slate-500">{option.school}</p>
+                            </div>
+                            <dl className="grid grid-cols-2 gap-px bg-slate-200 text-sm">
+                              {[
+                                ["Qualification", [option.qualification, option.credits].filter(Boolean).join(" · ")],
+                                ["Duration", option.duration],
+                                ["Total fee", option.totalFee ?? "Confirm with school"],
+                                ["English", option.english ?? "Confirm with school"],
+                                ["Entry requirement", option.requirement ?? "School assessment"],
+                                ["Yearly fees", option.fees.filter((fee) => fee !== "-").join(" · ")],
+                              ].map(([label, value]) => (
+                                <div key={label} className="bg-slate-50 p-3">
+                                  <dt className="text-[10px] font-black uppercase tracking-wider text-slate-400">{label}</dt>
+                                  <dd className="mt-1 font-bold text-slate-700">{value}</dd>
+                                </div>
+                              ))}
+                            </dl>
+                            {optionScholarships.length > 0 && (
+                              <div className="bg-emerald-50 px-4 py-3 text-xs font-semibold text-emerald-800">
+                                Scholarship guidance available — ask your adviser to confirm your eligibility.
+                              </div>
+                            )}
+                          </article>
+                        );
+                      })}
+                    </div>
+                    <p className="mt-4 rounded-xl bg-amber-50 px-4 py-3 text-xs leading-relaxed text-amber-900 ring-1 ring-amber-200">
+                      These programme details use the same information shown during Online Sessions. Fees, scholarships, admission requirements, intake dates and availability must be reconfirmed before enrolment.
+                    </p>
+                  </section>
+                )}
+              </>
             )}
           </div>
         </div>
