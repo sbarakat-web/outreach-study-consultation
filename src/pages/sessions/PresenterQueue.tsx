@@ -130,9 +130,9 @@ export function PresenterQueue({
   return (
     <aside
       aria-label="Presenter queue"
-      className="fixed inset-3 z-40 mx-auto flex max-w-6xl flex-col overflow-hidden rounded-3xl bg-white/95 shadow-[0_24px_70px_rgba(3,17,40,0.35)] backdrop-blur md:inset-6"
+      className="fixed inset-x-3 top-3 z-40 flex max-h-[52svh] flex-col overflow-hidden rounded-2xl bg-white/95 shadow-[0_24px_70px_rgba(3,17,40,0.35)] backdrop-blur md:inset-x-auto md:bottom-3 md:left-3 md:max-h-none md:w-96"
     >
-      <div className="flex items-center justify-between gap-3 bg-[#092553] px-5 py-4 text-white sm:px-6">
+      <div className="flex items-center gap-3 bg-[#092553] px-4 py-3 text-white">
         <div className="flex items-center gap-3">
         <span className="grid h-10 w-10 place-items-center rounded-xl bg-white/15">
           <UserRound className="h-5 w-5" />
@@ -142,26 +142,25 @@ export function PresenterQueue({
           <h2 className="text-lg font-black">Interview queue</h2>
         </div>
         </div>
-        <p className="hidden text-sm font-semibold text-white/70 sm:block">Prepare, meet and present from one place</p>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6">
+      <div className="min-h-0 flex-1 overflow-y-auto p-3">
         {success && <p className="mb-5 rounded-xl bg-emerald-50 px-3 py-2 text-sm font-bold text-emerald-800 ring-1 ring-emerald-200">✓ {success}</p>}
 
         {next && (
-          <section className="mb-5 grid gap-4 rounded-2xl bg-gradient-to-br from-[#092553] to-[#5424c7] p-5 text-white shadow-lg sm:grid-cols-[1fr_auto] sm:items-center sm:p-6">
+          <section className="mb-3 space-y-3 rounded-2xl bg-gradient-to-br from-[#092553] to-[#5424c7] p-4 text-white shadow-lg">
             <div className="min-w-0">
-              <p className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.16em] text-sky-200"><AlarmClock className="h-4 w-4" /> Next appointment · {countdown(atOf(next)!, now)}</p>
-              <h3 className="mt-2 truncate text-2xl font-black">{next.full_name}</h3>
-              <div className="mt-2 flex flex-wrap gap-2 text-xs font-bold text-white/80">
-                <span className="rounded-full bg-white/10 px-2.5 py-1"><CalendarDays className="mr-1 inline h-3.5 w-3.5" />{timeLabel(next, now)}</span>
-                <span className="rounded-full bg-white/10 px-2.5 py-1"><FileCheck2 className="mr-1 inline h-3.5 w-3.5" />Documents {docs[next.id]?.done ?? 0}/{docs[next.id]?.total ?? "?"}</span>
-                <span className="rounded-full bg-white/10 px-2.5 py-1">{PROGRAMMES.find((programme) => programme.id === (programmeFor[next.id] ?? findBestMatch(next.desired_course)?.id))?.course ?? next.desired_course ?? "Programme not selected"}</span>
+              <p className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.16em] text-sky-200"><AlarmClock className="h-3.5 w-3.5" /> Next appointment · {countdown(atOf(next)!, now)}</p>
+              <h3 className="mt-1 truncate text-xl font-black">{next.full_name}</h3>
+              <div className="mt-2 flex flex-wrap gap-1.5 text-[10px] font-bold text-white/80">
+                <span className="rounded-full bg-white/10 px-2 py-1"><CalendarDays className="mr-1 inline h-3 w-3" />{timeLabel(next, now)}</span>
+                <span className="rounded-full bg-white/10 px-2 py-1"><FileCheck2 className="mr-1 inline h-3 w-3" />Docs {docs[next.id]?.done ?? 0}/{docs[next.id]?.total ?? "?"}</span>
+                <span className="max-w-full truncate rounded-full bg-white/10 px-2 py-1">{PROGRAMMES.find((programme) => programme.id === (programmeFor[next.id] ?? findBestMatch(next.desired_course)?.id))?.course ?? next.desired_course ?? "Programme not selected"}</span>
               </div>
             </div>
             <button
               onClick={() => next.meeting_url ? onJoinAndStart(next) : onStart(next)}
-              className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-emerald-500 px-6 text-sm font-black text-white outline-none hover:bg-emerald-400 focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-[#5424c7]"
+              className="inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-full bg-emerald-500 px-4 text-xs font-black text-white outline-none hover:bg-emerald-400 focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-[#5424c7]"
             >
               {next.meeting_url ? <Video className="h-4 w-4" /> : <Play className="h-4 w-4 fill-current" />}
               {next.meeting_url ? "Join meeting and start" : "Start presentation"}
@@ -169,7 +168,7 @@ export function PresenterQueue({
           </section>
         )}
 
-        <div className="mb-5 grid grid-cols-3 gap-2 text-center sm:max-w-lg">
+        <div className="mb-3 grid grid-cols-3 gap-2 text-center">
           {[
             ["Today", todayCount, "text-[#092553]"],
             ["Done", done, "text-emerald-600"],
@@ -182,7 +181,7 @@ export function PresenterQueue({
           ))}
         </div>
 
-        <div className="relative mb-5">
+        <div className="relative mb-3">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
           <input
             className="field py-2.5 pl-9 pr-9"
@@ -198,7 +197,7 @@ export function PresenterQueue({
           )}
         </div>
 
-        <div className="grid items-start gap-4 lg:grid-cols-3">
+        <div className="space-y-3">
         {groups.map(([label, list]) => (
           <section key={label} className={`overflow-hidden rounded-2xl border bg-white ${label === "Overdue" && list.length ? "border-red-200" : "border-slate-200"}`}>
             <button
@@ -359,7 +358,7 @@ function CandidateProfileDrawer({
   const recommended = PROGRAMMES.find((programme) => programme.id === programmeId);
 
   return (
-    <div className="absolute inset-0 z-30 flex justify-end bg-[#031128]/45 backdrop-blur-[2px]" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
+    <div className="fixed inset-0 z-[60] flex justify-end bg-[#031128]/45 backdrop-blur-[2px]" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
       <aside aria-label={`${c.full_name} profile`} className="flex h-full w-full max-w-md flex-col bg-white shadow-2xl">
         <div className="flex items-center justify-between bg-[#092553] px-5 py-4 text-white">
           <div className="min-w-0">
