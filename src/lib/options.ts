@@ -107,7 +107,7 @@ const REQUIRED_DOCUMENTS: DocumentType[] = [
   { key: "cv", label: "Updated CV in English", hint: "Education and work experience, written in English", required: true },
   { key: "passport", label: "Passport copy", hint: "Clear copy of the photo page", required: true },
   { key: "course_certificates", label: "Certificates for your chosen course", hint: "Relevant academic or professional certificates", required: true },
-  { key: "ielts", label: "IELTS evidence according to the course requirement", hint: "Upload the English-language evidence required for your course", required: true },
+  { key: "ielts", label: "IELTS evidence according to the course requirement", hint: "Upload English-language evidence only if your chosen course requires it", required: false },
   { key: "personal_statement", label: "300-word personal statement", hint: "Explain your reasons for choosing this course and studying in Malta", required: true },
 ];
 

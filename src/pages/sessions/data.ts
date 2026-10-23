@@ -469,6 +469,6 @@ export const RECAP_DOCUMENTS = [
   "Updated CV",
   "Passport copy",
   "Certificates for your chosen course",
-  "IELTS evidence according to the course requirement",
+  "IELTS evidence, if required for your chosen course",
   "A 300-word personal statement explaining your reasons for study",
 ];
