@@ -9,11 +9,12 @@ import { useI18n } from "../lib/i18n";
 type Mode = "code" | "password" | "forgot";
 
 export function Login() {
-  const { session } = useAuth();
+  const { session, isAdmin, isPresenter, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const { t } = useI18n();
   const [params] = useSearchParams();
-  const nextPath = params.get("next") || "/dashboard";
+  const requestedNext = params.get("next");
+  const nextPath = requestedNext || "/dashboard";
   const initialEmail = params.get("email") ?? "";
 
   const [mode, setMode] = useState<Mode>("code");
@@ -24,8 +25,10 @@ export function Login() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (session) navigate(nextPath, { replace: true });
-  }, [session, navigate, nextPath]);
+    if (!session || authLoading) return;
+    const destination = requestedNext || (isAdmin ? "/admin" : isPresenter ? "/onlinesessions?present=1" : "/dashboard");
+    navigate(destination, { replace: true });
+  }, [session, authLoading, isAdmin, isPresenter, navigate, requestedNext]);
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();

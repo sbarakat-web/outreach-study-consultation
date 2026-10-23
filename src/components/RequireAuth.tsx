@@ -11,7 +11,7 @@ export function RequireAuth({ admin, candidate, children }: { admin?: boolean; c
 
   if (loading) return <Spinner />;
   if (!session) return <Navigate to={`/login?next=${encodeURIComponent(location.pathname)}`} replace />;
-  if (admin && !isAdmin) return <Navigate to="/dashboard" replace />;
+  if (admin && !isAdmin) return <Navigate to={isPresenter ? "/onlinesessions?present=1" : "/dashboard"} replace />;
   if (candidate && isAdmin && !isAdminPreview) return <Navigate to="/admin" replace />;
   if (candidate && isPresenter && !isAdminPreview) return <Navigate to="/onlinesessions?present=1" replace />;
   return <>{children}</>;

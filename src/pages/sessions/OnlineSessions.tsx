@@ -422,12 +422,14 @@ export function OnlineSessions() {
                 <h2 className="text-2xl font-black">Presentation unavailable</h2>
                 <p className="text-white/75">{unavailable}</p>
                 <div className="flex flex-wrap justify-center gap-2">
-                  <button
-                    onClick={() => navigate("/admin?view=booked")}
-                    className="rounded-full bg-white px-5 py-2.5 font-extrabold text-[#092553] hover:bg-white/90"
-                  >
-                    Back to Booked Appointments
-                  </button>
+                  {isAdmin && (
+                    <button
+                      onClick={() => navigate("/admin?view=booked")}
+                      className="rounded-full bg-white px-5 py-2.5 font-extrabold text-[#092553] hover:bg-white/90"
+                    >
+                      Back to Booked Appointments
+                    </button>
+                  )}
                   <button
                     onClick={() => {
                       setUnavailable(null);
@@ -468,9 +470,11 @@ export function OnlineSessions() {
               <div className="flex shrink-0 items-center justify-between gap-2 px-4 pt-3 sm:px-8">
                 {presenterMode ? (
                   <div className="flex flex-wrap items-center gap-1.5">
-                    <Link to="/admin?view=booked" className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1.5 text-xs font-bold text-slate-600 hover:bg-slate-200">
-                      <ArrowLeft className="h-3.5 w-3.5" /> Booked Appointments
-                    </Link>
+                    {isAdmin && (
+                      <Link to="/admin?view=booked" className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1.5 text-xs font-bold text-slate-600 hover:bg-slate-200">
+                        <ArrowLeft className="h-3.5 w-3.5" /> Booked Appointments
+                      </Link>
+                    )}
                     {candidate && (
                       <button
                         onClick={() => setNotesOpen((o) => !o)}
