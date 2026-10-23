@@ -411,6 +411,13 @@ function CandidateProfileDrawer({
 
           {c.message && <div className="rounded-2xl border border-slate-200 p-4"><p className="text-xs font-black uppercase tracking-wider text-slate-400">Candidate note</p><p className="mt-1 text-sm text-slate-700">{c.message}</p></div>}
 
+          {c.candidate_questions && (
+            <div className="rounded-2xl border border-violet-200 bg-violet-50 p-4">
+              <p className="flex items-center gap-1.5 text-xs font-black uppercase tracking-wider text-[#5424c7]"><MessageCircle className="h-4 w-4" /> Questions for the consultation</p>
+              <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-slate-700">{c.candidate_questions}</p>
+            </div>
+          )}
+
           <div className="flex flex-wrap gap-2">
             {digits && (
               <>

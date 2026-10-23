@@ -122,6 +122,21 @@ export function OnlineSessions() {
     if (presenterMode) loadQueue();
   }, [presenterMode, loadQueue]);
 
+  useEffect(() => {
+    if (!presenterMode) return;
+    const channel = supabase
+      .channel("presenter-candidate-updates")
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "consultations" }, ({ new: row }) => {
+        const updated = row as Candidate;
+        setQueue((current) => current.map((item) => (item.id === updated.id ? updated : item)));
+        setCandidate((current) => (current?.id === updated.id ? updated : current));
+      })
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [presenterMode]);
+
   const visibleQueue = useMemo(() => queue.filter((c) => !hidden.has(c.id)), [queue, hidden]);
   const ordered = useMemo(() => queueOrder(bucketize(visibleQueue, now)), [visibleQueue, now]);
 
@@ -617,6 +632,12 @@ export function OnlineSessions() {
                       <X className="h-4 w-4" />
                     </button>
                   </div>
+                  {candidate?.candidate_questions && (
+                    <div className="mb-3 rounded-xl border border-violet-200 bg-violet-50 p-3">
+                      <p className="text-[10px] font-black uppercase tracking-wider text-[#5424c7]">Candidate questions</p>
+                      <p className="mt-1 whitespace-pre-wrap text-xs leading-relaxed text-slate-700">{candidate.candidate_questions}</p>
+                    </div>
+                  )}
                   <textarea
                     className="field min-h-0 flex-1 resize-none"
                     placeholder="Questions, decisions, documents to request… Saved automatically and added to the session comment."

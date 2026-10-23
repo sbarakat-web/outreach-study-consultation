@@ -139,7 +139,10 @@ export function SettingsPage() {
 }
 
 export function ProgrammePage() {
-  const { c } = useCandidate();
+  const { c, reload } = useCandidate();
+  const [questions, setQuestions] = useState(c.candidate_questions ?? "");
+  const [savingQuestions, setSavingQuestions] = useState(false);
+  const [questionStatus, setQuestionStatus] = useState<"" | "saved" | "error">("");
   const selectedName = c.desired_course?.trim() || labelFor(STUDY_PATHS, c.study_path);
   const isStudyArea = STUDY_AREAS.some((area) => area.toLowerCase() === selectedName.toLowerCase());
   const programme = isStudyArea
@@ -162,6 +165,20 @@ export function ProgrammePage() {
       ] as const
     : [];
   const scholarships = programme ? SCHOLARSHIPS[programme.area]?.[programme.level] ?? [] : [];
+
+  const saveQuestions = async (event: FormEvent) => {
+    event.preventDefault();
+    setSavingQuestions(true);
+    setQuestionStatus("");
+    const { error } = await supabase.rpc("save_candidate_questions", {
+      p_consultation_id: c.id,
+      p_questions: questions,
+    });
+    setSavingQuestions(false);
+    if (error) return setQuestionStatus("error");
+    setQuestionStatus("saved");
+    reload();
+  };
 
   return (
     <div className="space-y-6">
@@ -228,6 +245,40 @@ export function ProgrammePage() {
             )}
           </div>
         </div>
+      </Card>
+
+      <Card>
+        <form onSubmit={saveQuestions} className="space-y-4 px-5 py-6 sm:px-7">
+          <div className="flex items-start gap-3">
+            <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-violet-100 text-brand">
+              <MessageCircle className="h-5 w-5" />
+            </span>
+            <div>
+              <h2 className="text-lg font-black text-navy">Questions for your consultation</h2>
+              <p className="text-sm text-slate-500">Save your questions before the call. Your interviewer will see them in Online Sessions and can prepare clear answers.</p>
+            </div>
+          </div>
+          <textarea
+            className="field min-h-32 resize-y"
+            maxLength={1500}
+            placeholder="For example: Am I eligible for this programme? Can I pay tuition in instalments? Which intake is available?"
+            value={questions}
+            onChange={(event) => {
+              setQuestions(event.target.value);
+              setQuestionStatus("");
+            }}
+          />
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <span className="text-xs text-slate-400">{questions.length}/1500 characters</span>
+            <div className="flex items-center gap-3">
+              {questionStatus === "saved" && <span className="text-sm font-bold text-emerald-700">Questions saved</span>}
+              {questionStatus === "error" && <span className="text-sm font-bold text-red-600">Could not save. Please try again.</span>}
+              <Button type="submit" loading={savingQuestions} disabled={questions.trim() === (c.candidate_questions ?? "").trim()}>
+                Save questions
+              </Button>
+            </div>
+          </div>
+        </form>
       </Card>
 
       <div className="grid gap-4 sm:grid-cols-2">

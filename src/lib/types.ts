@@ -21,6 +21,8 @@ export interface Consultation {
   visa_support: string | null;
   preferred_contact_time: string | null;
   message: string | null;
+  candidate_questions: string | null;
+  candidate_questions_updated_at: string | null;
   status: Status;
   admin_notes: string | null;
   preferred_call_at: string | null; // confirmed call time
