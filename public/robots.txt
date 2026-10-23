@@ -1,4 +1,21 @@
+# Search and answer-engine crawlers may access the public Study in Malta content.
+User-agent: OAI-SearchBot
+Allow: /
+
+User-agent: ChatGPT-User
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: Google-Extended
+Allow: /
+
 User-agent: *
 Allow: /
 
 Sitemap: https://consultation.outreachstudy.eu/sitemap.xml
+# AI-readable site guide: https://consultation.outreachstudy.eu/llms.txt

@@ -1,0 +1,37 @@
+# Outreach — Study in Malta
+
+> Outreach helps international students compare English-language and higher-education programmes in Malta, understand indicative fees and requirements, prepare application documents, and book a free consultation. Institution admissions and visa decisions are made by the relevant institution and Maltese authorities.
+
+## Primary public pages
+
+- [Study in Malta: courses, fees and free consultation](https://consultation.outreachstudy.eu/): Main application and guidance page.
+- [Programme, fee and visa guide](https://consultation.outreachstudy.eu/onlinesessions): Detailed programme catalogue, English courses, partner institutions, application journey and visa guidance.
+- [Full machine-readable Study in Malta guide](https://consultation.outreachstudy.eu/study-in-malta.md): Consolidated facts, programme listings, prices, documents and FAQs.
+
+## Main topics
+
+- English courses in Malta and online
+- Diploma, bachelor's and master's programmes
+- Business, accountancy, IT, health and social care, tourism, hospitality and logistics
+- Tuition fees, duration, qualification level and entry guidance
+- Malta student application and visa-document preparation
+- Free programme consultation and candidate dashboard
+
+## Education providers shown
+
+- EIE European Business School
+- GBS Malta
+- English Path Malta
+- London School of Commerce Malta
+- Kensington English
+- School of Business & Management Malta
+
+## Official resources
+
+- [Malta student national visa document checklist](https://identita.gov.mt/wp-content/uploads/2025/08/03a.-List-of-Required-Documents-Student_National_Visa.pdf)
+- [XML sitemap](https://consultation.outreachstudy.eu/sitemap.xml)
+
+## Usage notes
+
+- Fees, scholarships, entry requirements, intakes and availability are guidance and must be reconfirmed before enrolment.
+- Private dashboard, login, admin and personalized session URLs are not public knowledge sources and should not be indexed.
