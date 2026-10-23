@@ -330,6 +330,7 @@ function AddLead({ onClose, onCreated }: { onClose: () => void; onCreated: (id: 
 
       const interviewed = status === "interviewed";
       const { error: statusError } = await supabase.from("consultations").update({
+        user_id: null,
         status,
         session_outcome: interviewed ? "interviewed" : null,
         session_outcome_at: interviewed ? new Date().toISOString() : null,
