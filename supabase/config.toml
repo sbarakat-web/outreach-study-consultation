@@ -409,3 +409,6 @@ s3_secret_key = "env(S3_SECRET_KEY)"
 
 [functions.admin-create-lead]
 verify_jwt = true
+
+[functions.admin-delete-lead]
+verify_jwt = true

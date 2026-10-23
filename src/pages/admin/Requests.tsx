@@ -440,6 +440,7 @@ function CallBadge({ c }: { c: Row }) {
 function Detail({ c, all, onClose, onSaved }: { c: Row; all: Row[]; onClose: () => void; onSaved: () => void }) {
   const [docs, setDocs] = useState<DocumentRow[]>([]);
   const [msg, setMsg] = useState<{ tone: "error" | "success"; text: string } | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const loadDocs = useCallback(() => {
     supabase
@@ -482,11 +483,21 @@ function Detail({ c, all, onClose, onSaved }: { c: Row; all: Row[]; onClose: () 
   };
 
   const remove = async () => {
-    if (!confirm(`Delete the request from ${c.full_name}? This can't be undone.`)) return;
-    const { error } = await supabase.from("consultations").delete().eq("id", c.id);
-    if (error) return setMsg({ tone: "error", text: error.message });
-    onClose();
-    onSaved();
+    if (!confirm(`Permanently delete ${c.full_name}'s lead, all uploaded documents and email records, and their login account? This cannot be undone.`)) return;
+    setDeleting(true);
+    setMsg(null);
+    try {
+      const { data, error } = await supabase.functions.invoke("admin-delete-lead", {
+        body: { consultationId: c.id },
+      });
+      if (error || data?.error) throw new Error(data?.error ?? error?.message ?? "Could not delete the lead");
+      onClose();
+      onSaved();
+    } catch (error) {
+      setMsg({ tone: "error", text: error instanceof Error ? error.message : "Could not delete the lead" });
+    } finally {
+      setDeleting(false);
+    }
   };
 
   const openDoc = async (d: DocumentRow) => {
@@ -658,8 +669,9 @@ function Detail({ c, all, onClose, onSaved }: { c: Row; all: Row[]; onClose: () 
 
           <div className="space-y-3 border-t border-slate-100 pt-5">
             {msg && <Alert tone={msg.tone}>{msg.text}</Alert>}
-            <Button variant="danger" onClick={remove}>
-              Delete
+            <p className="text-xs text-slate-500">Permanently removes this lead, its uploaded documents and email records, and its linked login account.</p>
+            <Button variant="danger" onClick={remove} loading={deleting} disabled={deleting}>
+              Delete lead and account
             </Button>
           </div>
         </div>
