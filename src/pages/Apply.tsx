@@ -7,7 +7,8 @@ import { useAuth } from "../lib/auth";
 import { getTracking } from "../lib/tracking";
 import { CountryPicker } from "../components/CountryPicker";
 import { countriesFor, countryByCode, detectCountry, fetchGeoCountry } from "../lib/countries";
-import { PROGRAMMES, parseCourseParam, parsePathParam } from "../lib/options";
+import { parseCourseParam, parsePathParam } from "../lib/options";
+import { AREAS, ENGLISH_PROVIDERS, PROGRAMMES, findBestMatch, programmeValue } from "./sessions/data";
 import { Alert, Button, Card } from "../components/ui";
 import { EmailCode } from "../components/EmailCode";
 import { useI18n } from "../lib/i18n";
@@ -31,6 +32,17 @@ interface Draft {
 
 const DRAFT_KEY = "apply_draft_v1";
 const INELIGIBLE_COUNTRIES = new Set(["PK"]);
+const PROGRAMME_VALUES = new Set(PROGRAMMES.map(programmeValue));
+const ENGLISH_COURSES = ENGLISH_PROVIDERS.flatMap((provider) =>
+  provider.rows.map((row, index) => ({
+    id: `${provider.name}-${index}`,
+    provider: provider.name,
+    value: `${row[0]} — ${row[1]} — ${row[2]} · ${provider.name}`,
+    label: `${row[0]} — ${row[1]} — ${row[2]}`,
+    price: row.find((cell) => /[€£]/.test(cell)) ?? "Confirm price",
+  })),
+);
+const ENGLISH_COURSE_VALUES = new Set(ENGLISH_COURSES.map((course) => course.value));
 
 function loadDraft(): Partial<Draft> {
   try {
@@ -63,16 +75,19 @@ function initialDraft(): Draft {
   const linkedEmail = params.get("email")?.trim().toLowerCase();
   if (linkedEmail && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(linkedEmail)) d.email = linkedEmail;
   if (path) {
+    const linkedProgramme = findBestMatch(course) ?? PROGRAMMES.find((programme) => programmeValue(programme) === d.course);
     d.path = path;
     d.stage = "form";
-    d.course = path === "english" ? "English Course" : course ?? (PROGRAMMES.includes(d.course) ? d.course : "");
+    d.course = path === "english" ? (ENGLISH_COURSE_VALUES.has(d.course) ? d.course : "") : linkedProgramme ? programmeValue(linkedProgramme) : "";
   }
+  if (d.path === "higher_education" && !PROGRAMME_VALUES.has(d.course)) d.course = "";
+  if (d.path === "english" && !ENGLISH_COURSE_VALUES.has(d.course)) d.course = "";
   return d;
 }
 
 export function Apply() {
   const { session } = useAuth();
-  const { lang, t, tv } = useI18n();
+  const { lang, t } = useI18n();
   const countries = useMemo(() => countriesFor(lang), [lang]);
   const localName = (code: string) => countries.find((c) => c.code === code)?.name ?? code;
   const navigate = useNavigate();
@@ -128,7 +143,7 @@ export function Apply() {
     setD((x) => ({
       ...x,
       path,
-      course: path === "english" ? "English Course" : PROGRAMMES.includes(x.course) ? x.course : "",
+      course: path === "english" ? (ENGLISH_COURSE_VALUES.has(x.course) ? x.course : "") : PROGRAMME_VALUES.has(x.course) ? x.course : "",
     }));
     go("form");
   };
@@ -319,18 +334,30 @@ export function Apply() {
                 </div>
                 {countryIneligible && <Alert>{t("apply.errCountryIneligible")}</Alert>}
                 <Field label={t("apply.course")} id="course">
-                  {d.path === "english" ? (
-                    <input id="course" readOnly className="field bg-mist font-bold text-brand" value={tv(d.course)} />
-                  ) : (
-                    <select id="course" required className="field" value={d.course} onChange={(e) => set("course", e.target.value)}>
-                      <option value="">{t("apply.selectProgramme")}</option>
-                      {PROGRAMMES.map((p) => (
-                        <option key={p} value={p}>
-                          {tv(p)}
-                        </option>
-                      ))}
-                    </select>
-                  )}
+                  <select id="course" required className="field" value={d.course} onChange={(e) => set("course", e.target.value)}>
+                    <option value="">{t("apply.selectProgramme")}</option>
+                    {d.path === "english" ? (
+                      ENGLISH_PROVIDERS.map((provider) => (
+                        <optgroup key={provider.name} label={provider.name}>
+                          {ENGLISH_COURSES.filter((course) => course.provider === provider.name).map((course) => (
+                            <option key={course.id} value={course.value}>
+                              {course.label} · {course.price}
+                            </option>
+                          ))}
+                        </optgroup>
+                      ))
+                    ) : (
+                      AREAS.filter((area) => area.key !== "english").map((area) => (
+                        <optgroup key={area.key} label={area.name}>
+                          {PROGRAMMES.filter((programme) => programme.area === area.key).map((programme) => (
+                            <option key={programme.id} value={programmeValue(programme)}>
+                              {programme.course} — {programme.school} · {programme.totalFee}
+                            </option>
+                          ))}
+                        </optgroup>
+                      ))
+                    )}
+                  </select>
                 </Field>
                 <Field label={t("apply.notes")} id="notes">
                   <textarea

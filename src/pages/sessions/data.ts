@@ -409,6 +409,9 @@ export const PROGRAMMES: Programme[] = Object.entries(RAW).flatMap(([area, level
   ),
 );
 
+/** Stable value saved with an application; the school disambiguates repeated names such as MBA. */
+export const programmeValue = (programme: Programme) => `${programme.course} — ${programme.school}`;
+
 export const LEVEL_STYLE: Record<Level, { label: string; color: string; border: string; selected: string; text: string }> = {
   diploma: { label: "Diploma programmes", color: "#4a20ff", border: "border-violet-200", selected: "bg-violet-50", text: "text-violet-700" },
   bachelor: { label: "Bachelor programmes", color: "#ed2525", border: "border-red-200", selected: "bg-red-50", text: "text-red-700" },
@@ -436,6 +439,8 @@ export function findBestMatch(...prefs: (string | null | undefined)[]): Programm
   for (const pref of prefs) {
     const p = pref?.trim().toLowerCase();
     if (!p) continue;
+    const exact = PROGRAMMES.find((x) => programmeValue(x).toLowerCase() === p);
+    if (exact) return exact;
     const hit = PROGRAMMES.find((x) => {
       const name = x.course.toLowerCase();
       return name.includes(p) || p.includes(name);

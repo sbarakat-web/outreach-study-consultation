@@ -11,7 +11,7 @@ import { BookingCalendar } from "../components/BookingCalendar";
 import type { TabItem } from "../components/TabBar";
 import { AppShell, Fab, StatStrip } from "../components/dash";
 import { AccountSettings } from "./Settings";
-import { AREAS, ENGLISH_PROVIDERS, LEVEL_STYLE, PROGRAMMES, SCHOLARSHIPS } from "./sessions/data";
+import { AREAS, ENGLISH_PROVIDERS, LEVEL_STYLE, PROGRAMMES, SCHOLARSHIPS, findBestMatch } from "./sessions/data";
 
 // Candidate-facing milestones (a subset of the CRM stages).
 const MILESTONES = ["new", "consultation_booked", "interviewed"];
@@ -145,17 +145,18 @@ export function ProgrammePage() {
   const [questionStatus, setQuestionStatus] = useState<"" | "saved" | "error">("");
   const selectedName = c.desired_course?.trim() || labelFor(STUDY_PATHS, c.study_path);
   const isEnglishCourse = c.study_path === "english" || selectedName.toLowerCase().includes("english");
+  const selectedEnglishCourse = isEnglishCourse
+    ? ENGLISH_PROVIDERS.flatMap((provider) =>
+        provider.rows.map((row) => ({ provider, row, value: `${row[0]} — ${row[1]} — ${row[2]} · ${provider.name}` })),
+      ).find((course) => course.value === selectedName)
+    : undefined;
   const isStudyArea = STUDY_AREAS.some((area) => area.toLowerCase() === selectedName.toLowerCase());
   const normaliseArea = (value: string) => value.toLowerCase().replaceAll("&", "and").replace(/[^a-z0-9]+/g, " ").trim();
   const selectedArea = isStudyArea ? AREAS.find((area) => normaliseArea(area.name) === normaliseArea(selectedName)) : undefined;
   const availableProgrammes = selectedArea ? PROGRAMMES.filter((item) => item.area === selectedArea.key) : [];
-  const programme = isStudyArea
+  const programme = isStudyArea || isEnglishCourse
     ? undefined
-    : PROGRAMMES.find((item) => {
-        const course = item.course.toLowerCase();
-        const selected = selectedName.toLowerCase();
-        return course === selected || course.includes(selected) || selected.includes(course);
-      });
+    : findBestMatch(selectedName);
 
   const details = programme
     ? [
@@ -248,6 +249,22 @@ export function ProgrammePage() {
                   </p>
                 </div>
 
+                {selectedEnglishCourse && (
+                  <section className="rounded-2xl border-2 border-violet-200 bg-white p-5 shadow-sm">
+                    <p className="text-xs font-black uppercase tracking-wider text-brand">Your selected English course</p>
+                    <h2 className="mt-1 text-xl font-black text-navy">{selectedEnglishCourse.row[0]} — {selectedEnglishCourse.row[1]}</h2>
+                    <p className="mt-1 text-sm font-semibold text-slate-500">{selectedEnglishCourse.provider.name}</p>
+                    <dl className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                      {selectedEnglishCourse.provider.columns.map((column, index) => (
+                        <div key={column} className="rounded-xl bg-slate-50 p-3">
+                          <dt className="text-[10px] font-black uppercase tracking-wider text-slate-400">{column}</dt>
+                          <dd className="mt-1 font-bold text-slate-700">{selectedEnglishCourse.row[index] ?? "—"}</dd>
+                        </div>
+                      ))}
+                    </dl>
+                  </section>
+                )}
+
                 {availableProgrammes.length > 0 && (
                   <section>
                     <div className="flex flex-wrap items-end justify-between gap-2">
@@ -329,7 +346,10 @@ export function ProgrammePage() {
                               </thead>
                               <tbody>
                                 {provider.rows.map((row, rowIndex) => (
-                                  <tr key={`${provider.name}-${rowIndex}`} className={rowIndex % 2 ? "bg-slate-50" : "bg-white"}>
+                                  <tr
+                                    key={`${provider.name}-${rowIndex}`}
+                                    className={`${`${row[0]} — ${row[1]} — ${row[2]} · ${provider.name}` === selectedName ? "bg-violet-100 ring-1 ring-inset ring-violet-300" : rowIndex % 2 ? "bg-slate-50" : "bg-white"}`}
+                                  >
                                     {row.map((cell, cellIndex) => (
                                       <td key={`${cell}-${cellIndex}`} className={`whitespace-nowrap px-3 py-2.5 ${cellIndex < 2 ? "font-bold text-slate-800" : "text-slate-600"}`}>
                                         {cell}

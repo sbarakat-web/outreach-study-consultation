@@ -5,7 +5,7 @@ import { Toaster, toast } from "sonner";
 import { ArrowLeft, ArrowRight, Check, Info, Loader2, NotebookPen, Play, Radio, ShieldCheck, Sparkles, X } from "lucide-react";
 import { supabase } from "../../lib/supabase";
 import { useAuth } from "../../lib/auth";
-import { CHAPTERS, IMAGES, PROGRAMMES, findBestMatch } from "./data";
+import { CHAPTERS, IMAGES, PROGRAMMES, findBestMatch, programmeValue } from "./data";
 import { MaltaScene } from "./art";
 import {
   DiscoverChapter,
@@ -314,7 +314,7 @@ export function OnlineSessions() {
             ? await supabase.rpc("mark_candidate_interviewed", {
                 _application_id: c.id,
                 _comment: comment,
-                _programme: selectedProgramme?.course ?? null,
+                _programme: selectedProgramme ? programmeValue(selectedProgramme) : null,
               })
             : await supabase.rpc("mark_candidate_session_outcome", { _application_id: c.id, _outcome: outcome, _comment: comment });
         if (error) {
