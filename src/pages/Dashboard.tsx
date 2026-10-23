@@ -35,7 +35,7 @@ const requiredProgress = (c: Consultation, docs: DocumentRow[]) => {
 export function CandidateLayout() {
   const { session, signOut } = useAuth();
   const navigate = useNavigate();
-  const { t, lang } = useI18n();
+  const { t } = useI18n();
   const userId = session!.user.id;
   const [c, setC] = useState<Consultation | null | undefined>(undefined);
   const [docs, setDocs] = useState<DocumentRow[]>([]);
@@ -60,11 +60,6 @@ export function CandidateLayout() {
   useEffect(() => {
     reload();
   }, [reload]);
-
-  // Emails follow the language the candidate uses here (Settings → Language).
-  useEffect(() => {
-    if (c && c.language !== lang) supabase.rpc("set_my_language", { p_lang: lang }).then(() => setC((prev) => (prev ? { ...prev, language: lang } : prev)));
-  }, [c, lang]);
 
   if (c === undefined) return <Spinner />;
 

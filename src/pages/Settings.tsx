@@ -1,9 +1,9 @@
 import { useEffect, useState, type ChangeEvent, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { CalendarDays, Camera, Globe2, KeyRound, LogOut, MessageCircle, UserRound, Users } from "lucide-react";
+import { CalendarDays, Camera, KeyRound, LogOut, MessageCircle, UserRound, Users } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
-import { LANGS, useI18n, type Lang } from "../lib/i18n";
+import { useI18n } from "../lib/i18n";
 import { waLink, whatsappNumber } from "../lib/options";
 import type { Consultation } from "../lib/types";
 import { Alert, Button, Card } from "../components/ui";
@@ -11,7 +11,7 @@ import { Alert, Button, Card } from "../components/ui";
 /** Settings → My account. Candidates also edit their contact details (`c`). */
 export function AccountSettings({ c, onSaved, staff }: { c?: Consultation; onSaved?: () => void; staff?: boolean }) {
   const { session, signOut } = useAuth();
-  const { t, lang, setLang } = useI18n();
+  const { t } = useI18n();
   const navigate = useNavigate();
 
   return (
@@ -43,28 +43,6 @@ export function AccountSettings({ c, onSaved, staff }: { c?: Consultation; onSav
           </Button>
         </div>
       </Card>
-
-      {!staff && (
-        <Card>
-          <div className="space-y-3 px-5 py-5 sm:px-7">
-            <SectionTitle icon={<Globe2 className="h-4 w-4" />} label={t("set.language")} />
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-              {LANGS.map((l) => (
-                <button
-                  key={l.code}
-                  onClick={() => setLang(l.code as Lang)}
-                  aria-pressed={lang === l.code}
-                  className={`rounded-xl border-2 px-3 py-2.5 text-sm font-bold transition ${
-                    lang === l.code ? "border-brand bg-brand text-white" : "border-slate-200 bg-white hover:border-brand/40"
-                  }`}
-                >
-                  {l.label}
-                </button>
-              ))}
-            </div>
-          </div>
-        </Card>
-      )}
 
       {staff && (
         <Card>

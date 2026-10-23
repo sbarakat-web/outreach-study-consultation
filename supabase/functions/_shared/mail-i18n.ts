@@ -1,7 +1,7 @@
-// Candidate email texts in the candidate's app language (consultations.language).
-export type MailLang = "en" | "fr" | "es" | "ar";
+// Candidate email texts (English only).
+export type MailLang = "en";
 
-export const LOCALES: Record<MailLang, string> = { en: "en-GB", fr: "fr-FR", es: "es-ES", ar: "ar-u-nu-latn" };
+export const LOCALES: Record<MailLang, string> = { en: "en-GB" };
 
 const en = {
   yourTime: "your time",
@@ -62,172 +62,11 @@ const en = {
 };
 export type MailKey = keyof typeof en;
 
-const fr: Record<MailKey, string> = {
-  yourTime: "votre heure",
-  maltaTime: "heure de Malte",
-  minutes: "{n} minutes",
-  advisorLine: "Votre appel avec {name}",
-  advisorRole: "Votre conseiller Outreach",
-  whoAdvisor: "{name} d’Outreach",
-  whoTeam: "l’équipe Outreach",
-  keptSubject: "{name}, votre horaire est disponible — merci de confirmer",
-  keptEyebrow: "Confirmez votre appel",
-  keptTitle: "Bonjour {name}, bonne nouvelle !",
-  keptIntro: "L’horaire que vous avez choisi est disponible :",
-  keptButton: "✅ Oui, je confirme mon appel",
-  keptOther: "Besoin d’un autre horaire ?",
-  movedSubject: "{name}, pouvons-nous déplacer votre appel au {when} ?",
-  movedEyebrow: "Nouvel horaire proposé",
-  movedTitle: "Bonjour {name}, pouvons-nous déplacer votre appel ?",
-  movedIntro: "Merci d’avoir choisi un horaire. Malheureusement, {old} n’est plus disponible. Nous vous proposons :",
-  movedButton: "✅ Oui, ce nouvel horaire me convient",
-  movedOther: "Ça ne vous convient pas ?",
-  chooseOther: "Choisir un autre horaire",
-  meetAfter: "Dès votre confirmation, vous recevrez votre <strong>lien Google Meet par e-mail</strong>.",
-  deadline: "Merci de confirmer avant le <strong>{when}</strong> afin que nous puissions vous réserver cet horaire.",
-  nextTitle: "Les prochaines étapes",
-  step1: "Confirmez",
-  step2: "Recevez votre lien Meet par e-mail",
-  step3: "Rejoignez l’appel",
-  reminderSubject: "Rappel : merci de confirmer votre appel — {when}",
-  reminderEyebrow: "Rappel",
-  reminderTitle: "Bonjour {name}, petit rappel",
-  reminderIntro: "Nous vous réservons toujours cet horaire pour votre appel gratuit. Confirmez-le en un clic :",
-  waKept: "Bonjour {name}, ici {who} 👋 Bonne nouvelle : l’horaire choisi pour votre appel gratuit est disponible : {when}. Confirmez ici : {url} (ou répondez OUI). Dès votre confirmation, vous recevrez votre lien Google Meet par e-mail. Un autre horaire ? {booking}",
-  waMoved: "Bonjour {name}, ici {who} 👋 Malheureusement, {old} n’est plus disponible. Pouvons-nous déplacer votre appel gratuit au {when} ? Confirmez ici : {url} (ou répondez OUI). Dès votre confirmation, vous recevrez votre lien Google Meet par e-mail. Un autre horaire ? {booking}",
-  confirmedSubject: "Votre appel gratuit est confirmé — {when}",
-  confirmedEyebrow: "Appel confirmé",
-  confirmedTitle: "Bonjour {name}, à très vite !",
-  joinMeet: "Rejoindre Google Meet",
-  meetPending: "Votre conseiller vous enverra le lien Google Meet avant l’appel.",
-  openDashboard: "Ouvrir mon espace",
-  prepareTitle: "Préparez votre appel",
-  prepareText: "Merci d’envoyer votre <strong>passeport</strong> et votre <strong>dernier diplôme</strong> avant l’appel, afin que votre conseiller puisse étudier votre profil.",
-  uploadDocs: "Envoyer mes documents →",
-  inviteAttached: "L’invitation d’agenda est jointe. Besoin d’un autre horaire ? Répondez à cet e-mail ou écrivez-nous sur WhatsApp.",
-  waConfirmed: "Bonjour {name}, votre appel gratuit avec Outreach est confirmé pour le {when}. {meet} Merci d’envoyer votre passeport et votre dernier diplôme avant l’appel : {url}",
-  waMeetJoin: "Rejoindre ici : {url}",
-  waMeetPending: "Nous vous enverrons le lien Google Meet par e-mail.",
-  icsTitle: "Appel gratuit avec Outreach",
-  icsAttached: "L’invitation d’agenda est jointe.",
-  needOther: "Besoin d’un autre horaire ?",
-  changeTime: "Changer l’horaire de mon appel",
-};
+export const langOf = (_c?: unknown): MailLang => "en";
 
-const es: Record<MailKey, string> = {
-  yourTime: "tu hora",
-  maltaTime: "hora de Malta",
-  minutes: "{n} minutos",
-  advisorLine: "Tu llamada con {name}",
-  advisorRole: "Tu asesor de Outreach",
-  whoAdvisor: "{name} de Outreach",
-  whoTeam: "el equipo de Outreach",
-  keptSubject: "{name}, tu horario está disponible — confírmalo, por favor",
-  keptEyebrow: "Confirma tu llamada",
-  keptTitle: "Hola {name}, ¡buenas noticias!",
-  keptIntro: "El horario que elegiste está disponible:",
-  keptButton: "✅ Sí, confirmo mi llamada",
-  keptOther: "¿Necesitas otro horario?",
-  movedSubject: "{name}, ¿podemos mover tu llamada al {when}?",
-  movedEyebrow: "Nuevo horario propuesto",
-  movedTitle: "Hola {name}, ¿podemos mover tu llamada?",
-  movedIntro: "Gracias por elegir un horario. Lamentablemente, {old} ya no está disponible, así que te proponemos:",
-  movedButton: "✅ Sí, este nuevo horario me va bien",
-  movedOther: "¿No te viene bien?",
-  chooseOther: "Elegir otro horario",
-  meetAfter: "En cuanto confirmes, recibirás tu <strong>enlace de Google Meet por correo</strong>.",
-  deadline: "Confirma antes del <strong>{when}</strong> para que podamos reservarte este horario.",
-  nextTitle: "Próximos pasos",
-  step1: "Confirma",
-  step2: "Recibe tu enlace de Meet por correo",
-  step3: "Únete a la llamada",
-  reminderSubject: "Recordatorio: confirma tu llamada — {when}",
-  reminderEyebrow: "Recordatorio",
-  reminderTitle: "Hola {name}, un pequeño recordatorio",
-  reminderIntro: "Seguimos reservando este horario para tu llamada gratuita. Confírmalo con un clic:",
-  waKept: "Hola {name}, te escribe {who} 👋 Buenas noticias: el horario que elegiste para tu llamada gratuita está disponible: {when}. Confirma aquí: {url} (o responde SÍ). En cuanto confirmes, recibirás tu enlace de Google Meet por correo. ¿Otro horario? {booking}",
-  waMoved: "Hola {name}, te escribe {who} 👋 Lamentablemente, {old} ya no está disponible. ¿Podemos mover tu llamada gratuita al {when}? Confirma aquí: {url} (o responde SÍ). En cuanto confirmes, recibirás tu enlace de Google Meet por correo. ¿Otro horario? {booking}",
-  confirmedSubject: "Tu llamada gratuita está confirmada — {when}",
-  confirmedEyebrow: "Llamada confirmada",
-  confirmedTitle: "Hola {name}, ¡hasta pronto!",
-  joinMeet: "Unirme a Google Meet",
-  meetPending: "Tu asesor te enviará el enlace de Google Meet antes de la llamada.",
-  openDashboard: "Abrir mi panel",
-  prepareTitle: "Prepara tu llamada",
-  prepareText: "Sube tu <strong>pasaporte</strong> y tu <strong>último certificado</strong> antes de la llamada, para que tu asesor pueda revisar tu perfil.",
-  uploadDocs: "Subir documentos →",
-  inviteAttached: "La invitación de calendario va adjunta. ¿Necesitas otro horario? Responde a este correo o escríbenos por WhatsApp.",
-  waConfirmed: "Hola {name}, tu llamada gratuita con Outreach está confirmada para el {when}. {meet} Sube tu pasaporte y tu último certificado antes de la llamada: {url}",
-  waMeetJoin: "Únete aquí: {url}",
-  waMeetPending: "Te enviaremos el enlace de Google Meet por correo.",
-  icsTitle: "Llamada gratuita con Outreach",
-  icsAttached: "La invitación de calendario va adjunta.",
-  needOther: "¿Necesitas otro horario?",
-  changeTime: "Cambiar la hora de mi llamada",
-};
-
-const ar: Record<MailKey, string> = {
-  yourTime: "بتوقيتك",
-  maltaTime: "بتوقيت مالطا",
-  minutes: "{n} دقيقة",
-  advisorLine: "مكالمتك مع {name}",
-  advisorRole: "مستشارك في Outreach",
-  whoAdvisor: "{name} من Outreach",
-  whoTeam: "فريق Outreach",
-  keptSubject: "{name}، موعدك متاح — يرجى التأكيد",
-  keptEyebrow: "أكّد مكالمتك",
-  keptTitle: "مرحبًا {name}، أخبار سارة!",
-  keptIntro: "الموعد الذي اخترته متاح:",
-  keptButton: "✅ نعم، أؤكد مكالمتي",
-  keptOther: "تحتاج موعدًا آخر؟",
-  movedSubject: "{name}، هل يمكننا نقل مكالمتك إلى {when}؟",
-  movedEyebrow: "موعد جديد مقترح",
-  movedTitle: "مرحبًا {name}، هل يمكننا نقل مكالمتك؟",
-  movedIntro: "شكرًا لاختيارك موعدًا. للأسف، {old} لم يعد متاحًا، لذا نقترح عليك:",
-  movedButton: "✅ نعم، الموعد الجديد يناسبني",
-  movedOther: "لا يناسبك؟",
-  chooseOther: "اختر موعدًا آخر",
-  meetAfter: "بمجرد التأكيد، ستصلك <strong>رابط Google Meet عبر البريد الإلكتروني</strong>.",
-  deadline: "يرجى التأكيد قبل <strong>{when}</strong> حتى نحجز لك هذا الموعد.",
-  nextTitle: "الخطوات التالية",
-  step1: "أكّد",
-  step2: "استلم رابط Meet عبر البريد",
-  step3: "انضم إلى المكالمة",
-  reminderSubject: "تذكير: يرجى تأكيد مكالمتك — {when}",
-  reminderEyebrow: "تذكير",
-  reminderTitle: "مرحبًا {name}، تذكير سريع",
-  reminderIntro: "ما زلنا نحجز لك هذا الموعد لمكالمتك المجانية. أكّده بنقرة واحدة:",
-  waKept: "مرحبًا {name}، معك {who} 👋 أخبار سارة: الموعد الذي اخترته لمكالمتك المجانية متاح: {when}. أكّد هنا: {url} (أو أجب بـ نعم). بمجرد التأكيد ستصلك رابط Google Meet عبر البريد. موعد آخر؟ {booking}",
-  waMoved: "مرحبًا {name}، معك {who} 👋 للأسف، {old} لم يعد متاحًا. هل يمكننا نقل مكالمتك المجانية إلى {when}؟ أكّد هنا: {url} (أو أجب بـ نعم). بمجرد التأكيد ستصلك رابط Google Meet عبر البريد. موعد آخر؟ {booking}",
-  confirmedSubject: "تم تأكيد مكالمتك المجانية — {when}",
-  confirmedEyebrow: "تم تأكيد المكالمة",
-  confirmedTitle: "مرحبًا {name}، نراك قريبًا!",
-  joinMeet: "انضم إلى Google Meet",
-  meetPending: "سيرسل لك مستشارك رابط Google Meet قبل المكالمة.",
-  openDashboard: "افتح لوحتي",
-  prepareTitle: "استعد لمكالمتك",
-  prepareText: "يرجى رفع <strong>جواز سفرك</strong> و<strong>آخر شهادة</strong> لديك قبل المكالمة، حتى يتمكن مستشارك من مراجعة ملفك.",
-  uploadDocs: "رفع المستندات ←",
-  inviteAttached: "دعوة التقويم مرفقة. تحتاج موعدًا آخر؟ رد على هذا البريد أو راسلنا عبر واتساب.",
-  waConfirmed: "مرحبًا {name}، تم تأكيد مكالمتك المجانية مع Outreach في {when}. {meet} يرجى رفع جواز سفرك وآخر شهادة قبل المكالمة: {url}",
-  waMeetJoin: "انضم من هنا: {url}",
-  waMeetPending: "سنرسل لك رابط Google Meet عبر البريد.",
-  icsTitle: "مكالمة مجانية مع Outreach",
-  icsAttached: "دعوة التقويم مرفقة.",
-  needOther: "تحتاج موعدًا آخر؟",
-  changeTime: "تغيير موعد مكالمتي",
-};
-
-const DICTS: Record<MailLang, Record<MailKey, string>> = { en, fr, es, ar };
-
-export const langOf = (c: { language?: string | null; tracking?: Record<string, string> | null }): MailLang => {
-  const l = c.language ?? c.tracking?.lang;
-  return l === "fr" || l === "es" || l === "ar" ? l : "en";
-};
-
-/** Translator for one language; {vars} are inserted as given (escape them first when HTML). */
-export const mailT = (lang: MailLang) => (key: MailKey, vars: Record<string, string | number> = {}) => {
-  let s = DICTS[lang][key] ?? en[key];
+/** Translator; {vars} are inserted as given (escape them first when HTML). */
+export const mailT = (_lang: MailLang) => (key: MailKey, vars: Record<string, string | number> = {}) => {
+  let s: string = en[key];
   for (const [k, v] of Object.entries(vars)) s = s.replaceAll(`{${k}}`, String(v));
   return s;
 };

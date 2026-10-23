@@ -12,6 +12,7 @@ import { ResetPassword } from "./pages/ResetPassword";
 import { CallPage, CandidateLayout, DocumentsPage, InvitePage, SettingsPage } from "./pages/Dashboard";
 
 // Heavy, staff-only screens (PDF, animation, admin tables) load on demand.
+const EmailPreferences = lazy(() => import("./pages/EmailPreferences").then((m) => ({ default: m.EmailPreferences })));
 const ConfirmCall = lazy(() => import("./pages/ConfirmCall").then((m) => ({ default: m.ConfirmCall })));
 const OnlineSessions = lazy(() => import("./pages/sessions/OnlineSessions").then((m) => ({ default: m.OnlineSessions })));
 const AdminLayout = lazy(() => import("./pages/admin/AdminLayout").then((m) => ({ default: m.AdminLayout })));
@@ -46,6 +47,7 @@ export function App() {
             <Route path="login" element={<Login />} />
             <Route path="reset-password" element={<ResetPassword />} />
             <Route path="confirm-call" element={<ConfirmCall />} />
+            <Route path="email-preferences" element={<EmailPreferences />} />
             <Route
               path="dashboard"
               element={

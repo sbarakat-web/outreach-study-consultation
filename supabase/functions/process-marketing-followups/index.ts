@@ -1,7 +1,8 @@
-// Scheduled hourly by pg_cron. Each eligible contact is claimed before sending,
-// preventing duplicate reminders when calls overlap.
+// Scheduled hourly by pg_cron: 24h invitation follow-ups and due campaign emails (scheduled /
+// local-morning sends). Every row is claimed before sending, so overlapping runs never double-send.
 import { createClient } from "npm:@supabase/supabase-js@2.45.4";
 import { actions, button, escape, eyebrow, highlight, layout, para, title } from "../_shared/email.ts";
+import { processDueSends } from "../_shared/marketing-send.ts";
 
 const env = (key: string) => Deno.env.get(key) ?? "";
 
@@ -38,7 +39,7 @@ Deno.serve(async () => {
         title(opened ? `Hi ${escape(firstName)}, ready for the next step?` : `Hi ${escape(firstName)}, did you see your invitation?`) +
         para(opened ? "You opened your invitation but have not created your account yet. Continue now to keep your consultation, documents and next steps together." : "We sent you an invitation yesterday. Create your free account to start your personalised Malta study journey.", true) +
         highlight(opened ? "<strong>It only takes about two minutes to finish.</strong>" : "<strong>Free consultation · Personalised guidance · Secure documents</strong>") +
-        actions(button(clickUrl, opened ? "Finish creating my account" : "Create my free account", "#28A77A")) +
+        actions(button(clickUrl, opened ? "Finish creating my account" : "Create my free account")) +
         para("Already created an account? No action is needed—marketing emails stop automatically.", true) +
         `<p style="margin:22px 0 0;text-align:center;font-size:12px;color:#8a8ea8">No longer interested? <a href="${unsubscribeUrl}" style="color:#5b6080;text-decoration:underline">Unsubscribe</a></p>` +
         `<img src="${openUrl}" width="1" height="1" alt="" style="display:block;border:0;width:1px;height:1px">`,
@@ -52,5 +53,6 @@ Deno.serve(async () => {
       await db.from("marketing_contacts").update({ last_error: result.error }).eq("id", contact.id);
     }
   }
-  return new Response(JSON.stringify({ ok: true, eligible: due?.length ?? 0, sent }), { headers: { "Content-Type": "application/json" } });
+  const campaignSent = await processDueSends(db, 300);
+  return new Response(JSON.stringify({ ok: true, eligible: due?.length ?? 0, sent, campaignSent }), { headers: { "Content-Type": "application/json" } });
 });
