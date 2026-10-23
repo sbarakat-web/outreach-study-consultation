@@ -154,7 +154,7 @@ function BreakdownTable({
         {rows.length === 0 ? (
           <p className="text-sm text-slate-500">No sessions in this period.</p>
         ) : (
-          <div className="overflow-x-auto">
+          <div className="mobile-scroll overflow-x-auto" role="region" aria-label={`${title} statistics`} tabIndex={0}>
             <table className="w-full min-w-[640px] text-left text-sm">
               <thead className="text-xs uppercase tracking-wider text-slate-500">
                 <tr className="border-b border-slate-100">

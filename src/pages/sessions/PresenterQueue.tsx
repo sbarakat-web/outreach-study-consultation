@@ -130,7 +130,7 @@ export function PresenterQueue({
   return (
     <aside
       aria-label="Presenter queue"
-      className="fixed inset-x-3 top-3 z-40 flex max-h-[52svh] flex-col overflow-hidden rounded-2xl bg-white/95 shadow-[0_24px_70px_rgba(3,17,40,0.35)] backdrop-blur md:inset-x-auto md:bottom-3 md:left-3 md:max-h-none md:w-96"
+      className="fixed inset-x-2 top-2 z-40 flex max-h-[58svh] flex-col overflow-hidden rounded-2xl bg-white/95 shadow-[0_24px_70px_rgba(3,17,40,0.35)] backdrop-blur sm:inset-x-3 sm:top-3 md:inset-x-auto md:bottom-3 md:left-3 md:max-h-none md:w-96"
     >
       <div className="flex items-center gap-3 bg-[#092553] px-4 py-3 text-white">
         <div className="flex items-center gap-3">
@@ -400,7 +400,7 @@ function CandidateProfileDrawer({
             {recommended && <p className="mt-2 rounded-xl bg-violet-50 px-3 py-2 text-xs font-semibold text-[#5424c7]">{recommended.school} · {recommended.duration} · {recommended.totalFee ?? recommended.fees[0]}</p>}
           </label>
 
-          <dl className="grid grid-cols-[7rem_1fr] gap-x-3 gap-y-2 rounded-2xl bg-slate-50 p-4 text-sm">
+          <dl className="grid grid-cols-[5.5rem_minmax(0,1fr)] gap-x-3 gap-y-2 rounded-2xl bg-slate-50 p-3 text-sm sm:grid-cols-[7rem_1fr] sm:p-4">
             {facts.map(([key, value]) => (
               <div key={key} className="contents">
                 <dt className="text-slate-400">{key}</dt>

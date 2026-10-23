@@ -482,9 +482,9 @@ export function OnlineSessions() {
               transition={reduce ? { duration: 0.1 } : { type: "spring", stiffness: 360, damping: 30 }}
             >
               <div aria-hidden className="h-2 shrink-0 bg-gradient-to-r from-[#d91c2b] via-[#8f2be8] to-[#078bc7]" />
-              <div className="flex shrink-0 items-center justify-between gap-2 px-4 pt-3 sm:px-8">
+              <div className="flex shrink-0 items-start justify-between gap-2 px-3 pt-2 sm:items-center sm:px-8 sm:pt-3">
                 {presenterMode ? (
-                  <div className="flex flex-wrap items-center gap-1.5">
+                  <div className="mobile-scroll flex max-w-[calc(100vw-4rem)] items-center gap-1.5 overflow-x-auto pb-1 sm:max-w-none sm:flex-wrap sm:overflow-visible sm:pb-0">
                     {isAdmin && (
                       <Link to="/admin?view=booked" className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1.5 text-xs font-bold text-slate-600 hover:bg-slate-200">
                         <ArrowLeft className="h-3.5 w-3.5" /> Booked Appointments
@@ -522,7 +522,7 @@ export function OnlineSessions() {
                 </button>
               </div>
 
-              <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-4 pb-8 sm:px-8">
+              <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-3 pb-6 sm:px-8 sm:pb-8">
                 <p className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-[0.2em] text-[#078bc7]">
                   <Sparkles className="h-3.5 w-3.5" /> Your Malta journey
                 </p>
@@ -544,7 +544,7 @@ export function OnlineSessions() {
                 </h1>
                 <p className="mt-1 text-slate-600">{CHAPTERS[chapter].subtitle}</p>
 
-                <div role="tablist" aria-label="Chapters" className="mt-5 flex gap-1 overflow-x-auto rounded-2xl bg-slate-100 p-1.5">
+                <div role="tablist" aria-label="Chapters" className="mobile-scroll mt-4 flex snap-x gap-1 overflow-x-auto rounded-2xl bg-slate-100 p-1.5 sm:mt-5">
                   {CHAPTERS.map((c, i) => {
                     const active = i === chapter;
                     const finished = visited.has(i) && i < chapter;
@@ -554,7 +554,7 @@ export function OnlineSessions() {
                         role="tab"
                         aria-selected={active}
                         onClick={() => goTo(i)}
-                        className={`shrink-0 rounded-xl px-4 py-2 text-sm font-bold transition outline-none focus-visible:ring-2 focus-visible:ring-[#5424c7] ${
+                        className={`shrink-0 snap-start rounded-xl px-4 py-2 text-sm font-bold transition outline-none focus-visible:ring-2 focus-visible:ring-[#5424c7] ${
                           active ? "bg-white text-[#5424c7] shadow" : finished ? "text-emerald-600 hover:bg-white/60" : "text-slate-600 hover:bg-white/60"
                         }`}
                       >
@@ -596,7 +596,7 @@ export function OnlineSessions() {
                 </div>
               </div>
 
-              <div className="flex shrink-0 items-center justify-between gap-2 border-t border-slate-200 bg-slate-50 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-8">
+              <div className="flex shrink-0 items-center justify-between gap-1.5 border-t border-slate-200 bg-slate-50 px-2 py-2.5 pb-[max(0.625rem,env(safe-area-inset-bottom))] sm:gap-2 sm:px-8 sm:py-3">
                 <button
                   onClick={() => (chapter === 0 ? close() : goTo(chapter - 1))}
                   className="inline-flex items-center gap-1.5 rounded-full px-4 py-2.5 text-sm font-bold text-slate-600 outline-none hover:bg-slate-200 focus-visible:ring-2 focus-visible:ring-[#5424c7]"
@@ -613,13 +613,14 @@ export function OnlineSessions() {
                       <Check className="h-4 w-4" /> Complete session
                     </button>
                   )}
-                  <button
-                    disabled={last}
-                    onClick={() => goTo(chapter + 1)}
-                    className="inline-flex items-center gap-1.5 rounded-full bg-[#092553] px-5 py-2.5 text-sm font-extrabold text-white outline-none hover:bg-[#153d77] focus-visible:ring-2 focus-visible:ring-[#5424c7] focus-visible:ring-offset-2 disabled:opacity-40"
-                  >
-                    Next <ArrowRight className="h-4 w-4" />
-                  </button>
+                  {!last && (
+                    <button
+                      onClick={() => goTo(chapter + 1)}
+                      className="inline-flex items-center gap-1.5 rounded-full bg-[#092553] px-5 py-2.5 text-sm font-extrabold text-white outline-none hover:bg-[#153d77] focus-visible:ring-2 focus-visible:ring-[#5424c7] focus-visible:ring-offset-2"
+                    >
+                      Next <ArrowRight className="h-4 w-4" />
+                    </button>
+                  )}
                 </div>
               </div>
               {notesOpen && (

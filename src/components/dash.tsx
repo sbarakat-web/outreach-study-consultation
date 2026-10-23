@@ -57,7 +57,7 @@ export function AppShell({
 }) {
   const location = useLocation();
   return (
-    <div className="grid grid-cols-[minmax(0,1fr)] gap-6 pb-24 pt-4 md:grid-cols-[16rem_minmax(0,1fr)] md:pb-10 md:pt-8 lg:grid-cols-[17.5rem_minmax(0,1fr)]">
+    <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-4 pb-24 pt-3 sm:gap-6 sm:pt-4 md:grid-cols-[16rem_minmax(0,1fr)] md:pb-10 md:pt-8 lg:grid-cols-[17.5rem_minmax(0,1fr)]">
       <aside className="hidden md:sticky md:top-24 md:block md:self-start">
         <div className="ui-card overflow-hidden rounded-md bg-white pb-4">
           <div className="relative flex items-center gap-3 px-6 pb-5 pt-6">
@@ -150,7 +150,7 @@ export interface Stat {
 /** White strip of stats with round grey icons and big numbers. Scrolls sideways on phones. */
 export function StatStrip({ items }: { items: Stat[] }) {
   return (
-    <div className="ui-card overflow-x-auto rounded-md bg-white">
+    <div className="mobile-scroll ui-card snap-x snap-mandatory overflow-x-auto rounded-md bg-white">
       <div className="flex min-w-max py-4 sm:min-w-0 sm:flex-wrap sm:gap-y-4">
         {items.map((s) => {
           const body = (
@@ -165,7 +165,7 @@ export function StatStrip({ items }: { items: Stat[] }) {
               </span>
             </>
           );
-          const cls = "flex min-w-[12.5rem] flex-1 items-center gap-4 border-slate-100 px-5 [&+&]:border-l";
+          const cls = "flex min-w-[calc(100vw-1.5rem)] snap-start items-center gap-4 border-slate-100 px-5 sm:min-w-[12.5rem] sm:flex-1 [&+&]:border-l";
           return s.onClick ? (
             <button key={s.label} onClick={s.onClick} className={`${cls} transition hover:bg-slate-50`}>
               {body}

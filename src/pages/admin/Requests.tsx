@@ -604,7 +604,7 @@ function Detail({ c, all, onClose, onSaved }: { c: Row; all: Row[]; onClose: () 
             />
           </div>
 
-          <dl className="grid grid-cols-[8rem_1fr] gap-x-4 gap-y-2 text-sm">
+          <dl className="grid grid-cols-[5.5rem_minmax(0,1fr)] gap-x-3 gap-y-2 text-sm sm:grid-cols-[8rem_1fr] sm:gap-x-4">
             {rows.map(([k, v]) => (
               <div key={k} className="contents">
                 <dt className="text-slate-500">{k}</dt>

@@ -15,7 +15,7 @@ export function MobileTabBar({ items, label }: { items: TabItem[]; label: string
   return (
     <nav
       aria-label={label}
-      className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden"
+      className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/95 pb-[env(safe-area-inset-bottom)] shadow-[0_-4px_18px_rgba(15,23,42,0.08)] backdrop-blur md:hidden"
     >
       <div className="grid" style={{ gridTemplateColumns: `repeat(${items.length}, minmax(0, 1fr))` }}>
         {items.map((t) => (
@@ -24,7 +24,7 @@ export function MobileTabBar({ items, label }: { items: TabItem[]; label: string
             to={t.to}
             end={t.end}
             className={({ isActive }) =>
-              `relative flex min-h-16 flex-col items-center justify-center gap-1 px-1 text-[11px] font-bold transition ${
+              `relative flex min-h-[3.75rem] min-w-0 flex-col items-center justify-center gap-1 px-0.5 text-[10px] font-bold transition min-[390px]:px-1 min-[390px]:text-[11px] ${
                 isActive ? "text-brand" : "text-slate-500 hover:text-navy"
               }`
             }
@@ -36,7 +36,7 @@ export function MobileTabBar({ items, label }: { items: TabItem[]; label: string
                   <t.icon className="h-5 w-5" />
                   {t.badge && <span className="absolute -right-3 -top-1.5">{t.badge}</span>}
                 </span>
-                <span className="max-w-full truncate">{t.label}</span>
+                <span className="w-full truncate px-0.5 text-center">{t.label}</span>
               </>
             )}
           </NavLink>

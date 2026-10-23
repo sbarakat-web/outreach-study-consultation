@@ -286,7 +286,7 @@ export function ProgrammePage() {
                               <h3 className="mt-2 text-lg font-black leading-tight text-navy">{option.course}</h3>
                               <p className="mt-1 text-sm font-semibold text-slate-500">{option.school}</p>
                             </div>
-                            <dl className="grid grid-cols-2 gap-px bg-slate-200 text-sm">
+                            <dl className="grid grid-cols-1 gap-px bg-slate-200 text-sm min-[420px]:grid-cols-2">
                               {[
                                 ["Qualification", [option.qualification, option.credits].filter(Boolean).join(" · ")],
                                 ["Duration", option.duration],
@@ -335,7 +335,7 @@ export function ProgrammePage() {
                             </div>
                             <span className="rounded-full bg-violet-100 px-3 py-1 text-xs font-bold text-brand">{provider.pill}</span>
                           </div>
-                          <div className="overflow-x-auto">
+                          <div className="mobile-scroll overflow-x-auto" role="region" aria-label={`${provider.name} course prices`} tabIndex={0}>
                             <table className="w-full min-w-[720px] text-left text-xs">
                               <thead className="bg-[#092553] text-white">
                                 <tr>

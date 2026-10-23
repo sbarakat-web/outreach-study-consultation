@@ -29,9 +29,9 @@ export function Layout() {
         className={`sticky top-0 z-40 ${inApp ? "bg-white shadow-[0_2px_14px_rgba(20,18,58,0.07)]" : "border-b border-slate-200/70 bg-white/90 backdrop-blur"}`}
       >
         {!inApp && <div aria-hidden className="h-1 bg-brand" />}
-        <div className={`mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 sm:px-6 ${inApp ? "h-[70px]" : "py-3"}`}>
+        <div className={`mx-auto flex max-w-6xl items-center justify-between gap-2 px-3 sm:gap-3 sm:px-6 ${inApp ? "h-16 sm:h-[70px]" : "py-3"}`}>
           <Link to={isAdmin ? "/admin" : session ? "/dashboard" : "/"} aria-label="Outreach — home" className="shrink-0">
-            <img src="/logo.png" alt="Outreach — Study in Malta" width={1102} height={180} className="h-8 w-auto sm:h-10" />
+            <img src="/logo.png" alt="Outreach — Study in Malta" width={1102} height={180} className="h-7 w-auto max-w-[52vw] sm:h-10 sm:max-w-none" />
           </Link>
           {inApp && isAdmin && (
             <form onSubmit={search} role="search" className="hidden max-w-md flex-1 md:flex">
@@ -97,7 +97,7 @@ export function Layout() {
         </div>
       </header>
 
-      <main className={`mx-auto w-full max-w-6xl flex-1 px-4 pt-2 sm:px-6 ${inApp ? "pb-8" : "pb-16"}`}>
+      <main className={`mx-auto w-full max-w-6xl min-w-0 flex-1 px-3 pt-2 sm:px-6 ${inApp ? "pb-8" : "pb-16"}`}>
         <Outlet />
       </main>
 
