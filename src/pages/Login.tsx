@@ -14,6 +14,7 @@ export function Login() {
   const { t } = useI18n();
   const [params] = useSearchParams();
   const nextPath = params.get("next") || "/dashboard";
+  const initialEmail = params.get("email") ?? "";
 
   const [mode, setMode] = useState<Mode>("code");
   const [email, setEmail] = useState("");
@@ -66,7 +67,7 @@ export function Login() {
           </div>
 
           {mode === "code" ? (
-            <EmailCode next={nextPath} onSignedIn={() => navigate(nextPath, { replace: true })} />
+            <EmailCode initialEmail={initialEmail} next={nextPath} onSignedIn={() => navigate(nextPath, { replace: true })} />
           ) : (
             <form onSubmit={submit} className="space-y-4">
               <div>

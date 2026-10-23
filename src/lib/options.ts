@@ -103,23 +103,17 @@ export interface DocumentType {
   required: boolean;
 }
 
-const PASSPORT: DocumentType = { key: "passport", label: "Passport", hint: "Photo page, valid for at least 6 months", required: true };
-const PHOTO: DocumentType = { key: "photo", label: "Passport-style photo", hint: "Plain background, recent", required: false };
-const CV: DocumentType = { key: "cv", label: "CV in English", hint: "Education and work experience, written in English", required: false };
+const REQUIRED_DOCUMENTS: DocumentType[] = [
+  { key: "cv", label: "Updated CV in English", hint: "Education and work experience, written in English", required: true },
+  { key: "passport", label: "Passport copy", hint: "Clear copy of the photo page", required: true },
+  { key: "course_certificates", label: "Certificates for your chosen course", hint: "Relevant academic or professional certificates", required: true },
+  { key: "ielts", label: "IELTS evidence according to the course requirement", hint: "Upload the English-language evidence required for your course", required: true },
+  { key: "personal_statement", label: "300-word personal statement", hint: "Explain your reasons for choosing this course and studying in Malta", required: true },
+];
 
 export const DOCUMENT_TYPES: Record<string, DocumentType[]> = {
-  english: [
-    PASSPORT,
-    PHOTO,
-    { key: "english_certificate", label: "English certificate", hint: "Only if you have one (any level)", required: false },
-  ],
-  higher_education: [
-    PASSPORT,
-    { key: "diploma", label: "Highest diploma", hint: "High school or university diploma", required: true },
-    { key: "transcripts", label: "Transcripts", hint: "Grades for your last completed studies", required: true },
-    { key: "english_certificate", label: "English certificate", hint: "Any English certificate or proof of your level", required: false },
-    CV,
-  ],
+  english: REQUIRED_DOCUMENTS,
+  higher_education: REQUIRED_DOCUMENTS,
 };
 
 export const documentTypesFor = (studyPath: string | null) => DOCUMENT_TYPES[studyPath ?? ""] ?? DOCUMENT_TYPES.english;

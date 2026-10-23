@@ -20,7 +20,7 @@ const DEFAULTS: Record<string, string> = {
 const setting = (k: string) => env(k) || DEFAULTS[k] || "";
 
 const DOCUMENTS = [
-  "Updated CV",
+  "Updated CV in English",
   "Passport copy",
   "Certificates for your chosen course",
   "IELTS evidence according to the course requirement",

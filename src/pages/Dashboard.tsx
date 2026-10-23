@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
-import { Link, Outlet, useLocation, useNavigate, useOutletContext } from "react-router-dom";
+import { Link, Outlet, useLocation, useNavigate, useOutletContext, useSearchParams } from "react-router-dom";
 import { AlertCircle, CalendarCheck, Camera, CheckCircle2, Circle, Clock, Copy, FileText, Gift, MessageCircle, Settings, Star, Trash2, Upload } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
@@ -33,7 +33,9 @@ const requiredProgress = (c: Consultation, docs: DocumentRow[]) => {
 
 /** Candidate area: one application, with a sidebar for the call, documents and invites. */
 export function CandidateLayout() {
-  const { session, signOut } = useAuth();
+  const { session, signOut, isAdmin } = useAuth();
+  const [searchParams] = useSearchParams();
+  const previewId = isAdmin ? searchParams.get("preview") : null;
   const navigate = useNavigate();
   const { t } = useI18n();
   const userId = session!.user.id;
@@ -42,20 +44,21 @@ export function CandidateLayout() {
   const [error, setError] = useState("");
 
   const reload = useCallback(async () => {
-    const [res, d] = await Promise.all([
-      supabase
-        .from("consultations")
-        .select("*")
-        .or(`user_id.eq.${userId},email.eq."${(session!.user.email ?? "").toLowerCase()}"`)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle(),
-      supabase.from("documents").select("*").eq("user_id", userId).order("created_at"),
-    ]);
+    const consultationQuery = supabase.from("consultations").select("*");
+    const res = previewId
+      ? await consultationQuery.eq("id", previewId).maybeSingle()
+      : await consultationQuery
+          .or(`user_id.eq.${userId},email.eq."${(session!.user.email ?? "").toLowerCase()}"`)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+    const d = previewId
+      ? await supabase.from("documents").select("*").eq("consultation_id", previewId).order("created_at")
+      : await supabase.from("documents").select("*").eq("user_id", userId).order("created_at");
     if (res.error) setError(res.error.message);
     setC((res.data as Consultation) ?? null);
     setDocs(d.data ?? []);
-  }, [userId, session]);
+  }, [userId, session, previewId]);
 
   useEffect(() => {
     reload();
@@ -91,11 +94,12 @@ export function CandidateLayout() {
       {rejected ? `!${rejected}` : `${progress.done}/${progress.total}`}
     </span>
   );
+  const previewSuffix = previewId ? `?preview=${encodeURIComponent(previewId)}` : "";
   const tabs: TabItem[] = [
-    { to: "/dashboard", label: t("side.call"), icon: CalendarCheck, end: true },
-    { to: "/dashboard/documents", label: t("side.documents"), icon: FileText, badge: progress.done < progress.total || rejected ? docBadge : undefined },
-    { to: "/dashboard/invite", label: t("side.invite"), icon: Gift },
-    { to: "/dashboard/settings", label: t("side.settings"), icon: Settings },
+    { to: `/dashboard${previewSuffix}`, label: t("side.call"), icon: CalendarCheck, end: true },
+    { to: `/dashboard/documents${previewSuffix}`, label: t("side.documents"), icon: FileText, badge: progress.done < progress.total || rejected ? docBadge : undefined },
+    { to: `/dashboard/invite${previewSuffix}`, label: t("side.invite"), icon: Gift },
+    { to: `/dashboard/settings${previewSuffix}`, label: t("side.settings"), icon: Settings },
   ];
 
   const first = c.full_name.split(" ")[0];
@@ -115,6 +119,11 @@ export function CandidateLayout() {
       fab={whatsappNumber ? <Fab href={waLink(whatsappNumber)} label={t("side.help")} icon={MessageCircle} className="bg-[#25D366]" /> : undefined}
     >
       <div className="max-w-4xl space-y-6">
+        {previewId && (
+          <Alert tone="success">
+            Admin preview · You are viewing {c.full_name}'s candidate dashboard. <Link to={`/admin?lead=${encodeURIComponent(c.id)}`} className="font-bold underline">Return to admin</Link>
+          </Alert>
+        )}
         {error && <Alert>{error}</Alert>}
         <Outlet context={{ c, docs: myDocs, reload, userId } satisfies CandidateContext} />
       </div>

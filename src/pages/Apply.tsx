@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { ArrowLeft, ArrowRight, BookOpen, CheckCircle2, GraduationCap, MessageCircle, Send } from "lucide-react";
+import { ArrowLeft, ArrowRight, BookOpen, CheckCircle2, GraduationCap, Send } from "lucide-react";
 import { parsePhoneNumberFromString, type CountryCode } from "libphonenumber-js/max";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
 import { getTracking } from "../lib/tracking";
 import { CountryPicker } from "../components/CountryPicker";
 import { countriesFor, countryByCode, detectCountry, fetchGeoCountry } from "../lib/countries";
-import { PROGRAMMES, parseCourseParam, parsePathParam, waLink, whatsappNumber } from "../lib/options";
+import { PROGRAMMES, parseCourseParam, parsePathParam } from "../lib/options";
 import { Alert, Button, Card } from "../components/ui";
 import { EmailCode } from "../components/EmailCode";
 import { useI18n } from "../lib/i18n";
@@ -59,6 +59,8 @@ function initialDraft(): Draft {
   const params = new URLSearchParams(window.location.search);
   const course = parseCourseParam(params.get("course"));
   const path = parsePathParam(params.get("path")) ?? (course ? "higher_education" : undefined);
+  const linkedEmail = params.get("email")?.trim().toLowerCase();
+  if (linkedEmail && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(linkedEmail)) d.email = linkedEmail;
   if (path) {
     d.path = path;
     d.stage = "form";
@@ -424,16 +426,6 @@ function Done({ name, email, course, onSignedIn }: { name: string; email: string
             <h2 className="mb-3 font-black">{t("done.openDashboard")}</h2>
             <EmailCode email={email} autoSend data={{ full_name: name, course }} onSignedIn={onSignedIn} />
           </div>
-          {whatsappNumber && (
-            <a
-              href={waLink(whatsappNumber, `Hi! I just applied for ${course}. My name is ${name}.`)}
-              target="_blank"
-              rel="noreferrer"
-              className="flex min-h-12 items-center justify-center gap-2 rounded-full bg-[#25D366] px-6 text-sm font-extrabold text-white shadow-lg transition hover:brightness-95"
-            >
-              <MessageCircle className="h-4 w-4" /> {t("done.whatsapp")}
-            </a>
-          )}
         </div>
       </Card>
     </div>

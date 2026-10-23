@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { CalendarCheck, CheckCircle2, Clock, FileText, Play, Presentation, Search, Star, UsersRound, Video, X } from "lucide-react";
+import { CalendarCheck, CheckCircle2, Clock, ExternalLink, FileText, Play, Plus, Presentation, Search, Star, UsersRound, Video, X } from "lucide-react";
 import { supabase } from "../../lib/supabase";
 import {
   ENGLISH_LEVELS,
@@ -25,10 +25,17 @@ type Row = Consultation & { documents?: { count: number }[] };
 export function Requests() {
   const [items, setItems] = useState<Row[] | null>(null);
   const [error, setError] = useState("");
-  const [params] = useSearchParams();
+  const [params, setParams] = useSearchParams();
   const [query, setQuery] = useState(params.get("q") ?? "");
-  const [status, setStatus] = useState<Status | "">("");
-  useEffect(() => setQuery(params.get("q") ?? ""), [params]);
+  const requestedStatus = params.get("status");
+  const [status, setStatus] = useState<Status | "">(STATUSES.some((s) => s.value === requestedStatus) ? requestedStatus as Status : "");
+  const [adding, setAdding] = useState(params.get("new") === "1");
+  useEffect(() => {
+    setQuery(params.get("q") ?? "");
+    const next = params.get("status");
+    setStatus(STATUSES.some((s) => s.value === next) ? next as Status : "");
+    setAdding(params.get("new") === "1");
+  }, [params]);
   const [openId, setOpenId] = useState<string | null>(params.get("lead"));
   const [view, setView] = useState(params.get("view"));
 
@@ -76,11 +83,16 @@ export function Requests() {
 
       <PageTitle
         actions={
-          <Link to="/onlinesessions?present=1">
-            <Button variant="secondary">
-              <Presentation className="h-4 w-4" /> Online sessions
+          <span className="flex flex-wrap gap-2">
+            <Button onClick={() => setParams({ new: "1" })}>
+              <Plus className="h-4 w-4" /> Add new lead
             </Button>
-          </Link>
+            <Link to="/onlinesessions?present=1">
+              <Button variant="secondary">
+                <Presentation className="h-4 w-4" /> Online sessions
+              </Button>
+            </Link>
+          </span>
         }
       >
         Leads
@@ -168,7 +180,16 @@ export function Requests() {
             aria-label="Search requests"
           />
         </div>
-        <select className="field sm:w-64" value={status} onChange={(e) => setStatus(e.target.value as Status | "")} aria-label="Filter by status">
+        <select
+          className="field sm:w-64"
+          value={status}
+          onChange={(e) => {
+            const next = e.target.value as Status | "";
+            setStatus(next);
+            setParams(next ? { status: next } : {});
+          }}
+          aria-label="Filter by status"
+        >
           <option value="">All statuses ({items.length})</option>
           {STATUSES.map((s) => (
             <option key={s.value} value={s.value}>
@@ -228,11 +249,74 @@ export function Requests() {
       </Card>
 
       {open && <Detail c={open as Row} all={items} onClose={() => setOpenId(null)} onSaved={load} />}
+      {adding && (
+        <AddLead
+          onClose={() => { setAdding(false); setParams({}); }}
+          onCreated={(id) => {
+            setAdding(false);
+            setParams({ lead: id });
+            setOpenId(id);
+            load();
+          }}
+        />
+      )}
     </div>
   );
 }
 
 const SESSION_LABEL = { interviewed: "Interviewed", no_attendance: "No attendance", no_longer_interested: "No longer interested" } as const;
+
+function AddLead({ onClose, onCreated }: { onClose: () => void; onCreated: (id: string) => void }) {
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [status, setStatus] = useState<Status>("new");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  const submit = async (event: FormEvent) => {
+    event.preventDefault();
+    setSaving(true);
+    setError("");
+    const { data, error: invokeError } = await supabase.functions.invoke("admin-create-lead", {
+      body: { full_name: name.trim(), email: email.trim().toLowerCase(), status },
+    });
+    setSaving(false);
+    if (invokeError || data?.error) return setError(data?.error ?? invokeError?.message ?? "Could not add the lead");
+    onCreated(data.id);
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center overflow-y-auto bg-navy/45 p-4" onClick={onClose}>
+      <Card>
+        <form onSubmit={submit} className="w-[min(32rem,calc(100vw-2rem))] space-y-4 p-6" onClick={(e) => e.stopPropagation()}>
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h2 className="text-xl font-black">Add new lead</h2>
+              <p className="mt-1 text-sm text-slate-500">The candidate receives an email for the selected status with a secure dashboard button.</p>
+            </div>
+            <button type="button" aria-label="Close" onClick={onClose} className="rounded-full p-2 hover:bg-mist"><X className="h-5 w-5" /></button>
+          </div>
+          <div>
+            <label className="label" htmlFor="new-lead-name">Full name</label>
+            <input id="new-lead-name" className="field" required minLength={2} value={name} onChange={(e) => setName(e.target.value)} />
+          </div>
+          <div>
+            <label className="label" htmlFor="new-lead-email">Email</label>
+            <input id="new-lead-email" type="email" className="field" required value={email} onChange={(e) => setEmail(e.target.value)} />
+          </div>
+          <div>
+            <label className="label" htmlFor="new-lead-status">Status</label>
+            <select id="new-lead-status" className="field" value={status} onChange={(e) => setStatus(e.target.value as Status)}>
+              {STATUSES.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
+            </select>
+          </div>
+          {error && <Alert>{error}</Alert>}
+          <Button type="submit" loading={saving} className="w-full"><Plus className="h-4 w-4" /> Add lead and send email</Button>
+        </form>
+      </Card>
+    </div>
+  );
+}
 
 function StartSessionLink({ c }: { c: Row }) {
   return (
@@ -378,6 +462,26 @@ function Detail({ c, all, onClose, onSaved }: { c: Row; all: Row[]; onClose: () 
 
         <div className="space-y-6 px-6 py-5">
           <CallPanel c={c} onSaved={onSaved} />
+
+          <div className="rounded-2xl bg-mist p-4">
+            <label htmlFor="lead-status" className="label">Lead status</label>
+            <select
+              id="lead-status"
+              className="field mt-1"
+              value={c.status}
+              onChange={(e) => quickUpdate({ status: e.target.value as Status })}
+            >
+              {STATUSES.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
+            </select>
+            <a
+              href={`/dashboard?preview=${encodeURIComponent(c.id)}`}
+              target="_blank"
+              rel="noreferrer"
+              className="mt-3 inline-flex items-center gap-2 text-sm font-bold text-brand hover:underline"
+            >
+              <ExternalLink className="h-4 w-4" /> Open candidate dashboard
+            </a>
+          </div>
 
           <SessionPanel c={c} />
 

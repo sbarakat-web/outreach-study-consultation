@@ -11,19 +11,21 @@ import { useI18n } from "../lib/i18n";
  */
 export function EmailCode({
   email: fixedEmail,
+  initialEmail,
   autoSend,
   next = "/dashboard",
   data,
   onSignedIn,
 }: {
   email?: string;
+  initialEmail?: string;
   data?: Record<string, string>;
   autoSend?: boolean;
   next?: string;
   onSignedIn: () => void;
 }) {
   const { t } = useI18n();
-  const [email, setEmail] = useState(fixedEmail ?? "");
+  const [email, setEmail] = useState(fixedEmail ?? initialEmail ?? "");
   const [sent, setSent] = useState(false);
   const [code, setCode] = useState("");
   const [loading, setLoading] = useState(false);

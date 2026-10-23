@@ -1,7 +1,7 @@
 // Building blocks of the dashboard look (candidate + admin), modelled on the "Boardash" template:
 // floating sidebar card, stat strip with round icons, meeting-style cards.
 import type { ReactNode } from "react";
-import { NavLink } from "react-router-dom";
+import { NavLink, useLocation } from "react-router-dom";
 import type { LucideIcon } from "lucide-react";
 import { LogOut } from "lucide-react";
 import { MobileTabBar, type TabItem } from "./TabBar";
@@ -55,6 +55,7 @@ export function AppShell({
   fab?: ReactNode;
   children: ReactNode;
 }) {
+  const location = useLocation();
   return (
     <div className="grid grid-cols-[minmax(0,1fr)] gap-6 pb-24 pt-4 md:grid-cols-[16rem_minmax(0,1fr)] md:pb-10 md:pt-8 lg:grid-cols-[17.5rem_minmax(0,1fr)]">
       <aside className="hidden md:sticky md:top-24 md:block md:self-start">
@@ -72,7 +73,20 @@ export function AppShell({
           </div>
           <nav aria-label={label} className="flex flex-col">
             {items.map((t) => (
-              <NavLink key={t.to} to={t.to} end={t.end} className={sideItemClass}>
+              <NavLink
+                key={t.to}
+                to={t.to}
+                end={t.end}
+                className={({ isActive }) =>
+                  sideItemClass({
+                    isActive: t.to.includes("?")
+                      ? `${location.pathname}${location.search}` === t.to
+                      : t.end && location.pathname === t.to && location.search
+                        ? false
+                        : isActive,
+                  })
+                }
+              >
                 <t.icon className="h-[18px] w-[18px] shrink-0 opacity-80" />
                 <span className="flex-1 truncate">{t.label}</span>
                 {t.badge}
