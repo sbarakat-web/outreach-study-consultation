@@ -1,4 +1,4 @@
-<!-- Supabase "Confirm signup" template: the one email a new candidate receives after applying. -->
+<!-- Supabase "Confirm signup" template: new applications and leads added by an admin. -->
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f5fb;padding:24px 12px;font-family:Arial,Helvetica,sans-serif">
   <tr><td align="center">
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#ffffff;border-radius:20px;overflow:hidden">
@@ -7,18 +7,12 @@
         <img src="https://consultation.outreachstudy.eu/logo.png" alt="Outreach — Study in Malta" width="200" style="display:block;margin:0 auto;border:0;width:200px;max-width:70%;height:auto">
       </td></tr>
       <tr><td style="padding:18px 28px 30px;color:#14123a;font-size:15px;line-height:1.65">
-        <p style="margin:0 0 6px;text-align:center;font-size:12px;font-weight:bold;letter-spacing:1.5px;text-transform:uppercase;color:#442DFA">Application received</p>
-        <h1 style="margin:0 0 14px;text-align:center;font-size:24px;line-height:1.3">Hi{{ if .Data.full_name }} {{ .Data.full_name }}{{ end }}, thank you!</h1>
-        <p style="margin:0 0 16px;text-align:center;color:#5b6080">Your application{{ if .Data.course }} for <strong style="color:#14123a">{{ .Data.course }}</strong>{{ end }} is saved. Use this code to open your personal dashboard:</p>
+        <p style="margin:0 0 6px;text-align:center;font-size:12px;font-weight:bold;letter-spacing:1.5px;text-transform:uppercase;color:#442DFA">Your Outreach dashboard</p>
+        <h1 style="margin:0 0 14px;text-align:center;font-size:24px;line-height:1.3">Hi{{ if .Data.full_name }} {{ .Data.full_name }}{{ end }}, your lead is ready</h1>
+        <p style="margin:0 0 16px;text-align:center;color:#5b6080">We’ve added your study enquiry to Outreach{{ if .Data.status }} and recorded its current status as <strong style="color:#14123a">{{ .Data.status }}</strong>{{ end }}. Confirm your email to securely open your personal dashboard.</p>
         <p style="margin:0 0 18px;padding:18px;background:#f0eeff;border-radius:14px;text-align:center;font-size:34px;font-weight:bold;letter-spacing:10px;color:#442DFA">{{ .Token }}</p>
-        <p style="margin:22px 0;text-align:center"><a href="{{ .ConfirmationURL }}" style="display:inline-block;background:#442DFA;color:#ffffff;padding:14px 28px;border-radius:999px;text-decoration:none;font-weight:bold;font-size:15px">Open my dashboard</a></p>
-        <p style="margin:0 0 6px;color:#14123a"><strong>Next steps</strong></p>
-        <ol style="margin:0 0 16px;padding-left:20px;color:#5b6080">
-          <li style="margin:4px 0">Pick a time for your free 20-minute call</li>
-          <li style="margin:4px 0">Upload your documents before the call</li>
-          <li style="margin:4px 0">We review your profile and confirm your call</li>
-        </ol>
-        <p style="margin:0;text-align:center;font-size:12px;color:#8a8ea8">The code expires in 1 hour. If you didn't apply, you can ignore this email.</p>
+        <p style="margin:22px 0;text-align:center"><a href="{{ .ConfirmationURL }}" style="display:inline-block;background:#442DFA;color:#ffffff;padding:14px 28px;border-radius:999px;text-decoration:none;font-weight:bold;font-size:15px">Confirm email &amp; open dashboard</a></p>
+        <p style="margin:0;text-align:center;font-size:12px;color:#8a8ea8">The code expires in 1 hour. If you didn’t request this, you can ignore this email.</p>
       </td></tr>
       <tr><td align="center" style="padding:20px 28px;background:#f8f8fc;color:#8a8ea8;font-size:12px;line-height:1.7">
         <strong style="color:#14123a">Outreach — Study in Malta</strong><br>

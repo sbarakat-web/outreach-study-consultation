@@ -16,7 +16,7 @@ const res = await fetch(`https://api.supabase.com/v1/projects/${PROJECT_REF}/con
   method: "PATCH",
   headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
   body: JSON.stringify({
-    mailer_subjects_confirmation: "Your Outreach application is received — code {{ .Token }}",
+    mailer_subjects_confirmation: "Confirm your email to open your Outreach dashboard — code {{ .Token }}",
     mailer_templates_confirmation_content: read("confirm-signup.html"),
     mailer_subjects_magic_link: "Your Outreach sign-in code: {{ .Token }}",
     mailer_templates_magic_link_content: read("magic-link.html"),

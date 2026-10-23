@@ -29,7 +29,7 @@ Stack: Vite + React + TypeScript + Tailwind, and Supabase (Auth, Postgres with R
    insert into public.admins (email) values ('you@example.com');
    ```
    Then create an account at `/login` with that email and confirm it. Add other admins from `/admin/team`.
-5. **Email templates (one email with a code).** With custom SMTP enabled, upload the branded templates in `supabase/templates/`:
+5. **Email templates (one email with a code).** With custom SMTP enabled, upload the branded templates in `supabase/templates/`. The Confirm signup template is used for new applicants and admin-added leads; it asks recipients to confirm their email and open their dashboard:
    `SUPABASE_ACCESS_TOKEN=sbp_... node scripts/push-email-templates.mjs` (token from https://supabase.com/dashboard/account/tokens).
    Or paste `confirm-signup.html` into **Confirm signup** and `magic-link.html` into **Magic Link** by hand.
 6. Optional: set Supabase Auth to send email through your own SMTP (Auth → SMTP) so that sign-up emails come from your domain.
