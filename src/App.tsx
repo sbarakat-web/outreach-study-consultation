@@ -5,6 +5,7 @@ import { I18nProvider } from "./lib/i18n";
 import { supabaseConfigured } from "./lib/supabase";
 import { Layout } from "./components/Layout";
 import { RequireAuth } from "./components/RequireAuth";
+import { SeoController } from "./components/SeoController";
 import { Alert, Spinner } from "./components/ui";
 import { Apply } from "./pages/Apply";
 import { Login } from "./pages/Login";
@@ -39,6 +40,7 @@ export function App() {
     <I18nProvider>
     <AuthProvider>
       <BrowserRouter>
+        <SeoController />
         <Suspense fallback={<Spinner />}>
         <Routes>
           <Route path="onlinesessions" element={<OnlineSessions />} />

@@ -207,14 +207,23 @@ export function Apply() {
   const stepIndex = d.stage === "choose" ? 0 : 1;
 
   return (
-    <div className="mx-auto max-w-3xl pt-2 sm:pt-4">
+    <div className="mx-auto max-w-3xl space-y-6 pt-2 sm:space-y-8 sm:pt-4">
+      <section className="px-2 py-5 text-center sm:py-8" aria-labelledby="study-in-malta-title">
+        <p className="text-xs font-extrabold uppercase tracking-[0.2em] text-brand">Free study consultation</p>
+        <h1 id="study-in-malta-title" className="mx-auto mt-3 max-w-2xl text-3xl font-black leading-tight text-navy sm:text-5xl">
+          Study in Malta with clear, personal guidance
+        </h1>
+        <p className="mx-auto mt-4 max-w-2xl text-sm leading-relaxed text-slate-600 sm:text-lg">
+          Compare English courses, diploma, bachelor&apos;s and master&apos;s programmes, tuition fees and entry requirements. Our advisers help you choose the right route and prepare your next steps.
+        </p>
+      </section>
       <Card>
         <div className="px-5 pb-8 pt-6 sm:px-9 sm:pb-9 sm:pt-8">
           <div className="mb-7 text-center">
             <p className="text-xs font-extrabold uppercase tracking-[0.2em] text-brand">{t("apply.step", { n: stepIndex + 1, total: 2 })}</p>
-            <h1 className="mt-2 text-2xl font-black leading-tight sm:text-3xl">
+            <h2 className="mt-2 text-2xl font-black leading-tight sm:text-3xl">
               {d.stage === "choose" ? t("apply.chooseTitle") : t("apply.formTitle")}
-            </h1>
+            </h2>
             <p className="mx-auto mt-2 max-w-xl text-sm text-slate-500">
               {d.stage === "choose" ? t("apply.chooseSub") : t("apply.formSub")}
             </p>
@@ -395,6 +404,19 @@ export function Apply() {
           </div>
         </div>
       </Card>
+      <section aria-labelledby="malta-study-support" className="grid gap-3 pb-4 sm:grid-cols-3">
+        {[
+          ["Courses and fees", "Compare Malta programmes, providers, duration and tuition fees in one clear journey."],
+          ["Application support", "Get guidance on entry requirements, documents, intakes and your school application."],
+          ["Visa preparation", "Understand the Malta student visa checklist and prepare the required documents step by step."],
+        ].map(([title, text], index) => (
+          <article key={title} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            {index === 0 && <h2 id="malta-study-support" className="sr-only">Study in Malta support</h2>}
+            <h3 className="font-black text-navy">{title}</h3>
+            <p className="mt-2 text-sm leading-relaxed text-slate-500">{text}</p>
+          </article>
+        ))}
+      </section>
     </div>
   );
 }
