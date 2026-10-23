@@ -224,13 +224,10 @@ export function Apply() {
         <p className="mx-auto mt-4 max-w-2xl text-sm leading-relaxed text-slate-600 sm:text-lg">
           Compare English courses, diploma, bachelor&apos;s and master&apos;s programmes, tuition fees and entry requirements. Our advisers help you choose the right route and prepare your next steps.
         </p>
-        <div className="mt-6 flex flex-col justify-center gap-3 sm:flex-row">
+        <div className="mt-6 flex justify-center">
           <a href="#apply" className="inline-flex min-h-12 items-center justify-center rounded-full bg-brand px-6 text-sm font-extrabold text-white shadow-lg shadow-brand/20 transition hover:-translate-y-0.5 hover:bg-brand/90">
             Find my programme
           </a>
-          <Link to="/onlinesessions" className="inline-flex min-h-12 items-center justify-center rounded-full bg-white px-6 text-sm font-extrabold text-navy ring-1 ring-slate-200 transition hover:-translate-y-0.5 hover:ring-brand/30">
-            Explore Malta study options
-          </Link>
         </div>
       </section>
       <section id="apply" aria-label="Study in Malta application" className="mx-auto w-full max-w-3xl scroll-mt-24">
