@@ -125,23 +125,76 @@ export interface Partner {
   name: string;
   website: string;
   logo: string;
+  campusImage: string;
+  location: string;
+  programmes: string[];
+  accreditation: string;
 }
 
 const partnerLogo = (slug: string) => `/partners/${slug}.png`;
 
 export const PARTNERS: Partner[] = [
-  { name: "eie European Business School", website: "eieinstitute.com", logo: partnerLogo("eie") },
-  { name: "GBS Malta", website: "gbs.edu.mt", logo: partnerLogo("gbs") },
-  { name: "English Path", website: "englishpath.com", logo: partnerLogo("english-path") },
-  { name: "London School of Commerce Malta", website: "lscmalta.edu.mt", logo: partnerLogo("lsc") },
-  { name: "Kensington English", website: "kensingtonenglish.co.uk", logo: partnerLogo("kensington") },
+  {
+    name: "eie European Business School",
+    website: "eieinstitute.com",
+    logo: partnerLogo("eie"),
+    campusImage: "/partners/eie-campus.jpg",
+    location: "St Julian's, Malta",
+    programmes: ["Business and management", "Accounting and finance", "Hospitality", "MBA pathways"],
+    accreditation: "MFHEA-licensed Higher Education Institution · Licence 2005-TC-001 · MQF/EQF Levels 5–7",
+  },
+  {
+    name: "GBS Malta",
+    website: "gbs.edu.mt",
+    logo: partnerLogo("gbs"),
+    campusImage: "/partners/gbs-campus.jpg",
+    location: "St Julian's, Malta",
+    programmes: ["Business and management", "Computing and IT", "Public health", "Postgraduate study"],
+    accreditation: "MFHEA-licensed Higher Education Institution · Licence 2022-010 · MQF-aligned programmes",
+  },
+  {
+    name: "English Path Malta",
+    website: "englishpath.com/destinations/europe/malta",
+    logo: partnerLogo("english-path"),
+    campusImage: "/partners/english-path-campus.jpg",
+    location: "St Julian's, Malta",
+    programmes: ["General English", "Business English", "IELTS preparation", "Professional certificates"],
+    accreditation: "Malta campus accredited by the ELT Council",
+  },
+  {
+    name: "London School of Commerce Malta",
+    website: "lscmalta.edu.mt",
+    logo: "/partners/lsc.svg",
+    campusImage: "/partners/lsc-campus.jpg",
+    location: "Floriana, Malta",
+    programmes: ["Business and management", "Undergraduate study", "MBA pathways", "Postgraduate study"],
+    accreditation: "MFHEA-licensed Higher Education Institution · Licence 2013-FHI-025",
+  },
+  {
+    name: "Kensington English",
+    website: "kensingtonenglish.co.uk",
+    logo: partnerLogo("kensington"),
+    campusImage: "/partners/kensington-campus.jpg",
+    location: "London-based · live online delivery",
+    programmes: ["General English", "IELTS preparation", "Business English", "One-to-one tuition"],
+    accreditation: "Courses taught by CELTA-qualified teachers; confirm the recognition required for the student's pathway",
+  },
+  {
+    name: "School of Business & Management Malta",
+    website: "sbm.edu.mt",
+    logo: "/partners/sbm.webp",
+    campusImage: "/partners/sbm-campus.webp",
+    location: "Gżira, Malta",
+    programmes: ["International Foundation Year", "Business", "Information technology", "Health and social care"],
+    accreditation: "MFHEA-licensed institution · Licence 2021-015 · confirm programme-specific accreditation before enrolment",
+  },
 ];
 
 export const SCHOOL_LOGOS: Record<string, string> = {
   "EIE European Business School": partnerLogo("eie"),
   "GBS Malta": partnerLogo("gbs"),
-  "London School of Commerce Malta": partnerLogo("lsc"),
-  "School of Business & Management Malta": partnerLogo("sbm"),
+  "London School of Commerce Malta": "/partners/lsc.svg",
+  "School of Business & Management Malta": "/partners/sbm.webp",
 };
 
 export const OTHER_INFO: { title: string; description: string; cards: InfoCard[] }[] = [

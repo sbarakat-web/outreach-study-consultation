@@ -1,6 +1,6 @@
-import { useEffect, useRef, type KeyboardEvent, type ReactNode } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { ArrowRightCircle, CheckCircle2, ExternalLink, HelpCircle, MessageCircle, Star } from "lucide-react";
+import { ArrowRightCircle, BookOpen, CheckCircle2, ExternalLink, HelpCircle, MapPin, MessageCircle, ShieldCheck, Star, X } from "lucide-react";
 import {
   AREAS,
   BRAND,
@@ -521,6 +521,15 @@ export function OtherInfoChapter() {
 
 export function PartnersChapter() {
   const motionFor = useCardMotion();
+  const [selected, setSelected] = useState<(typeof PARTNERS)[number] | null>(null);
+
+  useEffect(() => {
+    if (!selected) return;
+    const onKey = (event: globalThis.KeyboardEvent) => event.key === "Escape" && setSelected(null);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [selected]);
+
   return (
     <div className="space-y-5">
       <div className="rounded-2xl bg-gradient-to-br from-sky-50 to-sky-100 p-5 sm:p-6">
@@ -531,25 +540,106 @@ export function PartnersChapter() {
           and find an institution that fits their goals.
         </p>
       </div>
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
         {PARTNERS.map((p, i) => (
-          <motion.a
+          <motion.button
             key={p.name}
             {...motionFor(i)}
-            href={`https://${p.website}`}
-            target="_blank"
-            rel="noreferrer"
-            className="flex min-h-40 flex-col items-center justify-center gap-2 rounded-2xl border-2 border-slate-100 bg-white p-4 text-center shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-[#5424c7]"
+            type="button"
+            onClick={() => setSelected(p)}
+            aria-label={`View ${p.name} profile`}
+            className="group flex min-h-44 flex-col items-center justify-center gap-2 rounded-2xl border-2 border-slate-100 bg-white p-4 text-center shadow-sm outline-none transition hover:border-sky-200 hover:shadow-md focus-visible:ring-2 focus-visible:ring-[#5424c7]"
           >
             <LogoTile src={p.logo} name={p.name} className="h-20 w-full max-w-[150px]" />
             <span className="text-sm font-black text-[#092553]">{p.name}</span>
-            <span className="flex items-center gap-1 text-xs text-slate-400">
-              {p.website} <ExternalLink className="h-3 w-3" />
+            <span className="flex items-center gap-1 text-xs font-bold text-[#078bc7]">
+              View school profile <ArrowRightCircle className="h-3.5 w-3.5 transition group-hover:translate-x-0.5" />
             </span>
-          </motion.a>
+          </motion.button>
         ))}
       </div>
       <Note>Available institutions and programmes depend on the student's profile, chosen intake and current admissions availability.</Note>
+
+      <AnimatePresence>
+        {selected && (
+          <motion.div
+            className="fixed inset-0 z-[70] flex items-end justify-center bg-[#031128]/70 p-3 backdrop-blur-sm sm:items-center"
+            role="presentation"
+            onMouseDown={(event) => event.target === event.currentTarget && setSelected(null)}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            <motion.article
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="partner-profile-title"
+              className="max-h-[92svh] w-full max-w-3xl overflow-y-auto rounded-3xl bg-white shadow-2xl"
+              initial={{ opacity: 0, y: 30, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 18, scale: 0.98 }}
+            >
+              <div className="relative h-48 overflow-hidden rounded-t-3xl sm:h-64">
+                <SmartImage
+                  src={selected.campusImage}
+                  alt={`${selected.name} learning environment`}
+                  className="h-full w-full object-cover"
+                  fallback={<div className="h-full bg-gradient-to-br from-[#092553] via-[#5424c7] to-[#078bc7]" />}
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-[#031128]/85 via-transparent to-black/10" />
+                <button
+                  type="button"
+                  onClick={() => setSelected(null)}
+                  aria-label="Close school profile"
+                  className="absolute right-4 top-4 grid h-10 w-10 place-items-center rounded-full bg-white/95 text-slate-700 shadow outline-none hover:bg-white focus-visible:ring-2 focus-visible:ring-[#5424c7]"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+                <div className="absolute inset-x-5 bottom-5 flex items-end gap-4">
+                  <LogoTile src={selected.logo} name={selected.name} className="h-20 w-32 shrink-0 bg-white shadow-lg sm:w-40" />
+                  <div className="min-w-0 text-white">
+                    <p className="text-[10px] font-black uppercase tracking-[0.18em] text-sky-200">Education partner</p>
+                    <h4 id="partner-profile-title" className="text-xl font-black leading-tight sm:text-2xl">{selected.name}</h4>
+                  </div>
+                </div>
+              </div>
+              <div className="grid gap-5 p-5 sm:grid-cols-[1fr_1.25fr] sm:p-7">
+                <div className="space-y-4">
+                  <div className="rounded-2xl bg-slate-50 p-4">
+                    <p className="flex items-center gap-2 text-sm font-black text-[#092553]"><MapPin className="h-4 w-4 text-[#078bc7]" /> Location</p>
+                    <p className="mt-1 text-sm text-slate-600">{selected.location}</p>
+                  </div>
+                  <div className="rounded-2xl bg-slate-50 p-4">
+                    <p className="flex items-center gap-2 text-sm font-black text-[#092553]"><ShieldCheck className="h-4 w-4 text-emerald-600" /> Recognition</p>
+                    <p className="mt-1 text-sm leading-relaxed text-slate-600">{selected.accreditation}</p>
+                  </div>
+                </div>
+                <div>
+                  <p className="flex items-center gap-2 text-sm font-black text-[#092553]"><BookOpen className="h-4 w-4 text-[#5424c7]" /> Main study areas</p>
+                  <ul className="mt-3 grid gap-2 sm:grid-cols-2">
+                    {selected.programmes.map((programme) => (
+                      <li key={programme} className="flex items-start gap-2 rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-semibold text-slate-700">
+                        <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" /> {programme}
+                      </li>
+                    ))}
+                  </ul>
+                  <a
+                    href={`https://${selected.website}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-full bg-[#092553] px-5 py-3 text-sm font-extrabold text-white outline-none hover:bg-[#153d77] focus-visible:ring-2 focus-visible:ring-[#5424c7] focus-visible:ring-offset-2"
+                  >
+                    Visit official website <ExternalLink className="h-4 w-4" />
+                  </a>
+                </div>
+              </div>
+              <p className="border-t border-slate-100 px-5 py-3 text-xs leading-relaxed text-slate-500 sm:px-7">
+                Institution and accreditation information is a concise guide. Confirm the current status and the selected programme in the official register before enrolment.
+              </p>
+            </motion.article>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
