@@ -20,11 +20,11 @@ const DEFAULTS: Record<string, string> = {
 const setting = (k: string) => env(k) || DEFAULTS[k] || "";
 
 const DOCUMENTS = [
-  "Updated CV in English",
-  "Passport copy",
-  "Certificates for your chosen course",
-  "IELTS evidence, if required for your chosen course",
-  "A 300-word personal statement explaining your reasons for study",
+  "Updated CV in Europass Format",
+  "Passport Bio Page",
+  "Certificates with transcripts",
+  "IELTS Certification (if available)",
+  "300-word personal statement",
 ];
 
 const json = (body: unknown, status = 200) =>

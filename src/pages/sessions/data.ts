@@ -519,9 +519,9 @@ export const ENGLISH_PROVIDERS: Provider[] = [
 ];
 
 export const RECAP_DOCUMENTS = [
-  "Updated CV",
-  "Passport copy",
-  "Certificates for your chosen course",
-  "IELTS evidence, if required for your chosen course",
-  "A 300-word personal statement explaining your reasons for study",
+  "Updated CV in Europass Format",
+  "Passport Bio Page",
+  "Certificates with transcripts",
+  "IELTS Certification (if available)",
+  "300-word personal statement",
 ];

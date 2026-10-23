@@ -334,7 +334,7 @@ export function DocumentsPage() {
           {types.map((type) => (
             <DocumentSlot key={type.key} type={type} files={docs.filter((d) => d.doc_type === type.key)} c={c} userId={userId} onChange={reload} />
           ))}
-          <DocumentSlot type={{ key: "other", label: "", hint: "", required: false }} files={other} c={c} userId={userId} onChange={reload} />
+          {other.length > 0 && <DocumentSlot type={{ key: "other", label: "", hint: "", required: false }} files={other} c={c} userId={userId} onChange={reload} />}
         </ul>
       </div>
     </Card>

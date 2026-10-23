@@ -20,7 +20,10 @@ export interface Segment {
 }
 
 // Must match DOCUMENT_TYPES (required) in src/lib/options.ts
-const REQUIRED: Record<string, string[]> = { english: ["passport"], higher_education: ["passport", "diploma", "transcripts"] };
+const REQUIRED: Record<string, string[]> = {
+  english: ["cv", "passport", "course_certificates", "personal_statement"],
+  higher_education: ["cv", "passport", "course_certificates", "personal_statement"],
+};
 
 export async function loadSettings(db: Db): Promise<MarketingSettings> {
   const { data } = await db.from("marketing_settings").select("*").eq("id", 1).maybeSingle();

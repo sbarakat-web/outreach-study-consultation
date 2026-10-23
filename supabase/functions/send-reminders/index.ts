@@ -16,10 +16,15 @@ const H = 3_600_000;
 
 // Must match DOCUMENT_TYPES (required) in src/lib/options.ts
 const REQUIRED: Record<string, string[]> = {
-  english: ["passport"],
-  higher_education: ["passport", "diploma", "transcripts"],
+  english: ["cv", "passport", "course_certificates", "personal_statement"],
+  higher_education: ["cv", "passport", "course_certificates", "personal_statement"],
 };
-const LABELS: Record<string, string> = { passport: "Passport", diploma: "Highest diploma", transcripts: "Transcripts" };
+const LABELS: Record<string, string> = {
+  cv: "Updated CV in Europass Format",
+  passport: "Passport Bio Page",
+  course_certificates: "Certificates with transcripts",
+  personal_statement: "300-word personal statement",
+};
 
 function when(iso: string, tz: string) {
   const f = (zone: string) => new Intl.DateTimeFormat("en-GB", { weekday: "long", day: "numeric", month: "long", hour: "2-digit", minute: "2-digit", timeZone: zone }).format(new Date(iso));
