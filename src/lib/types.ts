@@ -1,15 +1,9 @@
 export type Status =
   | "new"
-  | "contacted"
-  | "qualified"
   | "consultation_booked"
-  | "documents_requested"
-  | "application_submitted"
-  | "offer_received"
-  | "payment"
-  | "visa_process"
-  | "enrolled"
-  | "lost";
+  | "interviewed"
+  | "no_show"
+  | "not_interested";
 
 export interface Consultation {
   id: string;

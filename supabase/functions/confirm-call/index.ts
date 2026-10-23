@@ -84,7 +84,7 @@ Deno.serve(async (req) => {
       call_declined_at: null,
       reminder_24h_at: null,
       reminder_1h_at: null,
-      ...(["new", "contacted", "qualified"].includes(c.status) ? { status: "consultation_booked" } : {}),
+      ...(["new", "no_show", "not_interested"].includes(c.status) ? { status: "consultation_booked" } : {}),
     })
     .eq("id", c.id);
   if (kind !== "moved") q = q.neq("call_status", "confirmed"); // two clicks at once → one confirmation

@@ -175,16 +175,10 @@ export function callTimes(now = new Date(), minHoursAhead = CALL_HOURS.minHoursA
 
 export const STATUSES: { value: Status; label: string }[] = [
   { value: "new", label: "New lead" },
-  { value: "contacted", label: "Contacted" },
-  { value: "qualified", label: "Qualified" },
   { value: "consultation_booked", label: "Consultation booked" },
-  { value: "documents_requested", label: "Documents requested" },
-  { value: "application_submitted", label: "Application submitted" },
-  { value: "offer_received", label: "Offer received" },
-  { value: "payment", label: "Payment / deposit" },
-  { value: "visa_process", label: "Visa process" },
-  { value: "enrolled", label: "Enrolled" },
-  { value: "lost", label: "Lost / not qualified" },
+  { value: "interviewed", label: "Interviewed" },
+  { value: "no_show", label: "No-show" },
+  { value: "not_interested", label: "No longer interested" },
 ];
 
 export const statusLabel = (s: Status) => STATUSES.find((x) => x.value === s)?.label ?? s;

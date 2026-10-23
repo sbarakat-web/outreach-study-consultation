@@ -13,7 +13,7 @@ import { AppShell, Fab, StatStrip } from "../components/dash";
 import { AccountSettings } from "./Settings";
 
 // Candidate-facing milestones (a subset of the CRM stages).
-const MILESTONES = ["consultation_booked", "documents_requested", "application_submitted", "offer_received", "visa_process", "enrolled"];
+const MILESTONES = ["new", "consultation_booked", "interviewed"];
 
 interface CandidateContext {
   c: Consultation;
@@ -136,8 +136,9 @@ export function CallPage() {
   const { c, docs, reload } = useCandidate();
   const { t, tv } = useI18n();
   const justApplied = (useLocation().state as { justApplied?: boolean } | null)?.justApplied;
-  const reached = MILESTONES.indexOf(c.status);
-  const lost = c.status === "lost";
+  // A no-show is back at the start until a new call is booked.
+  const reached = c.status === "no_show" ? 0 : MILESTONES.indexOf(c.status);
+  const lost = c.status === "not_interested";
   const progress = requiredProgress(c, docs);
   const rejected = docs.filter((d) => d.review_status === "rejected").length;
 
@@ -229,7 +230,7 @@ export function CallPage() {
                 <li key={m} className="space-y-1">
                   <span className={`block h-1.5 rounded-full ${i <= reached ? "bg-brand" : "bg-slate-200"}`} />
                   <span className={`block text-[10px] font-medium leading-tight ${i <= reached ? "text-navy" : "text-slate-400"}`}>
-                    {tv(STATUSES.find((s) => s.value === m)!.label)}
+                    {m === "new" ? t("status.received") : tv(STATUSES.find((s) => s.value === m)!.label)}
                   </span>
                 </li>
               ))}

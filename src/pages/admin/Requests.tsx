@@ -215,7 +215,7 @@ export function Requests() {
                       )}
                     </td>
                     <td className="px-3 py-3">
-                      <StatusBadge label={statusLabel(c.status)} muted={c.status === "lost"} />
+                      <StatusBadge label={statusLabel(c.status)} muted={c.status === "not_interested"} />
                       {c.session_outcome && <div className="mt-1 text-[11px] font-bold text-slate-500">Session: {SESSION_LABEL[c.session_outcome]}</div>}
                     </td>
                     <td className="hidden px-5 py-3 text-slate-500 lg:table-cell">{new Date(c.created_at).toLocaleDateString()}</td>

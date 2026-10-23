@@ -13,7 +13,6 @@ const RANGES = [
   { key: "quarter", label: "Last 90 days", days: 90 },
 ] as const;
 
-const APPLIED = ["application_submitted", "offer_received", "payment", "visa_process", "enrolled"];
 const pct = (n: number, d: number) => (d ? `${Math.round((n / d) * 100)}%` : "—");
 
 /** Online-session results: volume, show rate, funnel, by adviser and by programme. */
@@ -40,7 +39,7 @@ export function SessionsDashboard() {
     const interviewed = list.filter((c) => c.session_outcome === "interviewed");
     const noShow = list.filter((c) => c.session_outcome === "no_attendance");
     const withDocs = interviewed.filter((c) => (c.documents?.[0]?.count ?? 0) > 0);
-    const applied = interviewed.filter((c) => APPLIED.includes(c.status));
+    const notInterested = list.filter((c) => c.session_outcome === "no_longer_interested");
     const rated = interviewed.filter((c) => c.session_rating);
 
     const group = (key: (c: Row) => string) => {
@@ -58,7 +57,7 @@ export function SessionsDashboard() {
             noShow: ns,
             showRate: pct(iv.length, iv.length + ns),
             docs: pct(iv.filter((c) => (c.documents?.[0]?.count ?? 0) > 0).length, iv.length),
-            applied: iv.filter((c) => APPLIED.includes(c.status)).length,
+            notInterested: cs.filter((c) => c.session_outcome === "no_longer_interested").length,
             rating: r.length ? (r.reduce((n, c) => n + c.session_rating!, 0) / r.length).toFixed(1) : "—",
           };
         })
@@ -71,7 +70,7 @@ export function SessionsDashboard() {
       noShow: noShow.length,
       showRate: pct(interviewed.length, interviewed.length + noShow.length),
       withDocs: withDocs.length,
-      applied: applied.length,
+      notInterested: notInterested.length,
       rating: rated.length ? (rated.reduce((n, c) => n + c.session_rating!, 0) / rated.length).toFixed(1) : "—",
       byAdviser: group((c) => c.session_by ?? "Unknown"),
       byProgramme: group((c) => c.desired_course || "Not selected"),
@@ -107,7 +106,7 @@ export function SessionsDashboard() {
           { icon: UserX, label: "No-shows", value: stats.noShow, tone: "text-brand-red" },
           { icon: Percent, label: "Show rate", value: stats.showRate },
           { icon: Star, label: "Avg. rating", value: stats.rating, tone: "text-amber-500" },
-          { icon: FileCheck2, label: "Applications", value: stats.applied },
+          { icon: FileCheck2, label: "No longer interested", value: stats.notInterested },
         ]}
       />
 
@@ -117,7 +116,6 @@ export function SessionsDashboard() {
           {[
             ["Interviewed", stats.interviewed, stats.interviewed],
             ["Uploaded documents", stats.withDocs, stats.interviewed],
-            ["Application submitted or further", stats.applied, stats.interviewed],
           ].map(([label, n, of]) => (
             <div key={label as string}>
               <div className="flex justify-between text-sm">
@@ -146,7 +144,7 @@ function BreakdownTable({
   showRating,
 }: {
   title: string;
-  rows: { name: string; sessions: number; interviewed: number; noShow: number; showRate: string; docs: string; applied: number; rating: string }[];
+  rows: { name: string; sessions: number; interviewed: number; noShow: number; showRate: string; docs: string; notInterested: number; rating: string }[];
   showRating?: boolean;
 }) {
   return (
@@ -160,7 +158,7 @@ function BreakdownTable({
             <table className="w-full min-w-[640px] text-left text-sm">
               <thead className="text-xs uppercase tracking-wider text-slate-500">
                 <tr className="border-b border-slate-100">
-                  {["Name", "Sessions", "Interviewed", "No-shows", "Show rate", "Docs uploaded", "Applications", ...(showRating ? ["Rating"] : [])].map((h) => (
+                  {["Name", "Sessions", "Interviewed", "No-shows", "Show rate", "Docs uploaded", "Not interested", ...(showRating ? ["Rating"] : [])].map((h) => (
                     <th key={h} className="px-2 py-2 font-bold">
                       {h}
                     </th>
@@ -176,7 +174,7 @@ function BreakdownTable({
                     <td className="px-2 py-2">{r.noShow}</td>
                     <td className="px-2 py-2">{r.showRate}</td>
                     <td className="px-2 py-2">{r.docs}</td>
-                    <td className="px-2 py-2">{r.applied}</td>
+                    <td className="px-2 py-2">{r.notInterested}</td>
                     {showRating && (
                       <td className="px-2 py-2">
                         <span className="inline-flex items-center gap-1">

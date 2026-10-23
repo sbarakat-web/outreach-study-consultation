@@ -139,7 +139,7 @@ Deno.serve(async () => {
     .eq("session_outcome", "interviewed")
     .not("documents_due_at", "is", null)
     .lt("documents_due_at", iso(now + 3 * 24 * H))
-    .neq("status", "lost");
+    .neq("status", "not_interested");
   for (const c of due ?? []) {
     const { data: docs } = await db.from("documents").select("doc_type, review_status").eq("consultation_id", c.id);
     const have = new Set((docs ?? []).filter((d) => d.review_status !== "rejected").map((d) => d.doc_type));
