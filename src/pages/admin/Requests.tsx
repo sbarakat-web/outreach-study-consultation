@@ -490,7 +490,15 @@ function Detail({ c, all, onClose, onSaved }: { c: Row; all: Row[]; onClose: () 
       const { data, error } = await supabase.functions.invoke("admin-delete-lead", {
         body: { consultationId: c.id },
       });
-      if (error || data?.error) throw new Error(data?.error ?? error?.message ?? "Could not delete the lead");
+      if (error || data?.error) {
+        const functionStatus = (error as { context?: Response } | null)?.context?.status;
+        if (functionStatus === 404 || error?.name === "FunctionsFetchError") {
+          throw new Error(
+            "The delete service is unavailable. The Supabase admin must deploy the admin-delete-lead Edge Function to project qkcdjqrtwzqflrrxdgqw before deleting leads.",
+          );
+        }
+        throw new Error(data?.error ?? error?.message ?? "Could not delete the lead");
+      }
       onClose();
       onSaved();
     } catch (error) {
