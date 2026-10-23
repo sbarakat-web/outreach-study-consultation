@@ -20,7 +20,7 @@ import { PresenterQueue, bucketize, queueOrder, type Candidate, type DocProgress
 import { documentTypesFor } from "../../lib/options";
 import { fillTab, notifyCandidate } from "../admin/calls";
 import type { RealtimeChannel } from "@supabase/supabase-js";
-import { CompleteDialog, type NextStep, type Outcome } from "./CompleteDialog";
+import { CompleteDialog, type Outcome } from "./CompleteDialog";
 import { buildPresentationPdf, pdfBase64, presentationFilename } from "./pdf";
 
 const HIDDEN_ACTION = "hidden_from_presenter_queue";
@@ -285,7 +285,7 @@ export function OnlineSessions() {
 
   const selectedProgramme = PROGRAMMES.find((p) => p.id === selectedId);
 
-  const recordOutcome = (outcome: Outcome, comment: string, nextStep: NextStep | null) => {
+  const recordOutcome = (outcome: Outcome, comment: string) => {
     if (!candidate) return;
     const c = candidate;
     // Open the WhatsApp tab synchronously inside the click so pop-up blockers allow it.
@@ -341,7 +341,6 @@ export function OnlineSessions() {
         } else {
           toast.success(`${c.full_name} moved to ${OUTCOME_LABEL[outcome]}`);
         }
-        if (nextStep) await supabase.from("tasks").insert({ consultation_id: c.id, title: nextStep.title, due_at: nextStep.due });
         try {
           localStorage.removeItem(`session_notes_${c.id}`);
         } catch {

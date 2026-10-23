@@ -30,6 +30,7 @@ interface Draft {
 }
 
 const DRAFT_KEY = "apply_draft_v1";
+const INELIGIBLE_COUNTRIES = new Set(["PK"]);
 
 function loadDraft(): Partial<Draft> {
   try {
@@ -81,6 +82,7 @@ export function Apply() {
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const geoDone = useRef(false);
+  const countryIneligible = INELIGIBLE_COUNTRIES.has(d.country);
 
   const set = <K extends keyof Draft>(k: K, v: Draft[K]) => setD((x) => ({ ...x, [k]: v }));
 
@@ -143,6 +145,7 @@ export function Apply() {
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     setPhoneTouched(true);
+    if (countryIneligible) return setError(t("apply.errCountryIneligible"));
     if (!d.course) return setError(t("apply.errProgramme"));
     if (!phoneCheck) return setError(t("apply.errPhone", { country: localName(d.dialCountry) }));
     if (!consent) return setError(t("apply.errConsent"));
@@ -166,7 +169,10 @@ export function Apply() {
       p_tracking: { ...getTracking(), lang },
     });
     setSubmitting(false);
-    if (error) return setError(error.message.includes("INVALID_INPUT") ? t("apply.errNameEmail") : error.message);
+    if (error) {
+      if (error.message.includes("INELIGIBLE_COUNTRY")) return setError(t("apply.errCountryIneligible"));
+      return setError(error.message.includes("INVALID_INPUT") ? t("apply.errNameEmail") : error.message);
+    }
 
     // Confirmation + admin alert are best-effort; the application is already saved.
     supabase.functions.invoke("send-confirmation", { body: { consultation_id: id } }).catch(() => {});
@@ -311,6 +317,7 @@ export function Apply() {
                     </p>
                   </Field>
                 </div>
+                {countryIneligible && <Alert>{t("apply.errCountryIneligible")}</Alert>}
                 <Field label={t("apply.course")} id="course">
                   {d.path === "english" ? (
                     <input id="course" readOnly className="field bg-mist font-bold text-brand" value={tv(d.course)} />
@@ -343,7 +350,7 @@ export function Apply() {
                   {t("apply.consent")}
                 </label>
                 {error && <Alert>{error}</Alert>}
-                <Button type="submit" loading={submitting} className="min-h-12 w-full">
+                <Button type="submit" loading={submitting} disabled={countryIneligible} className="min-h-12 w-full">
                   <Send className="h-4 w-4 rtl:-scale-x-100" /> {t("apply.submit")}
                 </Button>
                 <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-between">

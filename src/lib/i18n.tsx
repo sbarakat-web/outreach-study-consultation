@@ -59,6 +59,7 @@ const en = {
   "apply.errPhone": "Please enter a valid WhatsApp number for {country}.",
   "apply.errConsent": "Please accept so we can contact you about your application.",
   "apply.errNameEmail": "Please check your name and email.",
+  "apply.errCountryIneligible": "Applications from Pakistan are not currently eligible. Please do not submit this form.",
   "done.thanks": "Thank you!",
   "done.thanksName": "Thank you, {name}!",
   "done.saved": "Your application for {course} is saved. An advisor will contact you soon.",
