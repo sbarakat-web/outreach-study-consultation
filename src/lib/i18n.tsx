@@ -93,6 +93,7 @@ const en = {
 
   "side.label": "My application",
   "side.call": "My call",
+  "side.programme": "Programme",
   "side.documents": "Documents",
   "side.invite": "Invite friends",
   "side.settings": "Settings",

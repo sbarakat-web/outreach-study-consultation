@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { Link, Outlet, useLocation, useNavigate, useOutletContext, useSearchParams } from "react-router-dom";
-import { AlertCircle, CalendarCheck, Camera, CheckCircle2, Circle, Clock, Copy, FileText, Gift, MessageCircle, Settings, Star, Trash2, Upload } from "lucide-react";
+import { AlertCircle, BookOpen, CalendarCheck, Camera, CheckCircle2, Circle, Clock, Copy, FileText, Gift, GraduationCap, MessageCircle, School, Settings, Sparkles, Star, Trash2, Upload } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
-import { ENGLISH_LEVELS, STATUSES, STUDY_PATHS, callStage, documentTypesFor, formatSlot, labelFor, statusLabel, waLink, whatsappNumber, type DocumentType } from "../lib/options";
+import { ENGLISH_LEVELS, PROGRAMMES as STUDY_AREAS, STATUSES, STUDY_PATHS, callStage, documentTypesFor, formatSlot, labelFor, statusLabel, waLink, whatsappNumber, type DocumentType } from "../lib/options";
 import { useI18n } from "../lib/i18n";
 import type { Consultation, DocumentRow } from "../lib/types";
 import { Alert, Button, Card, Spinner, StatusBadge } from "../components/ui";
@@ -11,6 +11,7 @@ import { BookingCalendar } from "../components/BookingCalendar";
 import type { TabItem } from "../components/TabBar";
 import { AppShell, Fab, StatStrip } from "../components/dash";
 import { AccountSettings } from "./Settings";
+import { LEVEL_STYLE, PROGRAMMES, SCHOLARSHIPS } from "./sessions/data";
 
 // Candidate-facing milestones (a subset of the CRM stages).
 const MILESTONES = ["new", "consultation_booked", "interviewed"];
@@ -97,6 +98,7 @@ export function CandidateLayout() {
   const previewSuffix = previewId ? `?preview=${encodeURIComponent(previewId)}` : "";
   const tabs: TabItem[] = [
     { to: `/dashboard${previewSuffix}`, label: t("side.call"), icon: CalendarCheck, end: true },
+    { to: `/dashboard/programme${previewSuffix}`, label: t("side.programme"), icon: GraduationCap },
     { to: `/dashboard/documents${previewSuffix}`, label: t("side.documents"), icon: FileText, badge: progress.done < progress.total || rejected ? docBadge : undefined },
     { to: `/dashboard/invite${previewSuffix}`, label: t("side.invite"), icon: Gift },
     { to: `/dashboard/settings${previewSuffix}`, label: t("side.settings"), icon: Settings },
@@ -134,6 +136,116 @@ export function CandidateLayout() {
 export function SettingsPage() {
   const { c, reload } = useCandidate();
   return <AccountSettings c={c} onSaved={reload} />;
+}
+
+export function ProgrammePage() {
+  const { c } = useCandidate();
+  const selectedName = c.desired_course?.trim() || labelFor(STUDY_PATHS, c.study_path);
+  const isStudyArea = STUDY_AREAS.some((area) => area.toLowerCase() === selectedName.toLowerCase());
+  const programme = isStudyArea
+    ? undefined
+    : PROGRAMMES.find((item) => {
+        const course = item.course.toLowerCase();
+        const selected = selectedName.toLowerCase();
+        return course === selected || course.includes(selected) || selected.includes(course);
+      });
+
+  const details = programme
+    ? [
+        ["Institution", programme.school, School],
+        ["Study level", LEVEL_STYLE[programme.level].label.replace(" programmes", ""), GraduationCap],
+        ["Qualification", [programme.qualification, programme.credits].filter(Boolean).join(" · "), GraduationCap],
+        ["Duration", programme.duration, Clock],
+        ["Total tuition fee", programme.totalFee ?? "Confirm with school", Star],
+        ["English requirement", programme.english ?? "Confirm with school", BookOpen],
+        ["Entry requirement", programme.requirement ?? "School assessment", CheckCircle2],
+      ] as const
+    : [];
+  const scholarships = programme ? SCHOLARSHIPS[programme.area]?.[programme.level] ?? [] : [];
+
+  return (
+    <div className="space-y-6">
+      <Card>
+        <div className="overflow-hidden">
+          <div className="bg-gradient-to-br from-[#092553] via-[#352081] to-[#5424c7] px-5 py-7 text-white sm:px-7">
+            <p className="text-xs font-black uppercase tracking-[0.18em] text-white/65">Your selected programme</p>
+            <h1 className="mt-2 text-2xl font-black sm:text-3xl">{programme?.course ?? selectedName}</h1>
+            <p className="mt-1 text-sm text-white/75">
+              {programme ? programme.school : "Your adviser will help you select the best programme within this study area."}
+            </p>
+          </div>
+
+          <div className="space-y-6 px-5 py-6 sm:px-7">
+            {programme ? (
+              <>
+                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                  {details.map(([label, value, Icon]) => (
+                    <div key={label} className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+                      <Icon className="h-5 w-5 text-brand" />
+                      <p className="mt-3 text-[11px] font-black uppercase tracking-wider text-slate-400">{label}</p>
+                      <p className="mt-1 font-bold text-navy">{value}</p>
+                    </div>
+                  ))}
+                </div>
+
+                <div>
+                  <h2 className="font-black text-navy">Tuition fee schedule</h2>
+                  <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                    {programme.fees.map((fee, index) => (
+                      <div key={`${fee}-${index}`} className="flex items-center justify-between rounded-xl border border-slate-200 px-4 py-3 text-sm">
+                        <span className="text-slate-500">Year {index + 1}</span>
+                        <strong className="text-navy">{fee === "-" ? "Included / not applicable" : fee}</strong>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {scholarships.length > 0 && (
+                  <div className="rounded-2xl bg-emerald-50 p-5 ring-1 ring-emerald-200">
+                    <h2 className="font-black text-emerald-900">Scholarship guidance</h2>
+                    <ul className="mt-2 space-y-2 text-sm leading-relaxed text-emerald-900/80">
+                      {scholarships.map((scholarship) => (
+                        <li key={scholarship} className="flex gap-2">
+                          <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" /> {scholarship}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                <p className="rounded-xl bg-amber-50 px-4 py-3 text-xs leading-relaxed text-amber-900 ring-1 ring-amber-200">
+                  Fees, scholarships, admission requirements, intake dates and availability are guidance from the Online Sessions programme information. Your adviser and the institution will confirm the final details before enrolment.
+                </p>
+              </>
+            ) : (
+              <div className="rounded-2xl bg-violet-50 p-5 ring-1 ring-violet-100">
+                <Sparkles className="h-7 w-7 text-brand" />
+                <h2 className="mt-3 text-lg font-black text-navy">Let us find the right programme for you</h2>
+                <p className="mt-1 text-sm leading-relaxed text-slate-600">
+                  You selected {selectedName}. Book a free guidance call and we will compare the available institutions, levels, entry requirements and fees with you before confirming your exact programme.
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+      </Card>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Link to="/dashboard" className="group rounded-2xl bg-brand p-5 text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg">
+          <GraduationCap className="h-7 w-7" />
+          <h2 className="mt-4 text-lg font-black">Interested in another course?</h2>
+          <p className="mt-1 text-sm text-white/75">Book a free call with us and we will guide you to the programme that best fits your goals.</p>
+          <span className="mt-4 inline-block text-sm font-black">Book programme guidance →</span>
+        </Link>
+        <Link to="/dashboard" className="group rounded-2xl border border-slate-200 bg-white p-5 text-navy shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg">
+          <MessageCircle className="h-7 w-7 text-brand" />
+          <h2 className="mt-4 text-lg font-black">Need more explanation?</h2>
+          <p className="mt-1 text-sm text-slate-500">Return to your dashboard to arrange a call and ask our team about fees, requirements or your next steps.</p>
+          <span className="mt-4 inline-block text-sm font-black text-brand">Contact us from the dashboard →</span>
+        </Link>
+      </div>
+    </div>
+  );
 }
 
 export function CallPage() {

@@ -9,7 +9,7 @@ import { Alert, Spinner } from "./components/ui";
 import { Apply } from "./pages/Apply";
 import { Login } from "./pages/Login";
 import { ResetPassword } from "./pages/ResetPassword";
-import { CallPage, CandidateLayout, DocumentsPage, InvitePage, SettingsPage } from "./pages/Dashboard";
+import { CallPage, CandidateLayout, DocumentsPage, InvitePage, ProgrammePage, SettingsPage } from "./pages/Dashboard";
 
 // Heavy, staff-only screens (PDF, animation, admin tables) load on demand.
 const EmailPreferences = lazy(() => import("./pages/EmailPreferences").then((m) => ({ default: m.EmailPreferences })));
@@ -57,6 +57,7 @@ export function App() {
               }
             >
               <Route index element={<CallPage />} />
+              <Route path="programme" element={<ProgrammePage />} />
               <Route path="documents" element={<DocumentsPage />} />
               <Route path="invite" element={<InvitePage />} />
               <Route path="settings" element={<SettingsPage />} />
