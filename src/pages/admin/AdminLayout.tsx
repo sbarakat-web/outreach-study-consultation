@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Outlet, useNavigate } from "react-router-dom";
-import { BarChart3, Bell, CalendarDays, Mail, Plus, Presentation, Settings, UserCheck, UserRoundCheck, UserRoundX, Users, UsersRound } from "lucide-react";
+import { BarChart3, Bell, CalendarDays, Mail, Presentation, Settings, Users, UsersRound } from "lucide-react";
 import type { TabItem } from "../../components/TabBar";
 import { AppShell, Fab } from "../../components/dash";
 import { supabase } from "../../lib/supabase";
@@ -47,12 +47,7 @@ export function AdminLayout() {
   const countBadge = (value: number) => value ? <span className="rounded-full bg-brand/10 px-2 py-0.5 text-xs font-bold text-brand">{value}</span> : undefined;
   const sidebar: TabItem[] = [
     { to: "/admin", label: "All leads", icon: UsersRound, end: true, badge: countBadge(Object.values(leadCounts).reduce((a, b) => a + b, 0)) },
-    { to: "/admin?new=1", label: "Add new lead", icon: Plus },
     { to: "/admin?status=new", label: "New leads", icon: UsersRound, badge: countBadge(leadCounts.new ?? 0) },
-    { to: "/admin?status=consultation_booked", label: "Consultation booked", icon: CalendarDays, badge: countBadge(leadCounts.consultation_booked ?? 0) },
-    { to: "/admin?status=interviewed", label: "Interviewed", icon: UserCheck, badge: countBadge(leadCounts.interviewed ?? 0) },
-    { to: "/admin?status=no_show", label: "No-show", icon: UserRoundX, badge: countBadge(leadCounts.no_show ?? 0) },
-    { to: "/admin?status=not_interested", label: "No longer interested", icon: UserRoundCheck, badge: countBadge(leadCounts.not_interested ?? 0) },
     { to: "/admin/calendar", label: "Calendar", icon: CalendarDays },
     { to: "/onlinesessions?present=1", label: "Online sessions", icon: Presentation },
     { to: "/admin/sessions", label: "Session stats", icon: BarChart3 },

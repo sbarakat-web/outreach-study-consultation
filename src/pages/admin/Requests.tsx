@@ -272,84 +272,93 @@ function AddLead({ onClose, onCreated }: { onClose: () => void; onCreated: (id: 
   const [status, setStatus] = useState<Status>("new");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [createdLeadId, setCreatedLeadId] = useState<string | null>(null);
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     setSaving(true);
     setError("");
-    const { data, error: invokeError } = await supabase.functions.invoke("admin-create-lead", {
-      body: { full_name: name.trim(), email: email.trim().toLowerCase(), status },
-    });
-    if (!invokeError && !data?.error) {
-      setSaving(false);
-      onCreated(data.id);
-      return;
-    }
+    try {
+      const normalizedEmail = email.trim().toLowerCase();
+      const { data, error: invokeError } = await supabase.functions.invoke("admin-create-lead", {
+        body: { full_name: name.trim(), email: normalizedEmail, status },
+      });
+      if (!invokeError && !data?.error) {
+        if (!data?.id) throw new Error("Lead was created, but no lead ID was returned");
+        onCreated(data.id);
+        return;
+      }
+      if (data?.id && data.error) {
+        setCreatedLeadId(data.id);
+        throw new Error(data.error);
+      }
 
-    // The dedicated function may not be deployed yet. The existing secured RPC
-    // still lets an authenticated admin create the record and Supabase Auth sends
-    // the candidate their normal dashboard code/link email.
-    const functionStatus = (invokeError as { context?: Response } | null)?.context?.status;
-    if (functionStatus !== 404) {
+      const functionStatus = (invokeError as { context?: Response } | null)?.context?.status;
+      const isTransportError = invokeError?.name === "FunctionsFetchError";
+      if (functionStatus !== 404 && !isTransportError) {
+        throw new Error(data?.error ?? invokeError?.message ?? "Could not add the lead");
+      }
+
+      // Use the secured RPC if the Edge Function is unavailable or its CORS preflight fails.
+      const { data: existing, error: lookupError } = await supabase
+        .from("consultations")
+        .select("id, full_name")
+        .eq("email", normalizedEmail)
+        .limit(1)
+        .maybeSingle();
+      if (lookupError) throw new Error(`Could not check whether this email already exists: ${lookupError.message}`);
+      if (existing) throw new Error(`This email already belongs to ${existing.full_name}`);
+
+      const { data: id, error: createError } = await supabase.rpc("book_consultation", {
+        p_full_name: name.trim(),
+        p_email: normalizedEmail,
+        p_whatsapp: "",
+        p_country: null,
+        p_age: null,
+        p_study_path: "higher_education",
+        p_english_level: "b2_plus",
+        p_desired_course: null,
+        p_start_date: null,
+        p_budget: null,
+        p_visa_support: null,
+        p_preferred_contact_time: null,
+        p_message: null,
+        p_slot_id: null,
+        p_tracking: { source: "admin" },
+      });
+      if (createError || !id) throw new Error(createError?.message ?? "Could not save the lead");
+
+      const interviewed = status === "interviewed";
+      const { error: statusError } = await supabase.from("consultations").update({
+        status,
+        session_outcome: interviewed ? "interviewed" : null,
+        session_outcome_at: interviewed ? new Date().toISOString() : null,
+        documents_due_at: interviewed ? new Date(Date.now() + 7 * 86_400_000).toISOString() : null,
+      }).eq("id", id);
+      if (statusError) {
+        setCreatedLeadId(id);
+        throw new Error(`Lead was created, but its status could not be set: ${statusError.message}`);
+      }
+
+      const { error: emailError } = await supabase.auth.signInWithOtp({
+        email: normalizedEmail,
+        options: {
+          shouldCreateUser: true,
+          emailRedirectTo: `${window.location.origin}/dashboard`,
+          data: { full_name: name.trim(), status },
+        },
+      });
+      if (emailError) {
+        setCreatedLeadId(id);
+        throw new Error(`Lead was created, but the dashboard email could not be sent: ${emailError.message}`);
+      }
+
+      onCreated(id);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not add the lead");
+    } finally {
       setSaving(false);
-      setError(data?.error ?? invokeError?.message ?? "Could not add the lead");
-      return;
     }
-    const normalizedEmail = email.trim().toLowerCase();
-    const { data: existing } = await supabase.from("consultations").select("id, full_name").eq("email", normalizedEmail).limit(1).maybeSingle();
-    if (existing) {
-      setSaving(false);
-      setError(`This email already belongs to ${existing.full_name}`);
-      return;
-    }
-    const { data: id, error: createError } = await supabase.rpc("book_consultation", {
-      p_full_name: name.trim(),
-      p_email: normalizedEmail,
-      p_whatsapp: "",
-      p_country: null,
-      p_age: null,
-      p_study_path: "higher_education",
-      p_english_level: "b2_plus",
-      p_desired_course: null,
-      p_start_date: null,
-      p_budget: null,
-      p_visa_support: null,
-      p_preferred_contact_time: null,
-      p_message: null,
-      p_slot_id: null,
-      p_tracking: { source: "admin" },
-    });
-    if (createError || !id) {
-      setSaving(false);
-      setError(createError?.message ?? "Could not save the lead");
-      return;
-    }
-    const interviewed = status === "interviewed";
-    const { error: statusError } = await supabase.from("consultations").update({
-      status,
-      session_outcome: interviewed ? "interviewed" : null,
-      session_outcome_at: interviewed ? new Date().toISOString() : null,
-      documents_due_at: interviewed ? new Date(Date.now() + 7 * 86_400_000).toISOString() : null,
-    }).eq("id", id);
-    if (statusError) {
-      setSaving(false);
-      setError(statusError.message);
-      return;
-    }
-    const { error: emailError } = await supabase.auth.signInWithOtp({
-      email: normalizedEmail,
-      options: {
-        shouldCreateUser: true,
-        emailRedirectTo: `${window.location.origin}/dashboard`,
-        data: { full_name: name.trim(), status },
-      },
-    });
-    setSaving(false);
-    if (emailError) {
-      setError(`Lead added, but the dashboard email could not be sent: ${emailError.message}`);
-      return;
-    }
-    onCreated(id);
   };
 
   return (
@@ -377,7 +386,16 @@ function AddLead({ onClose, onCreated }: { onClose: () => void; onCreated: (id: 
               {STATUSES.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
             </select>
           </div>
-          {error && <Alert>{error}</Alert>}
+          {error && (
+            <Alert>
+              <span>{error}</span>
+              {createdLeadId && (
+                <button type="button" onClick={() => onCreated(createdLeadId)} className="ml-2 font-bold underline">
+                  Open created lead
+                </button>
+              )}
+            </Alert>
+          )}
           <Button type="submit" loading={saving} className="w-full"><Plus className="h-4 w-4" /> Add lead and send email</Button>
         </form>
       </Card>
