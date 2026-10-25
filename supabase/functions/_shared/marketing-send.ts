@@ -28,10 +28,16 @@ const REQUIRED: Record<string, string[]> = {
 export async function loadSettings(db: Db): Promise<MarketingSettings> {
   const { data } = await db.from("marketing_settings").select("*").eq("id", 1).maybeSingle();
   return {
+    company_name: data?.company_name ?? "Outreach — Study in Malta",
     address: data?.address ?? "",
+    website_url: data?.website_url ?? "https://outreachstudy.eu",
+    contact_email: data?.contact_email ?? "",
+    phone: data?.phone ?? "",
     instagram_url: data?.instagram_url ?? "",
     facebook_url: data?.facebook_url ?? "",
     tiktok_url: data?.tiktok_url ?? "",
+    linkedin_url: data?.linkedin_url ?? "",
+    youtube_url: data?.youtube_url ?? "",
     whatsapp: data?.whatsapp ?? "35699728213",
     why_text: data?.why_text ?? "You are receiving this email because you applied or asked about studying in Malta with Outreach.",
   };

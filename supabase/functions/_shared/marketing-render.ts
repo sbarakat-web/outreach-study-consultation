@@ -20,12 +20,34 @@ export type Block =
 export type BlockType = Block["type"];
 
 export interface MarketingSettings {
+  company_name: string;
   address: string;
+  website_url: string;
+  contact_email: string;
+  phone: string;
+  whatsapp: string;
   instagram_url: string;
   facebook_url: string;
   tiktok_url: string;
-  whatsapp: string;
+  linkedin_url: string;
+  youtube_url: string;
   why_text: string;
+}
+
+/** "https://www.outreachstudy.eu/" → "outreachstudy.eu" */
+const shortUrl = (u: string) => u.replace(/^https?:\/\/(www\.)?/i, "").replace(/\/$/, "");
+/** Footer contact links (website, email, phone, WhatsApp) for the HTML and plain-text versions. */
+function contacts(s: MarketingSettings) {
+  const out: { icon: string; label: string; href: string }[] = [];
+  const web = safeUrl(s.website_url ?? "");
+  if (web) out.push({ icon: "website", label: shortUrl(web), href: web });
+  const mail = (s.contact_email ?? "").trim();
+  if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mail)) out.push({ icon: "email", label: mail, href: `mailto:${mail}` });
+  const tel = (s.phone ?? "").replace(/[^\d+]/g, "");
+  if (tel) out.push({ icon: "phone", label: s.phone.trim(), href: `tel:${tel}` });
+  const wa = (s.whatsapp ?? "").replace(/\D/g, "");
+  if (wa) out.push({ icon: "whatsapp", label: `WhatsApp +${wa}`, href: `https://wa.me/${wa}` });
+  return out;
 }
 
 export interface RenderInput {
@@ -121,18 +143,29 @@ function renderBlock(b: Block, fill: (s: string) => string, link: (u: string) =>
 
 function footer(i: RenderInput) {
   const s = i.settings;
+  const company = s.company_name?.trim() || "Outreach — Study in Malta";
   const icon = (href: string, name: string) =>
-    href ? `<a href="${esc(href)}" style="display:inline-block;margin:0 6px"><img src="${i.appUrl}/email/${name}.png" alt="${name}" width="28" height="28" style="display:block;border:0"></a>` : "";
+    href ? `<a href="${esc(href)}" style="display:inline-block;margin:0 5px"><img src="${i.appUrl}/email/${name}.png" alt="${name}" width="28" height="28" style="display:block;border:0"></a>` : "";
   const wa = s.whatsapp.replace(/\D/g, "");
   const icons = [
     icon(safeUrl(s.instagram_url), "instagram"),
     icon(safeUrl(s.facebook_url), "facebook"),
     icon(safeUrl(s.tiktok_url), "tiktok"),
+    icon(safeUrl(s.linkedin_url ?? ""), "linkedin"),
+    icon(safeUrl(s.youtube_url ?? ""), "youtube"),
     wa ? icon(`https://wa.me/${wa}`, "whatsapp") : "",
   ].join("");
+  const contactLinks = contacts(s)
+    .map(
+      (c) =>
+        `<a href="${esc(c.href)}" style="display:inline-block;margin:3px 8px;color:#5b6080;text-decoration:none;white-space:nowrap"><img src="${i.appUrl}/email/${c.icon}.png" alt="" width="16" height="16" style="display:inline-block;vertical-align:-3px;border:0;margin-right:5px">${esc(c.label)}</a>`,
+    )
+    .join("");
   return `<tr><td align="center" style="padding:26px 28px;background:#f8f8fc;color:#8a8ea8;font-size:12px;line-height:1.7">
-    <img src="${i.appUrl}/email/logo-grey.png" alt="Outreach — Study in Malta" width="140" style="display:block;margin:0 auto 12px;border:0;width:140px;height:auto">
+    <img src="${i.appUrl}/email/logo-grey.png" alt="${esc(company)}" width="140" style="display:block;margin:0 auto 12px;border:0;width:140px;height:auto">
     ${icons ? `<div style="margin:0 0 12px">${icons}</div>` : ""}
+    ${contactLinks ? `<div style="margin:0 0 10px;font-size:13px">${contactLinks}</div>` : ""}
+    <div style="color:#5b6080;font-weight:bold">${esc(company)}</div>
     ${s.address ? `<div>${esc(s.address)}</div>` : ""}
     <div style="margin-top:8px">${esc(s.why_text)}</div>
     <div style="margin-top:8px"><a href="${esc(i.links.unsubscribe)}" style="color:#5b6080;text-decoration:underline">Unsubscribe</a> &nbsp;·&nbsp; <a href="${esc(i.links.preferences)}" style="color:#5b6080;text-decoration:underline">Manage preferences</a></div>
@@ -173,7 +206,7 @@ function plainText(i: RenderInput, fill: (s: string) => string) {
     else if (b.type === "divider") lines.push("—");
   }
   const s = i.settings;
-  lines.push("", "Outreach — Study in Malta", s.address, s.why_text, `Unsubscribe: ${i.links.unsubscribe}`, `Manage preferences: ${i.links.preferences}`);
+  lines.push("", s.company_name?.trim() || "Outreach — Study in Malta", ...contacts(s).map((c) => (c.icon === "website" || c.icon === "email" ? c.label : `${c.label} (${c.href})`)), s.address, s.why_text, `Unsubscribe: ${i.links.unsubscribe}`, `Manage preferences: ${i.links.preferences}`);
   return lines.filter((l) => l !== undefined).join("\n\n").replace(/\n{3,}/g, "\n\n");
 }
 

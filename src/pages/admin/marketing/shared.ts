@@ -29,10 +29,16 @@ export interface Asset {
 }
 
 export const DEFAULT_SETTINGS: MarketingSettings = {
+  company_name: "Outreach — Study in Malta",
   address: "",
+  website_url: "https://outreachstudy.eu",
+  contact_email: "",
+  phone: "",
   instagram_url: "",
   facebook_url: "",
   tiktok_url: "",
+  linkedin_url: "",
+  youtube_url: "",
   whatsapp: "35699728213",
   why_text: "You are receiving this email because you applied or asked about studying in Malta with Outreach.",
 };
