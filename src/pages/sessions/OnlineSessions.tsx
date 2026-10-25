@@ -475,7 +475,7 @@ export function OnlineSessions() {
               role="dialog"
               aria-modal="true"
               aria-labelledby="chapter-title"
-              className="relative flex h-full w-full max-w-none flex-col overflow-hidden bg-white"
+              className="relative flex h-full w-full max-w-none flex-col overflow-hidden bg-sky-50/40"
               initial={reduce ? { opacity: 0 } : { opacity: 0, y: 45, scale: 0.96 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0 }}
@@ -522,7 +522,8 @@ export function OnlineSessions() {
                 </button>
               </div>
 
-              <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-3 pb-6 sm:px-8 sm:pb-8">
+              <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-3 pb-8 sm:px-8 sm:pb-10">
+                <div className="mx-auto w-full max-w-[920px]">
                 <p className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-[0.2em] text-[#078bc7]">
                   <Sparkles className="h-3.5 w-3.5" /> Your Malta journey
                 </p>
@@ -542,7 +543,7 @@ export function OnlineSessions() {
                 <h1 id="chapter-title" className="mt-3 text-3xl font-black leading-tight text-[#092553] sm:text-4xl lg:text-5xl">
                   {CHAPTERS[chapter].title}
                 </h1>
-                <p className="mt-1 text-slate-600">{CHAPTERS[chapter].subtitle}</p>
+                <p className="mt-2 text-base leading-7 text-slate-600">{CHAPTERS[chapter].subtitle}</p>
 
                 <div role="tablist" aria-label="Chapters" className="mobile-scroll mt-4 flex snap-x gap-1 overflow-x-auto rounded-2xl bg-slate-100 p-1.5 sm:mt-5">
                   {CHAPTERS.map((c, i) => {
@@ -590,9 +591,10 @@ export function OnlineSessions() {
                       {chapter === 3 && <VisaChapter />}
                       {chapter === 4 && <PartnersChapter />}
                       {chapter === 5 && <OtherInfoChapter />}
-                      {chapter === 6 && <ThankYouChapter />}
+                      {chapter === 6 && <ThankYouChapter celebrate={CHAPTERS.every((_, index) => visited.has(index))} />}
                     </motion.div>
                   </AnimatePresence>
+                </div>
                 </div>
               </div>
 

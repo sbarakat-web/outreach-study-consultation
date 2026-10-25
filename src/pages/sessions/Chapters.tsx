@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { ArrowRightCircle, BookOpen, CheckCircle2, Download, ExternalLink, FileCheck2, HelpCircle, MapPin, MessageCircle, ShieldCheck, Star, X } from "lucide-react";
+import { ArrowRightCircle, BookOpen, CheckCircle2, ChevronDown, Download, ExternalLink, FileCheck2, Globe2, HelpCircle, MapPin, MessageCircle, ShieldCheck, Sparkles, Star, Users, X } from "lucide-react";
 import {
   AREAS,
   BRAND,
@@ -68,12 +68,12 @@ function useCardMotion() {
 
 export function IntroChapter({ welcomeName }: { welcomeName?: string }) {
   return (
-    <div className="grid overflow-hidden rounded-2xl border-2 border-sky-100 bg-white shadow-sm md:grid-cols-2">
-      <div className="flex items-center justify-center bg-[#020617]">
+    <div className="grid overflow-hidden rounded-3xl border border-sky-100 bg-white shadow-sm md:grid-cols-2">
+      <div className="relative min-h-[320px] overflow-hidden bg-[#020617] md:min-h-[540px]">
         <SmartImage
           src={IMAGES.intro}
-          alt="Our adviser with partner school representatives"
-          className="max-h-[520px] w-full object-contain"
+          alt="Outreach adviser meeting representatives from English Path and GBS Malta"
+          className="absolute inset-0 h-full w-full object-cover object-center"
           fallback={
             <div className="flex min-h-[260px] w-full flex-col items-center justify-center gap-3 bg-gradient-to-br from-[#092553] via-[#5424c7] to-[#078bc7] p-8 text-center text-white md:min-h-[420px]">
               <img src="/logo.png" alt="" className="w-48 rounded-xl bg-white/95 p-3" />
@@ -81,31 +81,36 @@ export function IntroChapter({ welcomeName }: { welcomeName?: string }) {
             </div>
           }
         />
+        <div className="absolute inset-0 bg-gradient-to-t from-[#061a3c]/55 via-transparent to-transparent md:bg-gradient-to-r md:from-transparent md:via-transparent md:to-white/25" />
+        <p className="absolute bottom-4 left-4 rounded-full bg-white/90 px-3 py-1.5 text-xs font-bold text-[#092553] shadow-sm backdrop-blur">
+          Outreach × education partners in Malta
+        </p>
       </div>
       <div className="space-y-4 p-6 sm:p-8">
         <img src="/logo.png" alt="Outreach — Study in Malta" className="w-full max-w-[280px]" />
         {welcomeName && (
-          <div className="rounded-xl bg-gradient-to-r from-[#5424c7] to-[#078bc7] px-4 py-3 text-white">
-            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-white/80">Your personal Malta session</p>
+          <div className="rounded-2xl bg-violet-50 px-4 py-3 text-[#5424c7] ring-1 ring-violet-100">
+            <p className="text-xs font-bold">Your personal Malta session</p>
             <p className="text-lg font-black">Welcome, {welcomeName}</p>
           </div>
         )}
         <Eyebrow>Outreach Recruitment Agency</Eyebrow>
-        <h3 className="text-3xl font-black leading-tight text-[#092553] sm:text-4xl">
-          STUDY and eventually WORK in MALTA
-        </h3>
-        <p className="font-bold text-[#5424c7]">
-          All you need to know about study programs in Malta at accredited institutions and the processes to work while studying.
+        <h3 className="text-3xl font-black leading-tight text-[#092553] sm:text-4xl">Let’s build your Malta study plan</h3>
+        <p className="text-base font-semibold leading-relaxed text-[#5424c7]">
+          Compare programmes, understand fees and requirements, review the visa journey and identify your next best step.
         </p>
-        <p className="border-t border-slate-200 pt-4 text-slate-600">
-          {BRAND} guides international students from their first course conversation through programme selection, school applications, document
-          preparation and the Malta study journey. We make each step clear, personal and manageable.
+        <p className="border-t border-slate-200 pt-4 text-base leading-7 text-slate-600">
+          {BRAND} makes every stage clear and personal—from your first course conversation through applications, documents and preparation for Malta.
         </p>
-        <div className="grid gap-2 border-t border-slate-200 pt-4 sm:grid-cols-2">
-          {["Compare suitable programmes", "Understand fees and requirements", "Prepare your application", "Plan the visa journey"].map((item) => (
-            <p key={item} className="flex items-start gap-2 text-sm font-semibold text-slate-700">
-              <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-[#078bc7]" aria-hidden="true" />
-              {item}
+        <div className="space-y-2 border-t border-slate-200 pt-4">
+          {[
+            { icon: ShieldCheck, text: "Accredited education partners" },
+            { icon: MessageCircle, text: "Personal application guidance" },
+            { icon: ArrowRightCircle, text: "Support from course selection to arrival" },
+          ].map((item) => (
+            <p key={item.text} className="flex items-center gap-3 rounded-xl bg-sky-50 px-3 py-2.5 text-sm font-bold text-[#092553]">
+              <item.icon className="h-4 w-4 shrink-0 text-[#078bc7]" aria-hidden="true" />
+              {item.text}
             </p>
           ))}
         </div>
@@ -118,6 +123,11 @@ export function IntroChapter({ welcomeName }: { welcomeName?: string }) {
 
 export function DiscoverChapter() {
   const motionFor = useCardMotion();
+  const groups = [
+    { question: "Why study in Malta?", cards: DISCOVER.slice(0, 2) },
+    { question: "What is student life like?", cards: DISCOVER.slice(2, 4) },
+    { question: "What opportunities are available?", cards: DISCOVER.slice(4, 6) },
+  ];
   return (
     <div className="space-y-5">
       <div className="relative min-h-[280px] overflow-hidden rounded-2xl bg-[#092553] shadow-sm sm:min-h-[360px]">
@@ -140,15 +150,37 @@ export function DiscoverChapter() {
         </div>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {DISCOVER.map((card, i) => (
-          <motion.article key={card.title} {...motionFor(i)} className="rounded-2xl border-2 border-slate-100 bg-white p-5 shadow-sm">
-            <span className="mb-4 grid h-11 w-11 place-items-center rounded-xl bg-sky-50 text-[#078bc7]">
-              <card.icon className="h-5 w-5" aria-hidden="true" />
-            </span>
-            <h4 className="font-black text-[#092553]">{card.title}</h4>
-            <p className="mt-1 text-sm leading-relaxed text-slate-600">{card.text}</p>
-          </motion.article>
+      <div className="grid overflow-hidden rounded-2xl border border-sky-100 bg-sky-50/70 sm:grid-cols-2 lg:grid-cols-4">
+        {[
+          { icon: MessageCircle, text: "English is an official language" },
+          { icon: Globe2, text: "EU and Schengen member" },
+          { icon: MapPin, text: "Mediterranean location" },
+          { icon: Users, text: "International student community" },
+        ].map((item) => (
+          <div key={item.text} className="flex items-center gap-3 border-b border-sky-100 px-4 py-3 last:border-b-0 sm:border-r lg:border-b-0 lg:last:border-r-0">
+            <item.icon className="h-5 w-5 shrink-0 text-[#078bc7]" aria-hidden="true" />
+            <p className="text-sm font-bold leading-snug text-[#092553]">{item.text}</p>
+          </div>
+        ))}
+      </div>
+      <div className="grid gap-4 lg:grid-cols-3">
+        {groups.map((group, groupIndex) => (
+          <section key={group.question} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <h3 className="text-lg font-black text-[#092553]">{group.question}</h3>
+            <div className="mt-4 space-y-4">
+              {group.cards.map((card, cardIndex) => (
+                <motion.article key={card.title} {...motionFor(groupIndex * 2 + cardIndex)} className="flex gap-3">
+                  <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-sky-50 text-[#078bc7]">
+                    <card.icon className="h-5 w-5" aria-hidden="true" />
+                  </span>
+                  <div>
+                    <h4 className="font-bold text-[#092553]">{card.title}</h4>
+                    <p className="mt-0.5 text-sm leading-relaxed text-slate-600">{card.text}</p>
+                  </div>
+                </motion.article>
+              ))}
+            </div>
+          </section>
         ))}
       </div>
       <Note tone="sky">
@@ -616,26 +648,104 @@ export function VisaChapter() {
   );
 }
 
+const OTHER_INFO_TABS = [
+  {
+    title: "Work while studying",
+    summary: "Understand the current guidance for combining eligible study with limited part-time work.",
+    cards: OTHER_INFO[0].cards.filter((card) => card.title === "Part-time Work for Students"),
+  },
+  {
+    title: "Career after graduation",
+    summary: "Review the support and permissions that may apply after successfully completing your course.",
+    cards: OTHER_INFO[0].cards.filter((card) => card.title !== "Part-time Work for Students"),
+  },
+  {
+    title: "Payments and refunds",
+    summary: "Check payment schedules, possible tax credits and the conditions attached to refund requests.",
+    cards: OTHER_INFO[1].cards,
+  },
+  {
+    title: "Important conditions",
+    summary: "Keep official requirements, personal eligibility and current authority guidance at the centre of every decision.",
+    cards: OTHER_INFO[2].cards,
+  },
+];
+
 export function OtherInfoChapter() {
+  const [activeTab, setActiveTab] = useState(0);
+  const [openCard, setOpenCard] = useState<string | null>(OTHER_INFO_TABS[0].cards[0]?.title ?? null);
+  const current = OTHER_INFO_TABS[activeTab];
+
+  const chooseTab = (index: number) => {
+    setActiveTab(index);
+    setOpenCard(OTHER_INFO_TABS[index].cards[0]?.title ?? null);
+  };
+
   return (
     <div className="space-y-5">
-      {OTHER_INFO.map((section, s) => (
-        <section key={section.title} className="space-y-4 rounded-2xl bg-slate-50 p-4 sm:p-5">
-          <div>
-            <Eyebrow>Section {s + 1}</Eyebrow>
-            <h3 className="text-lg font-black text-[#092553]">{section.title}</h3>
-            <p className="text-sm text-slate-600">{section.description}</p>
-          </div>
-          <div className="grid gap-4 sm:grid-cols-2">
-            {section.cards.map((c, i) => (
-              <ChecklistCard key={c.title} card={c} index={i} />
-            ))}
-          </div>
-        </section>
-      ))}
-      <Note tone="sky">
-        Conditions can vary by student, institution and current authority requirements. Your Outreach adviser will confirm what applies before you
-        proceed.
+      <div role="tablist" aria-label="Other information categories" className="mobile-scroll flex gap-2 overflow-x-auto rounded-2xl bg-slate-100 p-1.5">
+        {OTHER_INFO_TABS.map((tab, index) => (
+          <button
+            key={tab.title}
+            type="button"
+            role="tab"
+            aria-selected={activeTab === index}
+            onClick={() => chooseTab(index)}
+            className={`min-h-11 shrink-0 rounded-xl px-4 text-sm font-bold outline-none transition focus-visible:ring-2 focus-visible:ring-[#5424c7] ${
+              activeTab === index ? "bg-[#5424c7] text-white shadow-sm" : "text-slate-600 hover:bg-white"
+            }`}
+          >
+            {tab.title}
+          </button>
+        ))}
+      </div>
+      <motion.section key={current.title} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+        <Eyebrow>Essential guidance</Eyebrow>
+        <h3 className="mt-1 text-2xl font-black text-[#092553]">{current.title}</h3>
+        <p className="mt-2 text-base leading-7 text-slate-600">{current.summary}</p>
+        <div className="mt-5 divide-y divide-slate-200 border-y border-slate-200">
+          {current.cards.map((card) => {
+            const expanded = openCard === card.title;
+            return (
+              <article key={card.title}>
+                <button
+                  type="button"
+                  aria-expanded={expanded}
+                  onClick={() => setOpenCard(expanded ? null : card.title)}
+                  className="flex w-full items-center gap-3 py-4 text-left outline-none focus-visible:ring-2 focus-visible:ring-[#5424c7] focus-visible:ring-inset"
+                >
+                  <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-sky-50 text-[#078bc7]">
+                    <card.icon className="h-5 w-5" aria-hidden="true" />
+                  </span>
+                  <span className="flex-1 font-black text-[#092553]">{card.title}</span>
+                  <ChevronDown className={`h-5 w-5 text-slate-400 transition-transform ${expanded ? "rotate-180" : ""}`} aria-hidden="true" />
+                </button>
+                <AnimatePresence initial={false}>
+                  {expanded && (
+                    <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
+                      <div className="pb-5 pl-[52px]">
+                        <p className="text-base leading-7 text-slate-600">{card.text}</p>
+                        {card.points && (
+                          <ul className="mt-3 space-y-2">
+                            {card.points.map((point) => (
+                              <li key={point} className="flex items-start gap-2 text-sm leading-relaxed text-slate-700">
+                                <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-[#078bc7]" aria-hidden="true" /> {point}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </article>
+            );
+          })}
+        </div>
+      </motion.section>
+      <Note>
+        Important: this information is general guidance, not a guarantee. Rules, fees and eligibility can change and must be reconfirmed with the
+        relevant school or authority before you proceed.
       </Note>
     </div>
   );
@@ -770,14 +880,36 @@ export function PartnersChapter() {
 
 // ---------------------------------------------------------------- 7. Thank you
 
-export function ThankYouChapter() {
+const CONFETTI = Array.from({ length: 18 }, (_, index) => ({
+  left: `${6 + ((index * 17) % 88)}%`,
+  delay: (index % 6) * 0.09,
+  color: ["#5424c7", "#078bc7", "#f59e0b", "#10b981"][index % 4],
+}));
+
+export function ThankYouChapter({ celebrate = false }: { celebrate?: boolean }) {
+  const reduce = useReducedMotion();
   return (
-    <div className="rounded-3xl border-2 border-emerald-100 bg-gradient-to-b from-white to-emerald-50 p-6 text-center sm:p-10">
+    <div className="relative overflow-hidden rounded-3xl border border-emerald-100 bg-gradient-to-b from-white to-emerald-50 p-6 text-center shadow-sm sm:p-10">
+      {celebrate && !reduce && (
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-72 overflow-hidden" aria-hidden="true">
+          {CONFETTI.map((piece, index) => (
+            <motion.span
+              key={index}
+              className="absolute top-0 h-3 w-2 rounded-sm"
+              style={{ left: piece.left, backgroundColor: piece.color }}
+              initial={{ y: -20, opacity: 0, rotate: 0 }}
+              animate={{ y: 290, opacity: [0, 1, 1, 0], rotate: 420 }}
+              transition={{ duration: 2.4, delay: piece.delay, ease: "easeOut" }}
+            />
+          ))}
+        </div>
+      )}
       <span className="mx-auto grid h-16 w-16 place-items-center rounded-2xl bg-emerald-500 text-white shadow-lg">
         <CheckCircle2 className="h-8 w-8" />
       </span>
-      <h3 className="mt-4 text-3xl font-black text-[#092553]">Thank you for joining us</h3>
-      <p className="mx-auto mt-3 max-w-2xl text-slate-600">
+      <p className="mt-5 inline-flex items-center gap-2 text-sm font-bold text-emerald-700"><Sparkles className="h-4 w-4" /> Session complete</p>
+      <h3 className="mt-2 text-3xl font-black text-[#092553]">Your next steps are ready</h3>
+      <p className="mx-auto mt-3 max-w-2xl text-base leading-7 text-slate-600">
         We hope your programme, application steps and Malta study options are now clear. {BRAND} is ready to answer any remaining questions and
         guide you through the next step.
       </p>
