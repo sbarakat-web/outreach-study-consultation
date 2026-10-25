@@ -1,10 +1,28 @@
+// Account invitations (admin only):
+//   POST { full_name, email }                                        send one invitation now
+//   POST { action: "queue", contacts: [{ full_name, email }], interval_minutes, start_at? }
+//        queue many (CSV); sent one by one, interval_minutes apart, by process-marketing-followups
+//   POST { action: "cancel", ids? }                                  cancel queued invitations (all when no ids)
 import { createClient } from "npm:@supabase/supabase-js@2.45.4";
-import { loadSettings, prefsToken, renderFor, sendMail } from "../_shared/marketing-send.ts";
+import { processInviteQueue, sendInvite } from "../_shared/invite.ts";
 
 const cors = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type" };
 const env = (key: string) => Deno.env.get(key) ?? "";
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { ...cors, "Content-Type": "application/json" } });
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const MAX_QUEUE = 1000;
+
+// deno-lint-ignore no-explicit-any
+async function accountEmails(db: any) {
+  const out = new Set<string>();
+  for (let page = 1; page <= 20; page++) {
+    const { data } = await db.auth.admin.listUsers({ page, perPage: 1000 });
+    const users = data?.users ?? [];
+    for (const user of users) if (user.email) out.add(user.email.toLowerCase());
+    if (users.length < 1000) break;
+  }
+  return out;
+}
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
@@ -18,6 +36,79 @@ Deno.serve(async (req) => {
   if (!admin) return json({ error: "Admin access required" }, 403);
 
   const input = await req.json().catch(() => ({}));
+
+  if (input.action === "cancel") {
+    let query = db.from("marketing_contacts").update({ status: "cancelled", scheduled_at: null }).eq("status", "queued");
+    if (Array.isArray(input.ids) && input.ids.length) query = query.in("id", input.ids);
+    const { data, error } = await query.select("id");
+    return error ? json({ error: error.message }, 500) : json({ ok: true, cancelled: data?.length ?? 0 });
+  }
+
+  if (input.action === "queue") {
+    const interval = Math.round(Number(input.interval_minutes));
+    if (!(interval >= 1 && interval <= 1440)) return json({ error: "Time between emails must be 1–1440 minutes" }, 400);
+    const startAt = input.start_at ? new Date(input.start_at) : new Date();
+    if (Number.isNaN(startAt.getTime())) return json({ error: "Invalid start time" }, 400);
+    const start = startAt < new Date() ? new Date() : startAt;
+
+    const skipped: { email: string; reason: string }[] = [];
+    const seen = new Set<string>();
+    const list: { full_name: string; email: string }[] = [];
+    for (const raw of Array.isArray(input.contacts) ? input.contacts : []) {
+      const email = String(raw?.email ?? "").trim().toLowerCase();
+      const fullName = String(raw?.full_name ?? "").trim() || email.split("@")[0];
+      if (!emailPattern.test(email)) skipped.push({ email: email || "(empty)", reason: "Invalid email" });
+      else if (seen.has(email)) skipped.push({ email, reason: "Duplicate in the list" });
+      else {
+        seen.add(email);
+        list.push({ full_name: fullName.slice(0, 120), email });
+      }
+    }
+    if (list.length > MAX_QUEUE) return json({ error: `At most ${MAX_QUEUE} candidates per upload` }, 400);
+
+    const accounts = await accountEmails(db);
+    const emails = list.map((c) => c.email);
+    const { data: existing } = await db.from("marketing_contacts").select("email, status, send_count").in("email", emails);
+    const { data: prefs } = await db.from("marketing_preferences").select("email, unsubscribed_at").in("email", emails).not("unsubscribed_at", "is", null);
+    const known = new Map((existing ?? []).map((c) => [c.email, c]));
+    const unsubscribed = new Set((prefs ?? []).map((p) => p.email));
+    const ready = list.filter((c) => {
+      const prev = known.get(c.email);
+      const reason = accounts.has(c.email)
+        ? "Already has an account"
+        : unsubscribed.has(c.email) || prev?.status === "unsubscribed"
+          ? "Unsubscribed"
+          : prev && ["queued", "sending"].includes(prev.status)
+            ? "Already in the queue"
+            : prev && prev.send_count > 0 && !input.resend
+              ? "Already invited"
+              : "";
+      if (reason) skipped.push({ email: c.email, reason });
+      return !reason;
+    });
+    if (!ready.length) return json({ ok: true, queued: 0, skipped });
+
+    const batchId = crypto.randomUUID();
+    const rows = ready.map((c, i) => ({
+      full_name: c.full_name,
+      email: c.email,
+      created_by: auth.user!.id,
+      status: "queued",
+      batch_id: batchId,
+      send_interval_minutes: interval,
+      scheduled_at: new Date(start.getTime() + i * interval * 60_000).toISOString(),
+      last_error: null,
+      follow_up_count: 0,
+      last_follow_up_at: null,
+      next_follow_up_at: null,
+    }));
+    const { error } = await db.from("marketing_contacts").upsert(rows, { onConflict: "email" });
+    if (error) return json({ error: error.message }, 500);
+    const sentNow = await processInviteQueue(db);
+    return json({ ok: true, queued: rows.length, sentNow, skipped, first_at: rows[0].scheduled_at, last_at: rows[rows.length - 1].scheduled_at });
+  }
+
+  // One invitation, sent now.
   const fullName = String(input.full_name ?? "").trim();
   const email = String(input.email ?? "").trim().toLowerCase();
   if (!fullName || !emailPattern.test(email)) return json({ error: "A full name and valid email are required" }, 400);
@@ -25,30 +116,15 @@ Deno.serve(async (req) => {
   const { data: existingContact } = await db.from("marketing_contacts").select("status").eq("email", email).maybeSingle();
   const { data: pref } = await db.from("marketing_preferences").select("unsubscribed_at").eq("email", email).maybeSingle();
   if (existingContact?.status === "unsubscribed" || pref?.unsubscribed_at) return json({ error: "This candidate unsubscribed from marketing emails" }, 409);
+  if ((await accountEmails(db)).has(email)) return json({ error: "This email already has an account" }, 409);
 
-  const { data: existingAccount } = await db.auth.admin.listUsers({ page: 1, perPage: 1000 });
-  if (existingAccount?.users.some((user) => user.email?.toLowerCase() === email)) return json({ error: "This email already has an account" }, 409);
-
-  const { data: template } = await db.from("marketing_email_templates").select("*").eq("id", "account-invite").maybeSingle();
-  const { data: contact, error: upsertError } = await db.from("marketing_contacts").upsert({ full_name: fullName, email, created_by: auth.user.id, status: "draft", last_error: null, follow_up_count: 0, last_follow_up_at: null, next_follow_up_at: null }, { onConflict: "email" }).select("id, tracking_token, send_count").single();
+  const { data: contact, error: upsertError } = await db
+    .from("marketing_contacts")
+    .upsert({ full_name: fullName, email, created_by: auth.user.id, status: "sending", batch_id: null, scheduled_at: null, last_error: null, follow_up_count: 0, last_follow_up_at: null, next_follow_up_at: null }, { onConflict: "email" })
+    .select("*")
+    .single();
   if (upsertError || !contact) return json({ error: upsertError?.message ?? "Could not save candidate" }, 500);
 
-  const functionsUrl = `${env("SUPABASE_URL")}/functions/v1`;
-  const clickUrl = `${functionsUrl}/marketing-track?token=${contact.tracking_token}&action=click`;
-  const openUrl = `${functionsUrl}/marketing-track?token=${contact.tracking_token}&action=open`;
-  const firstName = fullName.split(/\s+/)[0];
-  // {signup_link} in the template's button goes through click tracking to the sign-up form.
-  const mail = renderFor(
-    template ?? { blocks: [{ id: "t", type: "text", text: "Create your free Outreach Study account." }, { id: "b", type: "button", label: "Create my free account", href: "{signup_link}" }] },
-    template?.subject || "{name}, create your free Outreach Study account",
-    await loadSettings(db),
-    { name: firstName, signup_link: clickUrl },
-    await prefsToken(db, email),
-    undefined,
-    openUrl,
-  );
-  const result = await sendMail(email, mail.subject, mail.html, mail.text, mail.unsubscribe);
-  const sentAt = new Date();
-  await db.from("marketing_contacts").update(result.ok ? { status: "sent", send_count: (contact.send_count || 0) + 1, last_sent_at: sentAt.toISOString(), next_follow_up_at: new Date(sentAt.getTime() + 24 * 60 * 60 * 1000).toISOString(), provider_email_id: result.id ?? null, last_error: null } : { status: "failed", next_follow_up_at: null, last_error: result.error ?? "Email could not be sent" }).eq("id", contact.id);
+  const result = await sendInvite(db, contact);
   return result.ok ? json({ ok: true, id: contact.id }) : json({ error: result.error ?? "Email could not be sent" }, 502);
 });

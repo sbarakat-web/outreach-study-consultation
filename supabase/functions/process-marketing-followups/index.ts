@@ -1,8 +1,10 @@
-// Scheduled hourly by pg_cron: 24h invitation follow-ups and due campaign emails (scheduled /
-// local-morning sends). Every row is claimed before sending, so overlapping runs never double-send.
+// Scheduled every minute by pg_cron: queued CSV invitations, 24h invitation follow-ups and due
+// campaign emails (scheduled / local-morning sends). Every row is claimed before sending, so
+// overlapping runs never double-send.
 import { createClient } from "npm:@supabase/supabase-js@2.45.4";
 import { actions, button, escape, eyebrow, highlight, layout, para, title } from "../_shared/email.ts";
 import { processDueSends } from "../_shared/marketing-send.ts";
+import { processInviteQueue } from "../_shared/invite.ts";
 
 const env = (key: string) => Deno.env.get(key) ?? "";
 
@@ -53,6 +55,7 @@ Deno.serve(async () => {
       await db.from("marketing_contacts").update({ last_error: result.error }).eq("id", contact.id);
     }
   }
+  const invitesSent = await processInviteQueue(db);
   const campaignSent = await processDueSends(db, 300);
-  return new Response(JSON.stringify({ ok: true, eligible: due?.length ?? 0, sent, campaignSent }), { headers: { "Content-Type": "application/json" } });
+  return new Response(JSON.stringify({ ok: true, eligible: due?.length ?? 0, sent, invitesSent, campaignSent }), { headers: { "Content-Type": "application/json" } });
 });

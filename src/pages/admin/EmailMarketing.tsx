@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
-import { Check, CheckCircle2, Clock3, Eye, Mail, MousePointerClick, RefreshCw, Send, UserPlus } from "lucide-react";
+import { CalendarClock, Check, CheckCircle2, Clock3, Eye, Mail, MousePointerClick, RefreshCw, Send, UserPlus, Users } from "lucide-react";
 import { Alert, Button, Card, Spinner } from "../../components/ui";
 import { PageTitle, StatStrip } from "../../components/dash";
 import { supabase } from "../../lib/supabase";
@@ -7,6 +7,7 @@ import { Campaigns } from "./marketing/Campaigns";
 import { Templates } from "./marketing/Templates";
 import { Library } from "./marketing/Library";
 import { FooterSettings } from "./marketing/FooterSettings";
+import { BulkInvites, InviteQueue } from "./marketing/BulkInvites";
 
 const TABS = [
   { key: "campaigns", label: "Campaigns" },
@@ -53,7 +54,7 @@ export function EmailMarketing() {
 
 // ------------------------------------------------------------ account invitations
 
-type MarketingStatus = "draft" | "sent" | "opened" | "clicked" | "account_created" | "unsubscribed" | "failed";
+type MarketingStatus = "draft" | "queued" | "sending" | "sent" | "opened" | "clicked" | "account_created" | "unsubscribed" | "failed" | "cancelled";
 interface Contact {
   id: string;
   full_name: string;
@@ -71,11 +72,16 @@ interface Contact {
   account_created_at: string | null;
   unsubscribed_at: string | null;
   last_error: string | null;
+  scheduled_at: string | null;
+  batch_id: string | null;
   created_at: string;
 }
 
 const statusStyle: Record<MarketingStatus, string> = {
   draft: "bg-slate-100 text-slate-600",
+  queued: "bg-brand/10 text-brand",
+  sending: "bg-brand/10 text-brand",
+  cancelled: "bg-slate-100 text-slate-500",
   sent: "bg-blue-50 text-blue-700",
   opened: "bg-violet-50 text-violet-700",
   clicked: "bg-amber-50 text-amber-700",
@@ -83,7 +89,7 @@ const statusStyle: Record<MarketingStatus, string> = {
   failed: "bg-red-50 text-red-700",
   unsubscribed: "bg-slate-100 text-slate-600",
 };
-const statusLabel: Record<MarketingStatus, string> = { draft: "Draft", sent: "Sent", opened: "Opened", clicked: "Clicked", account_created: "Account created", unsubscribed: "Unsubscribed", failed: "Failed" };
+const statusLabel: Record<MarketingStatus, string> = { draft: "Draft", queued: "Scheduled", sending: "Sending", cancelled: "Cancelled", sent: "Sent", opened: "Opened", clicked: "Clicked", account_created: "Account created", unsubscribed: "Unsubscribed", failed: "Failed" };
 const formatDate = (value: string | null) => (value ? new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value)) : "—");
 const journey = [
   { key: "sent", label: "Invite sent", icon: Send },
@@ -107,6 +113,7 @@ function Invitations({ onEditTemplate }: { onEditTemplate: () => void }) {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [mode, setMode] = useState<"one" | "many">("one");
 
   const load = useCallback(async () => {
     const { data, error } = await supabase.from("marketing_contacts").select("*").order("created_at", { ascending: false });
@@ -161,13 +168,13 @@ function Invitations({ onEditTemplate }: { onEditTemplate: () => void }) {
       {success && <Alert tone="success">{success}</Alert>}
 
       <Card>
-        <form onSubmit={sendInvite} className="grid gap-4 px-5 py-6 sm:px-7 lg:grid-cols-[1fr_1fr_auto] lg:items-end">
-          <div className="flex items-center gap-3 lg:col-span-3">
-            <span className="grid h-11 w-11 place-items-center rounded-full bg-brand/10 text-brand">
-              <UserPlus className="h-5 w-5" />
+        <div className="flex flex-col gap-4 px-5 pt-6 sm:flex-row sm:items-center sm:justify-between sm:px-7">
+          <div className="flex items-center gap-3">
+            <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-brand/10 text-brand">
+              {mode === "one" ? <UserPlus className="h-5 w-5" /> : <Users className="h-5 w-5" />}
             </span>
             <div>
-              <h2 className="text-lg font-black">Send one invitation</h2>
+              <h2 className="text-lg font-black">{mode === "one" ? "Send one invitation" : "Invite many candidates"}</h2>
               <p className="text-xs text-slate-500">
                 Uses the “Account invite” template —{" "}
                 <button type="button" onClick={onEditTemplate} className="font-bold text-brand hover:underline">
@@ -177,6 +184,31 @@ function Invitations({ onEditTemplate }: { onEditTemplate: () => void }) {
               </p>
             </div>
           </div>
+          <div role="tablist" className="flex shrink-0 rounded-full bg-slate-100 p-1">
+            {(
+              [
+                ["one", "One by one"],
+                ["many", "Many (CSV)"],
+              ] as const
+            ).map(([key, label]) => (
+              <button
+                key={key}
+                role="tab"
+                aria-selected={mode === key}
+                onClick={() => setMode(key)}
+                className={`rounded-full px-4 py-1.5 text-sm font-bold transition ${mode === key ? "bg-white text-brand shadow-sm" : "text-slate-500 hover:text-navy"}`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+        {mode === "many" ? (
+          <div className="px-5 py-6 sm:px-7">
+            <BulkInvites contacts={contacts} onQueued={load} />
+          </div>
+        ) : (
+          <form onSubmit={sendInvite} className="grid gap-4 px-5 py-6 sm:px-7 lg:grid-cols-[1fr_1fr_auto] lg:items-end">
           <label>
             <span className="label">Full name</span>
             <input className="field" required value={fullName} onChange={(event) => setFullName(event.target.value)} placeholder="Candidate full name" />
@@ -189,8 +221,15 @@ function Invitations({ onEditTemplate }: { onEditTemplate: () => void }) {
             <Mail className="h-4 w-4" />
             Send invitation
           </Button>
-        </form>
+          </form>
+        )}
       </Card>
+
+      {contacts.some((c) => c.status === "queued" || c.status === "sending") && (
+        <Card>
+          <InviteQueue contacts={contacts} onChange={load} />
+        </Card>
+      )}
 
       <Card>
         <div className="px-5 py-6 sm:px-7">
@@ -223,7 +262,12 @@ function Invitations({ onEditTemplate }: { onEditTemplate: () => void }) {
                       </div>
                       <div className="text-left text-xs text-slate-500 sm:text-right">
                         <p>Last activity: {formatDate(lastActivity)}</p>
-                        {contact.follow_up_count > 0 ? (
+                        {contact.status === "queued" && contact.scheduled_at ? (
+                          <p className="mt-1 inline-flex items-center gap-1 font-semibold text-brand">
+                            <CalendarClock className="h-3.5 w-3.5" />
+                            Sends {formatDate(contact.scheduled_at)}
+                          </p>
+                        ) : contact.follow_up_count > 0 ? (
                           <p className="mt-1 font-semibold text-amber-700">24-hour reminder sent</p>
                         ) : contact.next_follow_up_at && contact.status !== "account_created" ? (
                           <p className="mt-1 inline-flex items-center gap-1 font-semibold text-slate-600">
