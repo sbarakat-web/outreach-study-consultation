@@ -32,11 +32,12 @@ export const IMAGES = {
   heroDesktop: "/onlinesessions/online-session-hero-v2.webp",
   heroMobile: "/onlinesessions/online-session-hero-mobile-v2.webp",
   intro: "/onlinesessions/introduction-english-path-gbs.webp",
+  discover: "/onlinesessions/discover-malta-real.webp",
 };
 
 export const CHAPTERS = [
-  { title: "Introduction", subtitle: "Meet Outreach Recruitment Agency and see how this guided Malta session will help you." },
-  { title: "Discover Malta", subtitle: "Why could Malta be the right place for your future?" },
+  { title: "Introduction", subtitle: "Meet your Malta study partner and see exactly what this guided session will cover." },
+  { title: "Discover Malta", subtitle: "Explore the language, lifestyle, education and opportunities that make Malta distinctive." },
   { title: "Programmes", subtitle: "Choose a study area, then select a programme to reveal the key details." },
   {
     title: "Visa Application Process",

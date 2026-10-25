@@ -101,6 +101,14 @@ export function IntroChapter({ welcomeName }: { welcomeName?: string }) {
           {BRAND} guides international students from their first course conversation through programme selection, school applications, document
           preparation and the Malta study journey. We make each step clear, personal and manageable.
         </p>
+        <div className="grid gap-2 border-t border-slate-200 pt-4 sm:grid-cols-2">
+          {["Compare suitable programmes", "Understand fees and requirements", "Prepare your application", "Plan the visa journey"].map((item) => (
+            <p key={item} className="flex items-start gap-2 text-sm font-semibold text-slate-700">
+              <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-[#078bc7]" aria-hidden="true" />
+              {item}
+            </p>
+          ))}
+        </div>
       </div>
     </div>
   );
@@ -111,27 +119,42 @@ export function IntroChapter({ welcomeName }: { welcomeName?: string }) {
 export function DiscoverChapter() {
   const motionFor = useCardMotion();
   return (
-    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-      {DISCOVER.map((card, i) => (
-        <motion.article key={card.title} {...motionFor(i)} className="overflow-hidden rounded-2xl border-2 border-slate-100 bg-white shadow-sm">
-          <div className="relative h-28 sm:h-32">
-            <SmartImage
-              src={card.image!}
-              alt=""
-              className="h-full w-full object-cover"
-              fallback={<div className="h-full w-full bg-gradient-to-br from-[#77c9f2] via-[#078bc7] to-[#092553]" />}
-            />
-            <div className="absolute inset-0 bg-gradient-to-t from-[#092553]/80 via-[#092553]/10 to-transparent" />
-            <span className="absolute bottom-3 left-3 grid h-10 w-10 place-items-center rounded-xl bg-white text-[#078bc7] shadow">
-              <card.icon className="h-5 w-5" />
+    <div className="space-y-5">
+      <div className="relative min-h-[280px] overflow-hidden rounded-2xl bg-[#092553] shadow-sm sm:min-h-[360px]">
+        <SmartImage
+          src={IMAGES.discover}
+          alt="Valletta's limestone skyline and a traditional Maltese luzzu boat on the Mediterranean"
+          className="absolute inset-0 h-full w-full object-cover"
+          fallback={<div className="absolute inset-0 bg-gradient-to-br from-[#77c9f2] via-[#078bc7] to-[#092553]" />}
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-[#061a3c] via-[#092553]/25 to-transparent" />
+        <div className="absolute inset-x-0 bottom-0 p-5 text-white sm:p-8">
+          <p className="mb-2 flex items-center gap-2 text-xs font-black uppercase tracking-[0.18em] text-sky-200">
+            <MapPin className="h-4 w-4" aria-hidden="true" />
+            Malta, Mediterranean
+          </p>
+          <h3 className="max-w-2xl text-2xl font-black leading-tight sm:text-4xl">A small island with an international outlook</h3>
+          <p className="mt-2 max-w-2xl text-sm leading-relaxed text-white/90 sm:text-base">
+            Study in English while experiencing a connected European destination known for its coastline, history and welcoming student life.
+          </p>
+        </div>
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {DISCOVER.map((card, i) => (
+          <motion.article key={card.title} {...motionFor(i)} className="rounded-2xl border-2 border-slate-100 bg-white p-5 shadow-sm">
+            <span className="mb-4 grid h-11 w-11 place-items-center rounded-xl bg-sky-50 text-[#078bc7]">
+              <card.icon className="h-5 w-5" aria-hidden="true" />
             </span>
-          </div>
-          <div className="p-4">
             <h4 className="font-black text-[#092553]">{card.title}</h4>
-            <p className="text-sm text-slate-600">{card.text}</p>
-          </div>
-        </motion.article>
-      ))}
+            <p className="mt-1 text-sm leading-relaxed text-slate-600">{card.text}</p>
+          </motion.article>
+        ))}
+      </div>
+      <Note tone="sky">
+        Malta combines English-language study with a European setting. Programme eligibility, living costs and work conditions vary, so your adviser
+        will help you confirm the details for your personal plan.
+      </Note>
     </div>
   );
 }
