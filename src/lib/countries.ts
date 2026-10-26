@@ -39,6 +39,16 @@ export const COUNTRIES: Country[] = Object.entries(DIAL)
 
 export const countryByCode = (code: string) => COUNTRIES.find((c) => c.code === code);
 
+/** IANA time zones used in a country (first = most common); empty when the browser can't tell. */
+export function timeZonesOf(code: string): string[] {
+  try {
+    const locale = new Intl.Locale(`und-${code}`) as Intl.Locale & { getTimeZones?: () => string[]; timeZones?: string[] };
+    return locale.getTimeZones?.() ?? locale.timeZones ?? [];
+  } catch {
+    return [];
+  }
+}
+
 // Same list with names in the visitor's language (stored values stay English).
 const localized = new Map<string, Country[]>();
 export function countriesFor(lang: string): Country[] {

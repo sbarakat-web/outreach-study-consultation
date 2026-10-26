@@ -167,6 +167,13 @@ export function callTimes(now = new Date(), minHoursAhead = CALL_HOURS.minHoursA
   return out;
 }
 
+/** A wall-clock date ("2026-10-28") and time ("10:30") in Malta → the UTC instant. */
+export function maltaDateTime(date: string, time: string) {
+  const [y, m, d] = date.split("-").map(Number);
+  const [h, min] = time.split(":").map(Number);
+  return zonedTime(y, m - 1, d, h, min);
+}
+
 export const STATUSES: { value: Status; label: string }[] = [
   { value: "new", label: "New lead" },
   { value: "consultation_booked", label: "Consultation booked" },

@@ -1,5 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2.45.4";
-import { actions, button, eyebrow, highlight, layout, para, title, escape } from "../_shared/email.ts";
+import { actions, button, eyebrow, facts, highlight, layout, para, steps, title, escape } from "../_shared/email.ts";
+import { CALL_MINUTES, confirmedEmail, whenIn } from "../_shared/call.ts";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -9,6 +10,49 @@ const cors = {
 const env = (key: string) => Deno.env.get(key) ?? "";
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { ...cors, "Content-Type": "application/json" } });
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const WHATSAPP = "35699728213";
+const validZone = (tz: string) => {
+  try {
+    new Intl.DateTimeFormat("en-GB", { timeZone: tz });
+    return true;
+  } catch {
+    return false;
+  }
+};
+const optional = (v: unknown, max = 200) => (typeof v === "string" && v.trim() ? v.trim().slice(0, max) : null);
+
+/** "Consultation booked" with a meeting set up outside the app: local + Malta time, link, programme, dashboard, cancel note. */
+// deno-lint-ignore no-explicit-any
+function bookedEmail(c: any, dashboardLink: string) {
+  const first = escape(String(c.full_name).split(/\s+/)[0]);
+  const when = whenIn(c.preferred_call_at, c.tracking.tz);
+  const wa = `https://wa.me/${WHATSAPP}?text=${encodeURIComponent(`Hi Outreach, this is ${c.full_name}. About my meeting on ${when.short}: `)}`;
+  return {
+    subject: `${String(c.full_name).split(/\s+/)[0]}, you have a meeting with Outreach — ${when.short}`,
+    html: layout(
+      eyebrow("Consultation booked") +
+        title(`Hi ${first}, you have a meeting with us 🎓`) +
+        para("Your free online consultation with Outreach is booked. Here are your details:", true) +
+        highlight(
+          `<strong style="font-size:18px">📅 ${escape(when.main)}</strong><br><span style="color:#8a8ea8;font-size:13px">${escape(when.sub)} · ${CALL_MINUTES} minutes · online</span>`,
+        ) +
+        actions(button(c.meeting_url, "🎥 Join the meeting")) +
+        facts([
+          ["Programme", c.desired_course],
+          ["Meeting link", c.meeting_url],
+        ]) +
+        `<div style="margin:0 0 16px;padding:16px 18px;border:2px solid #f0eeff;border-radius:14px;text-align:center">
+          <p style="margin:0 0 6px;color:#14123a"><strong>Your new dashboard</strong></p>
+          <p style="margin:0 0 12px;color:#5b6080">Follow every step of your application in one place: your meeting, documents to upload and what comes next.</p>
+          ${button(dashboardLink, "Open my dashboard", "#14123a")}
+        </div>` +
+        steps("What happens next", ["Join the meeting", "Upload your documents", "Follow your next steps"]) +
+        `<p style="margin:0 0 14px;padding:12px 16px;border-radius:12px;background:#fff8e6;color:#7a5a00;text-align:center;font-size:14px">Need to cancel or change the time? Please <a href="${wa}" style="color:#7a5a00;font-weight:bold">send us a WhatsApp message</a> (+356 9972 8213) before the meeting.</p>` +
+        para(`The calendar invite is attached. The dashboard button signs you in for 1 hour; after that, sign in with your email at <a href="${env("APP_URL") || "https://consultation.outreachstudy.eu"}/login" style="color:#442DFA">consultation.outreachstudy.eu</a>.`, true),
+      `${when.main} — your meeting with Outreach`,
+    ),
+  };
+}
 
 const statuses = {
   new: {
@@ -69,6 +113,14 @@ Deno.serve(async (req) => {
     const status = String(input.status ?? "new") as LeadStatus;
     if (fullName.length < 2 || !emailPattern.test(email)) return json({ error: "A full name and valid email are required" }, 400);
     if (!statuses[status]) return json({ error: "Select a valid lead status" }, 400);
+    const booked = status === "consultation_booked" && !!input.call_at;
+    const callAt = booked ? new Date(String(input.call_at)) : null;
+    const meetingUrl = booked ? String(input.meeting_url ?? "").trim() : null;
+    const tz = booked && validZone(String(input.tz ?? "")) ? String(input.tz) : "Europe/Malta";
+    if (booked) {
+      if (!callAt || Number.isNaN(callAt.getTime()) || callAt.getTime() < Date.now()) return json({ error: "Choose a meeting time in the future" }, 400);
+      if (!/^https:\/\/\S+$/.test(meetingUrl ?? "")) return json({ error: "The meeting link must start with https://" }, 400);
+    }
     if (!env("RESEND_API_KEY")) return json({ error: "Email delivery is not configured; no lead was created" }, 503);
 
     const { data: existing, error: lookupError } = await db
@@ -101,12 +153,25 @@ Deno.serve(async (req) => {
         full_name: fullName,
         email,
         status,
+        country: optional(input.country, 80),
+        whatsapp: optional(input.whatsapp, 40) ?? "",
+        desired_course: optional(input.desired_course, 300),
+        ...(input.study_path === "english" || input.study_path === "higher_education" ? { study_path: input.study_path } : {}),
+        ...(booked
+          ? {
+              call_status: "confirmed",
+              preferred_call_at: callAt!.toISOString(),
+              meeting_url: meetingUrl,
+              // This email already confirms the meeting; skip the "see you tomorrow" reminder when it is that close.
+              reminder_24h_at: callAt!.getTime() - Date.now() < 25 * 3_600_000 ? new Date().toISOString() : null,
+            }
+          : {}),
         session_outcome: interviewed ? "interviewed" : null,
         session_outcome_at: interviewed ? new Date().toISOString() : null,
         documents_due_at: interviewed ? new Date(Date.now() + 7 * 86_400_000).toISOString() : null,
-        tracking: { source: "admin", created_by: adminEmail },
+        tracking: { source: "admin", created_by: adminEmail, tz },
       })
-      .select("id")
+      .select("*")
       .single();
     if (insertError || !consultation) throw new Error(insertError?.message ?? "Could not save the lead");
     consultationId = consultation.id;
@@ -120,14 +185,16 @@ Deno.serve(async (req) => {
     const detail = statuses[status];
     const firstName = escape(fullName.split(/\s+/)[0]);
 
+    const meeting = booked ? bookedEmail(consultation, dashboardLink) : null;
     const response = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: { Authorization: `Bearer ${env("RESEND_API_KEY")}`, "Content-Type": "application/json" },
       body: JSON.stringify({
         from: env("MAIL_FROM") || "Outreach <hello@consultation.outreachstudy.eu>",
         to: email,
-        subject: detail.subject,
-        html: layout(
+        ...(meeting ? { attachments: confirmedEmail(consultation).attachments } : {}),
+        subject: meeting?.subject ?? detail.subject,
+        html: meeting?.html ?? layout(
           eyebrow("Application update") +
             title(`Hi ${firstName}`) +
             para(detail.message, true) +

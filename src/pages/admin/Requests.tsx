@@ -11,8 +11,13 @@ import {
   labelFor,
   statusLabel,
   callStage,
+  maltaDateTime,
   noReply24h,
 } from "../../lib/options";
+import { parsePhoneNumberFromString, type CountryCode } from "libphonenumber-js/max";
+import { CountryPicker } from "../../components/CountryPicker";
+import { COUNTRIES, countryByCode, timeZonesOf } from "../../lib/countries";
+import { AREAS, ENGLISH_COURSES, ENGLISH_PROVIDERS, PROGRAMMES, programmeValue } from "../sessions/data";
 import { CallPanel } from "./CallPanel";
 import { SessionPanel, sessionHref } from "./SessionPanel";
 import type { Consultation, DocumentRow, Status } from "../../lib/types";
@@ -266,22 +271,68 @@ export function Requests() {
 
 const SESSION_LABEL = { interviewed: "Interviewed", no_attendance: "No attendance", no_longer_interested: "No longer interested" } as const;
 
+const ALL_ZONES: string[] = (() => {
+  try {
+    return (Intl as unknown as { supportedValuesOf: (k: string) => string[] }).supportedValuesOf("timeZone");
+  } catch {
+    return ["Europe/Malta"];
+  }
+})();
+const zoneTime = (at: Date, timeZone: string) =>
+  new Intl.DateTimeFormat("en-GB", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone }).format(at);
+
 function AddLead({ onClose, onCreated }: { onClose: () => void; onCreated: (id: string) => void }) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [status, setStatus] = useState<Status>("new");
+  const [country, setCountry] = useState("");
+  const [dialCountry, setDialCountry] = useState("MA");
+  const [phone, setPhone] = useState("");
+  const [course, setCourse] = useState("");
+  const [date, setDate] = useState("");
+  const [time, setTime] = useState("");
+  const [meetingUrl, setMeetingUrl] = useState("");
+  const [zone, setZone] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [createdLeadId, setCreatedLeadId] = useState<string | null>(null);
+  const booked = status === "consultation_booked";
+
+  const changeCountry = (code: string) => {
+    setCountry(code);
+    if (!phone.trim()) setDialCountry(code);
+    setZone(timeZonesOf(code)[0] ?? "");
+  };
+  const zones = country ? timeZonesOf(country) : [];
+  const phoneCheck = useMemo(() => {
+    if (!phone.trim()) return null;
+    const parsed = parsePhoneNumberFromString(phone.trim(), dialCountry as CountryCode);
+    return parsed?.isValid() ? parsed : false;
+  }, [phone, dialCountry]);
+  const callAt = booked && date && time ? maltaDateTime(date, time) : null;
+  const studyPath = ENGLISH_COURSES.some((c) => c.value === course) ? "english" : "higher_education";
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
+    if (phoneCheck === false) return setError(`This WhatsApp number is not valid for ${countryByCode(dialCountry)?.name ?? dialCountry}.`);
+    if (booked) {
+      if (!country) return setError("Choose the candidate's country — the email shows the meeting in their local time.");
+      if (!callAt || callAt.getTime() < Date.now()) return setError("Choose a meeting date and time in the future (Malta time).");
+      if (!/^https:\/\/\S+$/.test(meetingUrl.trim())) return setError("Paste the meeting link (it must start with https://).");
+    }
     setSaving(true);
     setError("");
+    const details = {
+      country: country ? countryByCode(country)?.name ?? country : null,
+      whatsapp: phoneCheck ? phoneCheck.formatInternational() : null,
+      desired_course: course || null,
+      study_path: course ? studyPath : null,
+      ...(booked && callAt ? { call_at: callAt.toISOString(), meeting_url: meetingUrl.trim(), tz: zone || "Europe/Malta" } : {}),
+    };
     try {
       const normalizedEmail = email.trim().toLowerCase();
       const { data, error: invokeError } = await supabase.functions.invoke("admin-create-lead", {
-        body: { full_name: name.trim(), email: normalizedEmail, status },
+        body: { full_name: name.trim(), email: normalizedEmail, status, ...details },
       });
       if (!invokeError && !data?.error) {
         if (!data?.id) throw new Error("Lead was created, but no lead ID was returned");
@@ -312,19 +363,19 @@ function AddLead({ onClose, onCreated }: { onClose: () => void; onCreated: (id: 
       const { data: id, error: createError } = await supabase.rpc("book_consultation", {
         p_full_name: name.trim(),
         p_email: normalizedEmail,
-        p_whatsapp: "",
-        p_country: null,
+        p_whatsapp: details.whatsapp ?? "",
+        p_country: details.country,
         p_age: null,
-        p_study_path: "higher_education",
+        p_study_path: details.study_path ?? "higher_education",
         p_english_level: "b2_plus",
-        p_desired_course: null,
+        p_desired_course: details.desired_course,
         p_start_date: null,
         p_budget: null,
         p_visa_support: null,
         p_preferred_contact_time: null,
         p_message: null,
         p_slot_id: null,
-        p_tracking: { source: "admin" },
+        p_tracking: { source: "admin", ...(booked ? { tz: zone || "Europe/Malta" } : {}) },
       });
       if (createError || !id) throw new Error(createError?.message ?? "Could not save the lead");
 
@@ -335,6 +386,7 @@ function AddLead({ onClose, onCreated }: { onClose: () => void; onCreated: (id: 
         session_outcome: interviewed ? "interviewed" : null,
         session_outcome_at: interviewed ? new Date().toISOString() : null,
         documents_due_at: interviewed ? new Date(Date.now() + 7 * 86_400_000).toISOString() : null,
+        ...(booked && callAt ? { call_status: "confirmed", preferred_call_at: callAt.toISOString(), meeting_url: meetingUrl.trim() } : {}),
       }).eq("id", id);
       if (statusError) {
         setCreatedLeadId(id);
@@ -365,7 +417,7 @@ function AddLead({ onClose, onCreated }: { onClose: () => void; onCreated: (id: 
   return (
     <div className="fixed inset-0 z-50 grid place-items-center overflow-y-auto bg-navy/45 p-4" onClick={onClose}>
       <Card>
-        <form onSubmit={submit} className="w-[min(32rem,calc(100vw-2rem))] space-y-4 p-6" onClick={(e) => e.stopPropagation()}>
+        <form onSubmit={submit} className="w-[min(36rem,calc(100vw-2rem))] space-y-4 p-6" onClick={(e) => e.stopPropagation()}>
           <div className="flex items-start justify-between gap-3">
             <div>
               <h2 className="text-xl font-black">Add new lead</h2>
@@ -373,13 +425,48 @@ function AddLead({ onClose, onCreated }: { onClose: () => void; onCreated: (id: 
             </div>
             <button type="button" aria-label="Close" onClick={onClose} className="rounded-full p-2 hover:bg-mist"><X className="h-5 w-5" /></button>
           </div>
-          <div>
-            <label className="label" htmlFor="new-lead-name">Full name</label>
-            <input id="new-lead-name" className="field" required minLength={2} value={name} onChange={(e) => setName(e.target.value)} />
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <label className="label" htmlFor="new-lead-name">Full name</label>
+              <input id="new-lead-name" className="field" required minLength={2} value={name} onChange={(e) => setName(e.target.value)} />
+            </div>
+            <div>
+              <label className="label" htmlFor="new-lead-email">Email</label>
+              <input id="new-lead-email" type="email" className="field" required value={email} onChange={(e) => setEmail(e.target.value)} />
+            </div>
+            <div>
+              <label className="label" htmlFor="new-lead-country">Country{booked && " *"}</label>
+              <CountryPicker id="new-lead-country" value={country} onChange={changeCountry} countries={COUNTRIES} searchPlaceholder="Search country" />
+            </div>
+            <div>
+              <label className="label" htmlFor="new-lead-phone">WhatsApp number</label>
+              <div className="flex gap-2">
+                <CountryPicker variant="dial" value={dialCountry} onChange={setDialCountry} countries={COUNTRIES} searchPlaceholder="Search country or +code" ariaLabel="Dial code" className="w-28 shrink-0" />
+                <input id="new-lead-phone" type="tel" inputMode="tel" className="field min-w-0" placeholder="600 000 000" value={phone} onChange={(e) => setPhone(e.target.value)} />
+              </div>
+              {phoneCheck && <p className="mt-1 text-xs font-bold text-emerald-700">✓ {phoneCheck.formatInternational()}</p>}
+              {phoneCheck === false && <p className="mt-1 text-xs font-bold text-brand-red">Not a valid number for {countryByCode(dialCountry)?.name ?? dialCountry}</p>}
+            </div>
           </div>
           <div>
-            <label className="label" htmlFor="new-lead-email">Email</label>
-            <input id="new-lead-email" type="email" className="field" required value={email} onChange={(e) => setEmail(e.target.value)} />
+            <label className="label" htmlFor="new-lead-course">Programme</label>
+            <select id="new-lead-course" className="field" value={course} onChange={(e) => setCourse(e.target.value)}>
+              <option value="">Not chosen yet</option>
+              {ENGLISH_PROVIDERS.map((provider) => (
+                <optgroup key={provider.name} label={`English · ${provider.name}`}>
+                  {ENGLISH_COURSES.filter((c) => c.provider === provider.name).map((c) => (
+                    <option key={c.id} value={c.value}>{c.label} · {c.price}</option>
+                  ))}
+                </optgroup>
+              ))}
+              {AREAS.filter((area) => area.key !== "english").map((area) => (
+                <optgroup key={area.key} label={area.name}>
+                  {PROGRAMMES.filter((p) => p.area === area.key).map((p) => (
+                    <option key={p.id} value={programmeValue(p)}>{p.course} — {p.school} · {p.totalFee}</option>
+                  ))}
+                </optgroup>
+              ))}
+            </select>
           </div>
           <div>
             <label className="label" htmlFor="new-lead-status">Status</label>
@@ -387,6 +474,40 @@ function AddLead({ onClose, onCreated }: { onClose: () => void; onCreated: (id: 
               {STATUSES.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
             </select>
           </div>
+          {booked && (
+            <div className="space-y-4 rounded-xl bg-brand/[0.04] p-4 ring-1 ring-brand/15">
+              <p className="flex items-center gap-2 text-sm font-black text-navy"><CalendarCheck className="h-4 w-4 text-brand" /> Meeting already booked</p>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <label className="label" htmlFor="new-lead-date">Date (Malta) *</label>
+                  <input id="new-lead-date" type="date" className="field" required value={date} onChange={(e) => setDate(e.target.value)} />
+                </div>
+                <div>
+                  <label className="label" htmlFor="new-lead-time">Time (Malta) *</label>
+                  <input id="new-lead-time" type="time" step={300} className="field" required value={time} onChange={(e) => setTime(e.target.value)} />
+                </div>
+              </div>
+              <div>
+                <label className="label" htmlFor="new-lead-meet">Meeting link *</label>
+                <input id="new-lead-meet" type="url" className="field" required placeholder="https://meet.google.com/…" value={meetingUrl} onChange={(e) => setMeetingUrl(e.target.value)} />
+              </div>
+              {country && (zones.length !== 1) && (
+                <div>
+                  <label className="label" htmlFor="new-lead-zone">Candidate's time zone</label>
+                  <select id="new-lead-zone" className="field" value={zone} onChange={(e) => setZone(e.target.value)}>
+                    {(zones.length ? zones : ALL_ZONES).map((z) => <option key={z} value={z}>{z.replace(/_/g, " ")}</option>)}
+                  </select>
+                </div>
+              )}
+              {callAt && (
+                <p className="rounded-lg bg-white px-3 py-2 text-sm ring-1 ring-slate-200">
+                  <strong>Malta:</strong> {zoneTime(callAt, "Europe/Malta")}
+                  {zone && zone !== "Europe/Malta" && <><br /><strong>Candidate ({countryByCode(country)?.name}):</strong> {zoneTime(callAt, zone)}</>}
+                </p>
+              )}
+              <p className="text-xs text-slate-500">The email shows the meeting in the candidate's local time (and Malta time), with the link, the programme, a dashboard button and a calendar invite. Presenters get their 10-minute email automatically.</p>
+            </div>
+          )}
           {error && (
             <Alert>
               <span>{error}</span>
@@ -397,7 +518,7 @@ function AddLead({ onClose, onCreated }: { onClose: () => void; onCreated: (id: 
               )}
             </Alert>
           )}
-          <Button type="submit" loading={saving} className="w-full"><Plus className="h-4 w-4" /> Add lead and send email</Button>
+          <Button type="submit" loading={saving} className="w-full"><Plus className="h-4 w-4" /> {booked ? "Add lead and send meeting email" : "Add lead and send email"}</Button>
         </form>
       </Card>
     </div>

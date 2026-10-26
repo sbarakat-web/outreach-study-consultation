@@ -8,7 +8,7 @@ import { getTracking } from "../lib/tracking";
 import { CountryPicker } from "../components/CountryPicker";
 import { countriesFor, countryByCode, detectCountry, fetchGeoCountry } from "../lib/countries";
 import { parseCourseParam, parsePathParam } from "../lib/options";
-import { AREAS, ENGLISH_PROVIDERS, PARTNERS, PROGRAMMES, findBestMatch, programmeValue } from "./sessions/data";
+import { AREAS, ENGLISH_COURSES, ENGLISH_PROVIDERS, PARTNERS, PROGRAMMES, findBestMatch, programmeValue } from "./sessions/data";
 import { Alert, Button, Card } from "../components/ui";
 import { EmailCode } from "../components/EmailCode";
 import { useI18n } from "../lib/i18n";
@@ -33,15 +33,6 @@ interface Draft {
 const DRAFT_KEY = "apply_draft_v1";
 const INELIGIBLE_COUNTRIES = new Set(["PK"]);
 const PROGRAMME_VALUES = new Set(PROGRAMMES.map(programmeValue));
-const ENGLISH_COURSES = ENGLISH_PROVIDERS.flatMap((provider) =>
-  provider.rows.map((row, index) => ({
-    id: `${provider.name}-${index}`,
-    provider: provider.name,
-    value: `${row[0]} — ${row[1]} — ${row[2]} · ${provider.name}`,
-    label: `${row[0]} — ${row[1]} — ${row[2]}`,
-    price: row.find((cell) => /[€£]/.test(cell)) ?? "Confirm price",
-  })),
-);
 const ENGLISH_COURSE_VALUES = new Set(ENGLISH_COURSES.map((course) => course.value));
 const FAQS = [
   ["What can I study in Malta?", "You can compare English-language courses and diploma, bachelor’s and master’s programmes in business, accountancy, health and social care, information technology, tourism and hospitality, and logistics."],

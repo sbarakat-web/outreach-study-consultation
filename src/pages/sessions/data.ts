@@ -524,6 +524,17 @@ export const ENGLISH_PROVIDERS: Provider[] = [
   },
 ];
 
+/** One option per English course (used by the apply form and the admin "Add new lead" form). */
+export const ENGLISH_COURSES = ENGLISH_PROVIDERS.flatMap((provider) =>
+  provider.rows.map((row, index) => ({
+    id: `${provider.name}-${index}`,
+    provider: provider.name,
+    value: `${row[0]} — ${row[1]} — ${row[2]} · ${provider.name}`,
+    label: `${row[0]} — ${row[1]} — ${row[2]}`,
+    price: row.find((cell) => /[€£]/.test(cell)) ?? "Confirm price",
+  })),
+);
+
 export const RECAP_DOCUMENTS = [
   "Updated CV in Europass Format",
   "Passport Bio Page",
