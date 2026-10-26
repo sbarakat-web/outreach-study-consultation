@@ -1,12 +1,13 @@
-// Scheduled every 15 minutes (pg_cron → pg_net). Idempotent: each reminder is claimed
+// Scheduled every minute (pg_cron → pg_net). Idempotent: each reminder is claimed
 // with a timestamp before sending, so extra calls never send twice.
 //   24h before a confirmed call  → email
 //   1h before                    → email (+ WhatsApp via Twilio when configured)
+//   10 min before                → presenters get a one-click sign-in link to the online session
 //   documents due in ≤3 days / due now, required files missing → email
 //   suggested call time not confirmed after 24h → one "please confirm" email (candidate's language)
 // Secrets: RESEND_API_KEY; optional MAIL_FROM, APP_URL, TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_WHATSAPP_FROM
 import { createClient } from "npm:@supabase/supabase-js@2.45.4";
-import { actions, button, eyebrow, highlight, layout, para, title, escape } from "../_shared/email.ts";
+import { actions, button, eyebrow, facts, highlight, layout, para, title, escape } from "../_shared/email.ts";
 import { loadAdvisor, sendEmail as sendCallEmail, suggestEmail } from "../_shared/call.ts";
 
 const env = (k: string) => Deno.env.get(k) ?? "";
@@ -45,6 +46,52 @@ async function sendEmail(to: string, subject: string, html: string) {
   return res.ok;
 }
 
+// Labels as in src/lib/options.ts
+const PATHS: Record<string, string> = { english: "English course", higher_education: "Higher education" };
+const LEVELS: Record<string, string> = { below_b2: "Below B2", b2_plus: "B2 or above" };
+
+/** 10 minutes before a call: every presenter gets the candidate brief and a one-click link into the session. */
+// deno-lint-ignore no-explicit-any
+async function presenterEmail(db: any, c: any, presenters: string[]) {
+  const malta = new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Malta" }).format(new Date(c.preferred_call_at));
+  const sessionPath = `/onlinesessions?candidate=${c.id}`;
+  const { data: docs } = await db.from("documents").select("doc_type, review_status").eq("consultation_id", c.id);
+  const have = new Set((docs ?? []).filter((d: { review_status: string }) => d.review_status !== "rejected").map((d: { doc_type: string }) => d.doc_type));
+  const required = REQUIRED[c.study_path] ?? REQUIRED.english;
+  const docsLine = `${required.filter((k) => have.has(k)).length}/${required.length} uploaded`;
+  for (const to of presenters) {
+    // One-time sign-in link straight into this candidate's session; the password link is the fallback.
+    const link = await db.auth.admin.generateLink({ type: "magiclink", email: to, options: { redirectTo: `${APP_URL()}${sessionPath}` } });
+    const login = `${APP_URL()}/login?next=${encodeURIComponent(sessionPath)}&email=${encodeURIComponent(to)}`;
+    const open = link.data?.properties?.action_link ?? login;
+    await sendEmail(
+      to,
+      `Starting in 10 min: online session with ${c.full_name} — ${malta}`,
+      layout(
+        eyebrow("Starting in 10 minutes") +
+          title("Hello, this email is from Soufiane 👋") +
+          para(`Your online session with <strong>${escape(c.full_name)}</strong> starts at <strong>${malta} (Malta time)</strong>. Here you can run the presentation — the button signs you in and opens it directly.`, true) +
+          actions(button(open, "▶ Open the presentation"), c.meeting_url ? button(c.meeting_url, "Join Google Meet", "#14123a") : "") +
+          facts([
+            ["Candidate", c.full_name],
+            ["Study path", PATHS[c.study_path] ?? c.study_path],
+            ["English level", LEVELS[c.english_level] ?? c.english_level],
+            ["Course", c.desired_course],
+            ["Country", c.country],
+            ["WhatsApp", c.whatsapp],
+            ["Documents", docsLine],
+            ["Message", c.message ? String(c.message).slice(0, 300) : null],
+          ]) +
+          para(
+            `The button works once and for 1 hour. If it has expired, <a href="${login}" style="color:#442DFA;font-weight:bold">sign in with your email and password</a>.`,
+            true,
+          ),
+        `${c.full_name} at ${malta} — open the presentation`,
+      ),
+    );
+  }
+}
+
 async function sendWhatsApp(to: string, text: string) {
   const sid = env("TWILIO_ACCOUNT_SID");
   if (!sid || !env("TWILIO_AUTH_TOKEN") || !env("TWILIO_WHATSAPP_FROM")) return;
@@ -60,7 +107,7 @@ Deno.serve(async () => {
   const db = createClient(env("SUPABASE_URL"), env("SUPABASE_SERVICE_ROLE_KEY"));
   const now = Date.now();
   const iso = (ms: number) => new Date(ms).toISOString();
-  const sent = { h24: 0, h1: 0, docs: 0, confirm: 0 };
+  const sent = { h24: 0, h1: 0, docs: 0, confirm: 0, presenter: 0 };
 
   // Claim a reminder column atomically; returns the row only if this call won it.
   const claim = async (id: string, column: string) => {
@@ -76,9 +123,15 @@ Deno.serve(async () => {
     .is("call_declined_at", null)
     .gt("preferred_call_at", iso(now))
     .lt("preferred_call_at", iso(now + 25 * H));
+  const { data: presenterRows } = await db.from("session_presenters").select("email");
+  const presenters = (presenterRows ?? []).map((p: { email: string }) => p.email);
   for (const c of calls ?? []) {
     if (["interviewed", "no_longer_interested"].includes(c.session_outcome ?? "")) continue;
     const ms = new Date(c.preferred_call_at).getTime() - now;
+    if (presenters.length && ms <= 10 * 60_000 && !c.presenter_alert_at && (await claim(c.id, "presenter_alert_at"))) {
+      await presenterEmail(db, c, presenters);
+      sent.presenter++;
+    }
     const tz = c.tracking?.tz ?? "Europe/Malta";
     const first = c.full_name.split(" ")[0];
     const t = when(c.preferred_call_at, tz);
