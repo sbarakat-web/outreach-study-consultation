@@ -18,4 +18,5 @@ User-agent: *
 Allow: /
 
 Sitemap: https://consultation.outreachstudy.eu/sitemap.xml
+Sitemap: https://consultation.outreachstudy.eu/sitemap-pages.xml
 # AI-readable site guide: https://consultation.outreachstudy.eu/llms.txt
