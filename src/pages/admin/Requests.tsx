@@ -316,7 +316,6 @@ function AddLead({ onClose, onCreated }: { onClose: () => void; onCreated: (id: 
     event.preventDefault();
     if (phoneCheck === false) return setError(`This WhatsApp number is not valid for ${countryByCode(dialCountry)?.name ?? dialCountry}.`);
     if (booked) {
-      if (!country) return setError("Choose the candidate's country — the email shows the meeting in their local time.");
       if (!callAt || callAt.getTime() < Date.now()) return setError("Choose a meeting date and time in the future (Malta time).");
       if (!/^https:\/\/\S+$/.test(meetingUrl.trim())) return setError("Paste the meeting link (it must start with https://).");
     }
@@ -435,7 +434,7 @@ function AddLead({ onClose, onCreated }: { onClose: () => void; onCreated: (id: 
               <input id="new-lead-email" type="email" className="field" required value={email} onChange={(e) => setEmail(e.target.value)} />
             </div>
             <div>
-              <label className="label" htmlFor="new-lead-country">Country{booked && " *"}</label>
+              <label className="label" htmlFor="new-lead-country">Country</label>
               <CountryPicker id="new-lead-country" value={country} onChange={changeCountry} countries={COUNTRIES} searchPlaceholder="Search country" />
             </div>
             <div>
@@ -505,7 +504,7 @@ function AddLead({ onClose, onCreated }: { onClose: () => void; onCreated: (id: 
                   {zone && zone !== "Europe/Malta" && <><br /><strong>Candidate ({countryByCode(country)?.name}):</strong> {zoneTime(callAt, zone)}</>}
                 </p>
               )}
-              <p className="text-xs text-slate-500">The email shows the meeting in the candidate's local time (and Malta time), with the link, the programme, a dashboard button and a calendar invite. Presenters get their 10-minute email automatically.</p>
+              <p className="text-xs text-slate-500">The email shows the meeting in the candidate's local time when a country is chosen (otherwise Malta time), with the link, the programme, a dashboard button and a calendar invite. Presenters get their 10-minute email automatically.</p>
             </div>
           )}
           {error && (
