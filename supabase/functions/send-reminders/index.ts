@@ -72,7 +72,7 @@ async function presenterEmail(db: any, c: any, presenters: string[]) {
       layout(
         eyebrow("Starting in 10 minutes") +
           title("Hello, this email is from Soufiane 👋") +
-          para(`Your online session with <strong>${escape(c.full_name)}</strong> starts at <strong>${malta} (Malta time)</strong>. Here you can run the presentation — the button signs you in and opens it directly.`, true) +
+          para(`Your online session with <strong>${escape(c.full_name)}</strong> starts at <strong>${malta} (Malta time)</strong>. The button signs you in and opens the presentation.`, true) +
           actions(button(open, "▶ Open the presentation"), c.meeting_url ? button(c.meeting_url, "Join Google Meet", "#14123a") : "") +
           facts([
             ["Candidate", c.full_name],
@@ -84,13 +84,14 @@ async function presenterEmail(db: any, c: any, presenters: string[]) {
             ["Documents", docsLine],
             ["Message", c.message ? String(c.message).slice(0, 300) : null],
           ]) +
+          `<p style="margin:0 0 16px;padding:12px 16px;border-radius:12px;background:#ecfdf5;color:#065f46;text-align:center;font-size:14px"><strong>After the session:</strong> choose <strong>Interviewed</strong>, <strong>No-show</strong> or <strong>No longer interested</strong> and add a comment if needed, so we can follow up in the platform.</p>` +
           para("The button works once and for 1 hour. If it has expired, sign in with:", true) +
           // Presenter accounts use their email address as the password (owner's choice).
           highlight(`Email: <strong>${escape(to)}</strong><br>Password: <strong>${escape(to)}</strong>`) +
           actions(button(login, "Sign in with password", "#14123a")),
         `${c.full_name} at ${malta} — open the presentation`,
         "en",
-        { url: "https://outreachrecruitment.net", label: "outreachrecruitment.net" },
+        { url: "https://outreachrecruitment.net", label: "outreachrecruitment.net", brand: "Outreach Recruitment — Study in Malta" },
       ),
       i === 0 && !presenters.includes(PRESENTER_CC()) ? PRESENTER_CC() : undefined,
     );
