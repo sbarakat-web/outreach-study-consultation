@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { Link, Outlet, useLocation, useNavigate, useOutletContext, useSearchParams } from "react-router-dom";
-import { AlertCircle, BookOpen, CalendarCheck, Camera, CheckCircle2, Circle, Clock, Copy, FileText, Gift, GraduationCap, MessageCircle, School, Settings, Sparkles, Star, Trash2, Upload } from "lucide-react";
+import { AlertCircle, BookOpen, CalendarCheck, Camera, CheckCircle2, Circle, Clock, Copy, FileText, Gift, GraduationCap, MessageCircle, School, Settings, Sparkles, Star, Trash2, Upload, UserRound } from "lucide-react";
+import { parsePhoneNumberFromString, type CountryCode } from "libphonenumber-js/max";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
 import { ENGLISH_LEVELS, PROGRAMMES as STUDY_AREAS, STATUSES, STUDY_PATHS, callStage, documentTypesFor, formatSlot, labelFor, statusLabel, waLink, whatsappNumber, type DocumentType } from "../lib/options";
@@ -8,6 +9,8 @@ import { useI18n } from "../lib/i18n";
 import type { Consultation, DocumentRow } from "../lib/types";
 import { Alert, Button, Card, Spinner, StatusBadge } from "../components/ui";
 import { BookingCalendar } from "../components/BookingCalendar";
+import { CountryPicker } from "../components/CountryPicker";
+import { COUNTRIES, detectCountry } from "../lib/countries";
 import type { TabItem } from "../components/TabBar";
 import { AppShell, Fab, StatStrip } from "../components/dash";
 import { AccountSettings } from "./Settings";
@@ -473,6 +476,7 @@ export function CallPage() {
           { icon: Star, label: t("stat.status"), value: <span className="text-lg sm:text-xl">{c.status === "new" ? t("status.received") : tv(statusLabel(c.status))}</span> },
         ]}
       />
+      {!lost && (!c.country || !c.whatsapp) && <CompleteProfile c={c} onSaved={reload} />}
       {justApplied && (
         <Alert tone="success">
           <span className="flex items-center gap-2">
@@ -553,6 +557,71 @@ export function CallPage() {
       {c.session_outcome === "interviewed" && <SessionFeedback c={c} onSent={reload} />}
 
     </>
+  );
+}
+
+/** Leads added by the team (or older applications) may lack a country or WhatsApp number: ask for them on the home page. */
+function CompleteProfile({ c, onSaved }: { c: Consultation; onSaved: () => void }) {
+  const { t } = useI18n();
+  const known = COUNTRIES.find((x) => x.name === c.country)?.code;
+  const [country, setCountry] = useState(known ?? detectCountry());
+  const [dialCountry, setDialCountry] = useState(known ?? detectCountry());
+  const [phone, setPhone] = useState(c.whatsapp ?? "");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const parsed = phone.trim() ? parsePhoneNumberFromString(phone.trim(), dialCountry as CountryCode) : undefined;
+  const valid = !!parsed?.isValid();
+  const countryName = (code: string) => COUNTRIES.find((x) => x.code === code)?.name ?? code;
+
+  const save = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!valid) return setError(t("apply.phoneInvalid", { country: countryName(dialCountry) }));
+    setSaving(true);
+    const { error } = await supabase.rpc("update_my_profile", { p_full_name: c.full_name, p_whatsapp: parsed!.formatInternational(), p_country: countryName(country) });
+    setSaving(false);
+    if (error) return setError(error.message);
+    onSaved();
+  };
+
+  return (
+    <Card>
+      <form onSubmit={save} className="space-y-4 px-5 py-5 sm:px-7">
+        <div className="flex items-start gap-3">
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-brand/10 text-brand">
+            <UserRound className="h-5 w-5" />
+          </span>
+          <div>
+            <h2 className="text-lg font-black">{t("prof.title")}</h2>
+            <p className="text-sm text-slate-500">{t("prof.text")}</p>
+          </div>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <label className="label" htmlFor="prof-country">{t("set.country")}</label>
+            <CountryPicker
+              id="prof-country"
+              value={country}
+              onChange={(code) => {
+                setCountry(code);
+                if (!phone.trim()) setDialCountry(code);
+              }}
+              countries={COUNTRIES}
+              searchPlaceholder={t("apply.searchCountry")}
+            />
+          </div>
+          <div>
+            <label className="label" htmlFor="prof-phone">{t("set.whatsapp")}</label>
+            <div className="flex gap-2">
+              <CountryPicker variant="dial" value={dialCountry} onChange={setDialCountry} countries={COUNTRIES} searchPlaceholder={t("apply.searchCountry")} ariaLabel={t("apply.countryCode")} className="w-28 shrink-0" />
+              <input id="prof-phone" type="tel" inputMode="tel" dir="ltr" autoComplete="tel-national" required className="field min-w-0" value={phone} onChange={(e) => setPhone(e.target.value)} />
+            </div>
+            {valid && <p className="mt-1 text-xs font-bold text-emerald-700">✓ {parsed!.formatInternational()}</p>}
+          </div>
+        </div>
+        {error && <Alert>{error}</Alert>}
+        <Button type="submit" loading={saving}>{t("prof.save")}</Button>
+      </form>
+    </Card>
   );
 }
 

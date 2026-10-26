@@ -1,5 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2.45.4";
-import { actions, button, eyebrow, facts, highlight, layout, para, steps, title, escape } from "../_shared/email.ts";
+import { actions, button, eyebrow, highlight, layout, para, title, escape } from "../_shared/email.ts";
 import { CALL_MINUTES, confirmedEmail, whenIn } from "../_shared/call.ts";
 
 const cors = {
@@ -21,34 +21,66 @@ const validZone = (tz: string) => {
 };
 const optional = (v: unknown, max = 200) => (typeof v === "string" && v.trim() ? v.trim().slice(0, max) : null);
 
-/** "Consultation booked" with a meeting set up outside the app: local + Malta time, link, programme, dashboard, cancel note. */
+// Required documents (must match DOCUMENT_TYPES in src/lib/options.ts).
+const REQUIRED_DOCS = ["Updated CV in Europass format", "Passport bio page", "Certificates with transcripts", "300-word personal statement"];
+// Copied on every booked-meeting email.
+const BOOKED_CC = () => env("BOOKED_CC") || "sbarakat@outreachrecruitment.net";
+
+/** "Consultation booked" with a meeting set up outside the app: local + Malta time, link, programme, checklist, dashboard, cancel note. */
 // deno-lint-ignore no-explicit-any
 function bookedEmail(c: any, dashboardLink: string) {
-  const first = escape(String(c.full_name).split(/\s+/)[0]);
-  const when = whenIn(c.preferred_call_at, c.tracking.tz);
+  const appUrl = env("APP_URL") || "https://consultation.outreachstudy.eu";
+  const firstName = String(c.full_name).split(/\s+/)[0];
+  const tz = c.tracking.tz;
+  const when = whenIn(c.preferred_call_at, tz);
+  const part = (opts: Intl.DateTimeFormatOptions) => new Intl.DateTimeFormat("en-GB", { ...opts, timeZone: tz }).format(new Date(c.preferred_call_at));
+  const localTime = part({ hour: "2-digit", minute: "2-digit" });
+  const maltaTime = new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Malta" }).format(new Date(c.preferred_call_at));
+  const sameZone = tz === "Europe/Malta" || localTime === maltaTime;
   const wa = `https://wa.me/${WHATSAPP}?text=${encodeURIComponent(`Hi Outreach, this is ${c.full_name}. About my meeting on ${when.short}: `)}`;
+  const missingProfile = !c.country || !c.whatsapp;
+  const check = (n: number, head: string, body: string) =>
+    `<tr><td valign="top" style="padding:0 12px 14px 0;width:28px"><div style="width:28px;height:28px;border-radius:50%;background:#442DFA;color:#fff;font-weight:bold;font-size:13px;line-height:28px;text-align:center">${n}</div></td><td style="padding:0 0 14px;color:#5b6080;font-size:14px;line-height:1.55"><strong style="color:#14123a">${head}</strong><br>${body}</td></tr>`;
+  let n = 0;
   return {
-    subject: `${String(c.full_name).split(/\s+/)[0]}, you have a meeting with Outreach — ${when.short}`,
+    subject: `${firstName}, your meeting with Outreach is booked — ${when.short}`,
     html: layout(
-      eyebrow("Consultation booked") +
-        title(`Hi ${first}, you have a meeting with us 🎓`) +
-        para("Your free online consultation with Outreach is booked. Here are your details:", true) +
-        highlight(
-          `<strong style="font-size:18px">📅 ${escape(when.main)}</strong><br><span style="color:#8a8ea8;font-size:13px">${escape(when.sub)} · ${CALL_MINUTES} minutes · online</span>`,
-        ) +
+      eyebrow("Consultation booked ✓") +
+        title(`Hi ${escape(firstName)}, you have a meeting with us 🎓`) +
+        para("Your free online consultation is booked. We look forward to meeting you and planning your studies in Malta.", true) +
+        // Meeting card: date tile + time + join button.
+        `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 18px;border:2px solid #f0eeff;border-radius:18px;overflow:hidden"><tr>
+          <td width="96" align="center" valign="middle" style="background:#442DFA;color:#fff;padding:18px 8px">
+            <div style="font-size:12px;font-weight:bold;letter-spacing:1.5px;text-transform:uppercase;opacity:.85">${part({ month: "short" })}</div>
+            <div style="font-size:34px;font-weight:bold;line-height:1.1">${part({ day: "numeric" })}</div>
+            <div style="font-size:12px;font-weight:bold;text-transform:uppercase;opacity:.85">${part({ weekday: "short" })}</div>
+          </td>
+          <td valign="middle" style="padding:16px 18px">
+            <div style="font-size:22px;font-weight:bold;color:#14123a">${localTime}${sameZone ? " <span style=\"font-size:13px;color:#8a8ea8;font-weight:normal\">Malta time</span>" : " <span style=\"font-size:13px;color:#8a8ea8;font-weight:normal\">your time</span>"}</div>
+            ${sameZone ? "" : `<div style="font-size:13px;color:#8a8ea8">${maltaTime} Malta time</div>`}
+            <div style="margin-top:4px;font-size:13px;color:#5b6080">${CALL_MINUTES} minutes · online meeting</div>
+          </td>
+        </tr></table>` +
         actions(button(c.meeting_url, "🎥 Join the meeting")) +
-        facts([
-          ["Programme", c.desired_course],
-          ["Meeting link", c.meeting_url],
-        ]) +
-        `<div style="margin:0 0 16px;padding:16px 18px;border:2px solid #f0eeff;border-radius:14px;text-align:center">
-          <p style="margin:0 0 6px;color:#14123a"><strong>Your new dashboard</strong></p>
-          <p style="margin:0 0 12px;color:#5b6080">Follow every step of your application in one place: your meeting, documents to upload and what comes next.</p>
-          ${button(dashboardLink, "Open my dashboard", "#14123a")}
+        `<p style="margin:-8px 0 18px;text-align:center;font-size:12px;color:#8a8ea8;word-break:break-all">${escape(c.meeting_url)}</p>` +
+        (c.desired_course
+          ? `<div style="margin:0 0 18px;padding:12px 16px;border-radius:14px;background:#f8f8fc;text-align:center;font-size:14px;color:#5b6080">🎓 Programme: <strong style="color:#14123a">${escape(c.desired_course)}</strong></div>`
+          : "") +
+        `<p style="margin:6px 0 12px;font-size:12px;font-weight:bold;letter-spacing:1.5px;text-transform:uppercase;color:#8a8ea8;text-align:center">Before your meeting</p>
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 8px">` +
+        (missingProfile ? check(++n, "Complete your profile", "Add your country and WhatsApp number in your dashboard.") : "") +
+        check(++n, "Upload your documents", REQUIRED_DOCS.map((d) => `• ${d}`).join("<br>")) +
+        check(++n, "Join on time", "Open the meeting link a few minutes early from a quiet place.") +
+        `</table>` +
+        // Dashboard call-to-action.
+        `<div style="margin:0 0 18px;padding:20px 18px;border-radius:16px;background:#14123a;text-align:center">
+          <p style="margin:0 0 4px;color:#ffffff;font-size:17px;font-weight:bold">Your personal dashboard</p>
+          <p style="margin:0 0 14px;color:#c7c9d9;font-size:14px">Follow every step in one place: your meeting, documents and what comes next.</p>
+          <a href="${dashboardLink}" style="display:inline-block;background:#ffffff;color:#14123a;padding:12px 26px;border-radius:999px;text-decoration:none;font-weight:bold;font-size:15px">Open my dashboard</a>
+          <p style="margin:12px 0 0;font-size:12px;color:#8a8ea8">This button signs you in for 1 hour. Later, sign in at <a href="${appUrl}/login" style="color:#c7c9d9">consultation.outreachstudy.eu</a>.</p>
         </div>` +
-        steps("What happens next", ["Join the meeting", "Upload your documents", "Follow your next steps"]) +
         `<p style="margin:0 0 14px;padding:12px 16px;border-radius:12px;background:#fff8e6;color:#7a5a00;text-align:center;font-size:14px">Need to cancel or change the time? Please <a href="${wa}" style="color:#7a5a00;font-weight:bold">send us a WhatsApp message</a> (+356 9972 8213) before the meeting.</p>` +
-        para(`The calendar invite is attached. The dashboard button signs you in for 1 hour; after that, sign in with your email at <a href="${env("APP_URL") || "https://consultation.outreachstudy.eu"}/login" style="color:#442DFA">consultation.outreachstudy.eu</a>.`, true),
+        para("The calendar invite is attached.", true),
       `${when.main} — your meeting with Outreach`,
     ),
   };
@@ -192,7 +224,7 @@ Deno.serve(async (req) => {
       body: JSON.stringify({
         from: env("MAIL_FROM") || "Outreach <hello@consultation.outreachstudy.eu>",
         to: email,
-        ...(meeting ? { attachments: confirmedEmail(consultation).attachments } : {}),
+        ...(meeting ? { cc: BOOKED_CC(), attachments: confirmedEmail(consultation).attachments } : {}),
         subject: meeting?.subject ?? detail.subject,
         html: meeting?.html ?? layout(
           eyebrow("Application update") +
