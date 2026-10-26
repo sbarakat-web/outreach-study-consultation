@@ -9,8 +9,11 @@ const appUrl = () => Deno.env.get("APP_URL") || "https://consultation.outreachst
 export const escape = (s: string) =>
   s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 
-/** Full email: preheader (inbox preview), centred logo, content card and footer. `lang` "ar" turns it right-to-left. */
-export function layout(inner: string, preheader = "", lang = "en") {
+/**
+ * Full email: preheader (inbox preview), centred logo, content card and footer. `lang` "ar" turns it right-to-left.
+ * `site` replaces the website link in the footer (staff emails use the recruitment site).
+ */
+export function layout(inner: string, preheader = "", lang = "en", site = { url: "https://outreachstudy.eu", label: "outreachstudy.eu" }) {
   const dir = lang === "ar" ? "rtl" : "ltr";
   if (dir === "rtl") inner = inner.replaceAll("letter-spacing:1.5px;", "").replaceAll("letter-spacing:1px;", ""); // spacing breaks Arabic letter joins
   return `<!doctype html><html lang="${lang}" dir="${dir}"><head><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light"></head>
@@ -26,7 +29,7 @@ export function layout(inner: string, preheader = "", lang = "en") {
       <tr><td dir="${dir}" style="padding:18px 28px 30px;color:${INK};font-size:15px;line-height:1.65">${inner}</td></tr>
       <tr><td align="center" style="padding:20px 28px;background:#f8f8fc;color:#8a8ea8;font-size:12px;line-height:1.7">
         <strong style="color:${INK}">Outreach — Study in Malta</strong><br>
-        <a href="https://outreachstudy.eu" style="color:${BRAND};text-decoration:none">outreachstudy.eu</a> &nbsp;·&nbsp;
+        <a href="${site.url}" style="color:${BRAND};text-decoration:none">${escape(site.label)}</a> &nbsp;·&nbsp;
         <a href="https://wa.me/35699728213" style="color:${BRAND};text-decoration:none">WhatsApp +356 9972 8213</a>
       </td></tr>
     </table>

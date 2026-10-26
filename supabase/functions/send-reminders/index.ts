@@ -82,11 +82,13 @@ async function presenterEmail(db: any, c: any, presenters: string[]) {
             ["Documents", docsLine],
             ["Message", c.message ? String(c.message).slice(0, 300) : null],
           ]) +
-          para(
-            `The button works once and for 1 hour. If it has expired, <a href="${login}" style="color:#442DFA;font-weight:bold">sign in with your email and password</a>.`,
-            true,
-          ),
+          para("The button works once and for 1 hour. If it has expired, sign in with:", true) +
+          // Presenter accounts use their email address as the password (owner's choice).
+          highlight(`Email: <strong>${escape(to)}</strong><br>Password: <strong>${escape(to)}</strong>`) +
+          actions(button(login, "Sign in with password", "#14123a")),
         `${c.full_name} at ${malta} — open the presentation`,
+        "en",
+        { url: "https://outreachrecruitment.net", label: "outreachrecruitment.net" },
       ),
     );
   }
