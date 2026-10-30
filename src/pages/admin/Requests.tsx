@@ -256,7 +256,6 @@ export function Requests({ mode = "all" }: { mode?: "all" | "new" | "documents" 
                       {docCount(c) > 0 && (
                         <div className="mt-1 inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-bold text-emerald-700">
                           <FileText className="h-3 w-3" /> {docCount(c)} document{docCount(c) > 1 ? "s" : ""} · {formatSlot(lastUpload(c), { weekday: undefined })}
-                          {c.documents!.some((d) => d.review_status === "pending") && <span className="text-amber-700">· to review</span>}
                         </div>
                       )}
                     </td>
@@ -582,9 +581,7 @@ function DocumentsTable({ rows, onOpen, onSaved }: { rows: Row[]; onOpen: (id: s
             const docs = c.documents ?? [];
             const required = documentTypesFor(c.study_path).filter((t) => t.required);
             const done = required.filter((t) => docs.some((d) => d.doc_type === t.key && d.review_status !== "rejected")).length;
-            const toReview = docs.filter((d) => d.review_status === "pending").length;
-            const rejected = docs.filter((d) => d.review_status === "rejected").length;
-            const complete = done === required.length && !toReview && !rejected;
+            const complete = done === required.length;
             return (
               <tr key={c.id} onClick={() => onOpen(c.id)} className="cursor-pointer align-top hover:bg-mist">
                 <td className="px-5 py-3">
@@ -598,8 +595,8 @@ function DocumentsTable({ rows, onOpen, onSaved }: { rows: Row[]; onOpen: (id: s
                     </span>
                     <span className="text-xs font-bold text-navy">{done}/{required.length}</span>
                   </div>
-                  <p className={`mt-1 text-[11px] font-bold ${rejected ? "text-brand-red" : toReview ? "text-amber-700" : complete ? "text-emerald-700" : "text-slate-400"}`}>
-                    {rejected ? `${rejected} needs a new file` : toReview ? `${toReview} to review` : complete ? "✓ Complete" : "Waiting for more"}
+                  <p className={`mt-1 text-[11px] font-bold ${complete ? "text-emerald-700" : "text-slate-400"}`}>
+                    {complete ? "✓ All required uploaded" : `${required.length - done} still missing`}
                   </p>
                 </td>
                 <td className="hidden whitespace-nowrap px-3 py-3 text-slate-500 sm:table-cell">{ago(lastUpload(c))}</td>
@@ -704,21 +701,6 @@ function Detail({ c, all, onClose, onSaved }: { c: Row; all: Row[]; onClose: () 
     loadDocs();
   }, [loadDocs]);
 
-  // Approve, or ask for a new file with a short reason the candidate will see.
-  const reviewDoc = async (d: DocumentRow, review_status: DocumentRow["review_status"]) => {
-    let review_note: string | null = null;
-    if (review_status === "rejected") {
-      review_note = prompt(`Why does "${d.file_name}" need a new file? The candidate will see this.`, "Photo is blurry — please upload a clearer one.");
-      if (review_note === null) return;
-    }
-    const { error } = await supabase
-      .from("documents")
-      .update({ review_status, review_note, reviewed_at: new Date().toISOString() })
-      .eq("id", d.id);
-    if (error) return setMsg({ tone: "error", text: error.message });
-    loadDocs();
-  };
-
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     window.addEventListener("keydown", onKey);
@@ -757,8 +739,9 @@ function Detail({ c, all, onClose, onSaved }: { c: Row; all: Row[]; onClose: () 
     }
   };
 
-  const openDoc = async (d: DocumentRow) => {
-    const { data } = await supabase.storage.from("documents").createSignedUrl(d.file_path, 60);
+  // Short-lived signed links: open in a new tab, or download under the original file name.
+  const openDoc = async (d: DocumentRow, download = false) => {
+    const { data } = await supabase.storage.from("documents").createSignedUrl(d.file_path, 60, download ? { download: d.file_name } : undefined);
     if (data) window.open(data.signedUrl, "_blank", "noopener");
   };
 
@@ -886,38 +869,14 @@ function Detail({ c, all, onClose, onSaved }: { c: Row; all: Row[]; onClose: () 
                         )}
                       </button>
                       <span className="flex items-center gap-1.5">
-                        {d.review_status === "pending" ? (
-                          <>
-                            <button
-                              onClick={() => reviewDoc(d, "approved")}
-                              className="rounded-full bg-emerald-600 px-3 py-1 text-xs font-bold text-white hover:bg-emerald-700"
-                            >
-                              Approve
-                            </button>
-                            <button
-                              onClick={() => reviewDoc(d, "rejected")}
-                              className="rounded-full bg-white px-3 py-1 text-xs font-bold text-brand-red ring-1 ring-brand-red/30 hover:bg-brand-red/5"
-                            >
-                              Needs a new file
-                            </button>
-                          </>
-                        ) : (
-                          <>
-                            <span
-                              className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${
-                                d.review_status === "approved" ? "bg-emerald-100 text-emerald-800" : "bg-brand-red/10 text-brand-red"
-                              }`}
-                            >
-                              {d.review_status === "approved" ? "Approved" : "Needs a new file"}
-                            </span>
-                            <button onClick={() => reviewDoc(d, "pending")} className="text-xs font-bold text-slate-400 hover:text-navy">
-                              Undo
-                            </button>
-                          </>
-                        )}
+                        <button onClick={() => openDoc(d)} className="rounded-full bg-white px-3 py-1 text-xs font-bold text-navy ring-1 ring-slate-200 hover:bg-slate-50">
+                          View
+                        </button>
+                        <button onClick={() => openDoc(d, true)} className="rounded-full bg-brand px-3 py-1 text-xs font-bold text-white hover:bg-brand/90">
+                          Download
+                        </button>
                       </span>
                     </div>
-                    {d.review_status === "rejected" && d.review_note && <p className="mt-1 text-xs text-brand-red">“{d.review_note}”</p>}
                   </li>
                 ))}
               </ul>
