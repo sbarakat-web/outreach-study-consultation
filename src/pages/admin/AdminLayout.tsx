@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Outlet, useNavigate } from "react-router-dom";
-import { BarChart3, Bell, CalendarDays, Mail, Presentation, Settings, Users, UsersRound } from "lucide-react";
+import { BarChart3, Bell, CalendarDays, FileCheck2, Mail, Presentation, Settings, Users, UsersRound } from "lucide-react";
 import type { TabItem } from "../../components/TabBar";
 import { AppShell, Fab } from "../../components/dash";
 import { supabase } from "../../lib/supabase";
@@ -23,6 +23,7 @@ export function AdminLayout() {
   const [profile, setProfile] = useState<{ display_name: string | null; photo_url: string | null } | null>(null);
   const [toConfirm, setToConfirm] = useState(0);
   const [leadCounts, setLeadCounts] = useState<Record<string, number>>({});
+  const [withDocs, setWithDocs] = useState(0);
 
   useEffect(() => {
     supabase.from("staff_profiles").select("display_name, photo_url").eq("email", email).maybeSingle().then(({ data }) => setProfile(data));
@@ -30,23 +31,29 @@ export function AdminLayout() {
     const loadCounts = async () => {
       const [{ count }, { data }] = await Promise.all([
         supabase.from("consultations").select("id", { count: "exact", head: true }).eq("call_status", "requested").is("call_declined_at", null),
-        supabase.from("consultations").select("status"),
+        supabase.from("consultations").select("status, documents(count)"),
       ]);
       setToConfirm(count ?? 0);
+      setWithDocs((data ?? []).filter((row) => (row.documents as { count: number }[] | null)?.[0]?.count).length);
       setLeadCounts((data ?? []).reduce<Record<string, number>>((out, row) => {
         out[row.status] = (out[row.status] ?? 0) + 1;
         return out;
       }, {}));
     };
     loadCounts();
-    const channel = supabase.channel("admin-lead-counts").on("postgres_changes", { event: "*", schema: "public", table: "consultations" }, loadCounts).subscribe();
+    const channel = supabase
+      .channel("admin-lead-counts")
+      .on("postgres_changes", { event: "*", schema: "public", table: "consultations" }, loadCounts)
+      .on("postgres_changes", { event: "*", schema: "public", table: "documents" }, loadCounts)
+      .subscribe();
     return () => { supabase.removeChannel(channel); };
   }, [email]);
 
   const name = profile?.display_name || email.split("@")[0];
   const countBadge = (value: number) => value ? <span className="rounded-full bg-brand/10 px-2 py-0.5 text-xs font-bold text-brand">{value}</span> : undefined;
   const sidebar: TabItem[] = [
-    { to: "/admin", label: "All leads", icon: UsersRound, end: true, badge: countBadge(Object.values(leadCounts).reduce((a, b) => a + b, 0)) },
+    { to: "/admin", label: "All leads", icon: UsersRound, end: true, badge: countBadge(Object.values(leadCounts).reduce((a, b) => a + b, 0) - withDocs) },
+    { to: "/admin?view=documents", label: "Documents received", icon: FileCheck2, badge: countBadge(withDocs) },
     { to: "/admin?status=new", label: "New leads", icon: UsersRound, badge: countBadge(leadCounts.new ?? 0) },
     { to: "/admin/calendar", label: "Calendar", icon: CalendarDays },
     { to: "/onlinesessions?present=1", label: "Online sessions", icon: Presentation },

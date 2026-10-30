@@ -24,7 +24,11 @@ import type { Consultation, DocumentRow, Status } from "../../lib/types";
 import { Alert, Button, Card, Spinner, StatusBadge } from "../../components/ui";
 import { MeetingCard, PageTitle, StatStrip } from "../../components/dash";
 
-type Row = Consultation & { documents?: { count: number }[] };
+type Row = Consultation & { documents?: { created_at: string; review_status: string }[] };
+
+// Leads with at least one upload live in "Documents received" instead of "All leads".
+const docCount = (c: Row) => c.documents?.length ?? 0;
+const lastUpload = (c: Row) => (c.documents ?? []).reduce((latest, d) => (d.created_at > latest ? d.created_at : latest), "");
 
 
 export function Requests() {
@@ -40,6 +44,7 @@ export function Requests() {
     const next = params.get("status");
     setStatus(STATUSES.some((s) => s.value === next) ? next as Status : "");
     setAdding(params.get("new") === "1");
+    setView(params.get("view"));
   }, [params]);
   const [openId, setOpenId] = useState<string | null>(params.get("lead"));
   const [view, setView] = useState(params.get("view"));
@@ -47,7 +52,7 @@ export function Requests() {
   const load = useCallback(async () => {
     const { data, error } = await supabase
       .from("consultations")
-      .select("*, documents(count)")
+      .select("*, documents(created_at, review_status)")
       .order("created_at", { ascending: false })
       .limit(1000);
     if (error) setError(error.message);
@@ -64,9 +69,10 @@ export function Requests() {
       (c) =>
         (!status || c.status === status) &&
         (view !== "booked" || isBookedLead(c)) &&
+        (view === "documents" ? docCount(c) > 0 : status || view ? true : docCount(c) === 0) &&
         (!q || [c.full_name, c.email, c.whatsapp, c.country, c.desired_course].some((v) => v?.toLowerCase().includes(q))),
     );
-    return rows;
+    return view === "documents" ? rows.sort((a, b) => lastUpload(b).localeCompare(lastUpload(a))) : rows;
   }, [items, query, status, view]);
 
   const upcoming = useMemo(
@@ -160,7 +166,14 @@ export function Requests() {
       )}
 
       <div className="flex flex-wrap items-center justify-between gap-3">
-        {view === "booked" ? (
+        {view === "documents" ? (
+          <span className="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1.5 text-sm font-bold text-emerald-700">
+            <FileText className="h-4 w-4" /> Documents received · newest upload first
+            <button aria-label="Show all leads" onClick={() => setParams({})} className="rounded-full px-1 hover:bg-emerald-100">
+              ×
+            </button>
+          </span>
+        ) : view === "booked" ? (
           <span className="inline-flex items-center gap-2 rounded-full bg-brand/10 px-3 py-1.5 text-sm font-bold text-brand">
             Booked appointments only
             <button aria-label="Show all leads" onClick={() => setView(null)} className="rounded-full px-1 hover:bg-brand/10">
@@ -227,6 +240,12 @@ export function Requests() {
                         {c.full_name}
                       </button>
                       <div className="text-xs text-slate-500">{c.country ?? c.email}</div>
+                      {docCount(c) > 0 && (
+                        <div className="mt-1 inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-bold text-emerald-700">
+                          <FileText className="h-3 w-3" /> {docCount(c)} document{docCount(c) > 1 ? "s" : ""} · {formatSlot(lastUpload(c), { weekday: undefined })}
+                          {c.documents!.some((d) => d.review_status === "pending") && <span className="text-amber-700">· to review</span>}
+                        </div>
+                      )}
                     </td>
                     <td className="hidden px-3 py-3 md:table-cell">{c.desired_course || labelFor(STUDY_PATHS, c.study_path)}</td>
                     <td className="hidden px-3 py-3 sm:table-cell">
