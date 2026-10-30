@@ -8,7 +8,7 @@ import { getTracking } from "../lib/tracking";
 import { CountryPicker } from "../components/CountryPicker";
 import { countriesFor, countryByCode, detectCountry, fetchGeoCountry } from "../lib/countries";
 import { parseCourseParam, parsePathParam } from "../lib/options";
-import { AREAS, ENGLISH_COURSES, ENGLISH_PROVIDERS, PARTNERS, PROGRAMMES, findBestMatch, programmeValue } from "./sessions/data";
+import { AREAS, ENGLISH_COURSES, PARTNERS, PROGRAMMES, findBestMatch, type Level, type Programme } from "./sessions/data";
 import { Alert, Button, Card } from "../components/ui";
 import { EmailCode } from "../components/EmailCode";
 import { useI18n } from "../lib/i18n";
@@ -32,8 +32,18 @@ interface Draft {
 
 const DRAFT_KEY = "apply_draft_v1";
 const INELIGIBLE_COUNTRIES = new Set(["PK"]);
-const PROGRAMME_VALUES = new Set(PROGRAMMES.map(programmeValue));
-const ENGLISH_COURSE_VALUES = new Set(ENGLISH_COURSES.map((course) => course.value));
+// The form offers generic titles only; the adviser picks the exact school and course in the consultation.
+const ENGLISH_OPTIONS = ["General English course", "Academic English course", "Business English course", "One-to-one English lessons", "Online English course"];
+const LEVEL_NAMES: Record<Level, string> = { diploma: "Diploma", bachelor: "Bachelor's", master: "Master's" };
+const genericTitle = (p: Programme) => `${LEVEL_NAMES[p.level]} in ${AREAS.find((a) => a.key === p.area)?.name ?? p.area}`;
+const PROGRAMME_GROUPS = (Object.keys(LEVEL_NAMES) as Level[])
+  .map((level) => ({
+    level,
+    options: AREAS.filter((a) => PROGRAMMES.some((p) => p.area === a.key && p.level === level)).map((a) => `${LEVEL_NAMES[level]} in ${a.name}`),
+  }))
+  .filter((g) => g.options.length);
+const PROGRAMME_VALUES = new Set(PROGRAMME_GROUPS.flatMap((g) => g.options));
+const ENGLISH_COURSE_VALUES = new Set(ENGLISH_OPTIONS);
 const FAQS = [
   ["What can I study in Malta?", "You can compare English-language courses and diploma, bachelor’s and master’s programmes in business, accountancy, health and social care, information technology, tourism and hospitality, and logistics."],
   ["How much does it cost to study in Malta?", "Tuition depends on the institution, course and duration. The programme selector shows current guidance prices, and your adviser will confirm the final fee, payment schedule and any available scholarship before enrolment."],
@@ -74,10 +84,10 @@ function initialDraft(): Draft {
   const linkedEmail = params.get("email")?.trim().toLowerCase();
   if (linkedEmail && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(linkedEmail)) d.email = linkedEmail;
   if (path) {
-    const linkedProgramme = findBestMatch(course) ?? PROGRAMMES.find((programme) => programmeValue(programme) === d.course);
+    const linkedProgramme = findBestMatch(course);
     d.path = path;
     d.stage = "form";
-    d.course = path === "english" ? (ENGLISH_COURSE_VALUES.has(d.course) ? d.course : "") : linkedProgramme ? programmeValue(linkedProgramme) : "";
+    d.course = path === "english" ? (ENGLISH_COURSE_VALUES.has(d.course) ? d.course : "") : linkedProgramme ? genericTitle(linkedProgramme) : d.course;
   }
   if (d.path === "higher_education" && !PROGRAMME_VALUES.has(d.course)) d.course = "";
   if (d.path === "english" && !ENGLISH_COURSE_VALUES.has(d.course)) d.course = "";
@@ -350,27 +360,21 @@ export function Apply() {
                 <Field label={t("apply.course")} id="course">
                   <select id="course" required className="field" value={d.course} onChange={(e) => set("course", e.target.value)}>
                     <option value="">{t("apply.selectProgramme")}</option>
-                    {d.path === "english" ? (
-                      ENGLISH_PROVIDERS.map((provider) => (
-                        <optgroup key={provider.name} label={provider.name}>
-                          {ENGLISH_COURSES.filter((course) => course.provider === provider.name).map((course) => (
-                            <option key={course.id} value={course.value}>
-                              {course.label} · {course.price}
-                            </option>
-                          ))}
-                        </optgroup>
-                      ))
-                    ) : (
-                      AREAS.filter((area) => area.key !== "english").map((area) => (
-                        <optgroup key={area.key} label={area.name}>
-                          {PROGRAMMES.filter((programme) => programme.area === area.key).map((programme) => (
-                            <option key={programme.id} value={programmeValue(programme)}>
-                              {programme.course} — {programme.school} · {programme.totalFee}
-                            </option>
-                          ))}
-                        </optgroup>
-                      ))
-                    )}
+                    {d.path === "english"
+                      ? ENGLISH_OPTIONS.map((title) => (
+                          <option key={title} value={title}>
+                            {title}
+                          </option>
+                        ))
+                      : PROGRAMME_GROUPS.map((group) => (
+                          <optgroup key={group.level} label={`${LEVEL_NAMES[group.level]} programmes`}>
+                            {group.options.map((title) => (
+                              <option key={title} value={title}>
+                                {title}
+                              </option>
+                            ))}
+                          </optgroup>
+                        ))}
                   </select>
                 </Field>
                 <Field label={t("apply.notes")} id="notes">

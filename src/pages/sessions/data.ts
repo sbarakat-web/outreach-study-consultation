@@ -450,6 +450,12 @@ export function findBestMatch(...prefs: (string | null | undefined)[]): Programm
     // Our application form stores the study area (e.g. "Business Administration"); match it too.
     const area = AREAS.find((a) => a.name.toLowerCase().replace("&", "and") === p.replace("&", "and") || a.name.toLowerCase() === p);
     if (area) return PROGRAMMES.find((x) => x.area === area.key);
+    // Generic titles from the application form, e.g. "Bachelor's in Business Administration".
+    const inTitle = AREAS.find((a) => p.replace("&", "and").includes(a.name.toLowerCase().replace("&", "and")));
+    if (inTitle) {
+      const level = (["diploma", "bachelor", "master"] as Level[]).find((l) => p.includes(l));
+      return PROGRAMMES.find((x) => x.area === inTitle.key && (!level || x.level === level)) ?? PROGRAMMES.find((x) => x.area === inTitle.key);
+    }
   }
   return undefined;
 }
