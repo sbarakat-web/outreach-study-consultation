@@ -36,20 +36,33 @@ function when(iso: string, tz: string) {
   }
 }
 
+const pause = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/** Resend allows ~2 requests/second: retry rate-limited and transient failures, and log anything that still fails. */
 async function sendEmail(to: string, subject: string, html: string, cc?: string) {
   if (!env("RESEND_API_KEY")) return false;
-  const res = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: { Authorization: `Bearer ${env("RESEND_API_KEY")}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ from: MAIL_FROM(), to, subject, html, ...(cc ? { cc } : {}) }),
-  });
-  return res.ok;
+  for (let attempt = 1; attempt <= 4; attempt++) {
+    const res = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${env("RESEND_API_KEY")}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ from: MAIL_FROM(), to, subject, html, ...(cc ? { cc } : {}) }),
+    });
+    if (res.ok) return true;
+    const detail = await res.text().catch(() => "");
+    if ((res.status === 429 || res.status >= 500) && attempt < 4) {
+      await pause(1200 * attempt);
+      continue;
+    }
+    console.error(`send-reminders: email to ${to} failed (${res.status}): ${detail}`);
+    return false;
+  }
+  return false;
 }
 
 // Labels as in src/lib/options.ts
 const PATHS: Record<string, string> = { english: "English course", higher_education: "Higher education" };
 const LEVELS: Record<string, string> = { below_b2: "Below B2", b2_plus: "B2 or above" };
-// Copied on the presenter email (once per session, on the first presenter's email).
+// Copied on every presenter email.
 const PRESENTER_CC = () => env("PRESENTER_CC") || "sbarakat@outreachrecruitment.net";
 
 /** 10 minutes before a call: every presenter gets the candidate brief and a one-click link into the session. */
@@ -62,6 +75,7 @@ async function presenterEmail(db: any, c: any, presenters: string[]) {
   const required = REQUIRED[c.study_path] ?? REQUIRED.english;
   const docsLine = `${required.filter((k) => have.has(k)).length}/${required.length} uploaded`;
   for (const [i, to] of presenters.entries()) {
+    if (i > 0) await pause(700); // stay under Resend's rate limit
     // One-time sign-in link straight into this candidate's session; the password link is the fallback.
     const link = await db.auth.admin.generateLink({ type: "magiclink", email: to, options: { redirectTo: `${APP_URL()}${sessionPath}` } });
     const login = `${APP_URL()}/login?next=${encodeURIComponent(sessionPath)}&email=${encodeURIComponent(to)}`;
@@ -93,7 +107,7 @@ async function presenterEmail(db: any, c: any, presenters: string[]) {
         "en",
         { url: "https://outreachrecruitment.net", label: "outreachrecruitment.net", brand: "Outreach Recruitment — Study in Malta" },
       ),
-      i === 0 && !presenters.includes(PRESENTER_CC()) ? PRESENTER_CC() : undefined,
+      presenters.includes(PRESENTER_CC()) ? undefined : PRESENTER_CC(),
     );
   }
 }
