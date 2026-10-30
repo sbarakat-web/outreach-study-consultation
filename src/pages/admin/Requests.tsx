@@ -24,7 +24,7 @@ import type { Consultation, DocumentRow, Status } from "../../lib/types";
 import { Alert, Button, Card, Spinner, StatusBadge } from "../../components/ui";
 import { MeetingCard, PageTitle, StatStrip } from "../../components/dash";
 
-type Row = Consultation & { documents?: { created_at: string; review_status: string }[] };
+type Row = Consultation & { documents?: { created_at: string; review_status: string; doc_type: string }[] };
 
 // Leads with at least one upload live in "Documents received" instead of "All leads".
 const docCount = (c: Row) => c.documents?.length ?? 0;
@@ -57,7 +57,7 @@ export function Requests({ mode = "all" }: { mode?: "all" | "new" | "documents" 
   const load = useCallback(async () => {
     const { data, error } = await supabase
       .from("consultations")
-      .select("*, documents(created_at, review_status)")
+      .select("*, documents(created_at, review_status, doc_type)")
       .order("created_at", { ascending: false })
       .limit(1000);
     if (error) setError(error.message);
@@ -231,6 +231,8 @@ export function Requests({ mode = "all" }: { mode?: "all" | "new" | "documents" 
       <Card>
         {filtered.length === 0 ? (
           <p className="px-6 py-10 text-center text-slate-500">No requests match.</p>
+        ) : mode === "documents" ? (
+          <DocumentsTable rows={filtered} onOpen={setOpenId} onSaved={load} />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">
@@ -240,7 +242,6 @@ export function Requests({ mode = "all" }: { mode?: "all" | "new" | "documents" 
                   <th className="hidden px-3 py-3 font-bold md:table-cell">Course</th>
                   <th className="hidden px-3 py-3 font-bold sm:table-cell">Call</th>
                   <th className="px-3 py-3 font-bold">Status</th>
-                  {mode === "documents" && <th className="px-3 py-3 font-bold">Comments</th>}
                   <th className="hidden px-5 py-3 font-bold lg:table-cell">Received</th>
                 </tr>
               </thead>
@@ -275,11 +276,6 @@ export function Requests({ mode = "all" }: { mode?: "all" | "new" | "documents" 
                       <StatusBadge label={statusLabel(c.status)} muted={c.status === "not_interested"} />
                       {c.session_outcome && <div className="mt-1 text-[11px] font-bold text-slate-500">Session: {SESSION_LABEL[c.session_outcome]}</div>}
                     </td>
-                    {mode === "documents" && (
-                      <td className="min-w-[14rem] px-3 py-3" onClick={(e) => e.stopPropagation()}>
-                        <CommentCell c={c} onSaved={load} />
-                      </td>
-                    )}
                     <td className="hidden px-5 py-3 text-slate-500 lg:table-cell">{new Date(c.created_at).toLocaleDateString()}</td>
                   </tr>
                 ))}
@@ -556,6 +552,65 @@ function AddLead({ onClose, onCreated }: { onClose: () => void; onCreated: (id: 
           <Button type="submit" loading={saving} className="w-full"><Plus className="h-4 w-4" /> {booked ? "Add lead and send meeting email" : "Add lead and send email"}</Button>
         </form>
       </Card>
+    </div>
+  );
+}
+
+const ago = (iso: string) => {
+  const min = Math.round((Date.now() - new Date(iso).getTime()) / 60_000);
+  if (min < 60) return `${Math.max(1, min)} min ago`;
+  if (min < 24 * 60) return `${Math.round(min / 60)} h ago`;
+  if (min < 7 * 24 * 60) return `${Math.round(min / 1440)} d ago`;
+  return formatSlot(iso, { weekday: undefined, hour: undefined, minute: undefined });
+};
+
+/** Documents received: one clean row per candidate — who, required-document progress, last upload, comment. */
+function DocumentsTable({ rows, onOpen, onSaved }: { rows: Row[]; onOpen: (id: string) => void; onSaved: () => void }) {
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-left text-sm">
+        <thead className="text-xs uppercase tracking-wider text-slate-500">
+          <tr className="border-b border-slate-100">
+            <th className="px-5 py-3 font-bold">Candidate</th>
+            <th className="px-3 py-3 font-bold">Documents</th>
+            <th className="hidden px-3 py-3 font-bold sm:table-cell">Last upload</th>
+            <th className="px-5 py-3 font-bold">Comments</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-slate-100">
+          {rows.map((c) => {
+            const docs = c.documents ?? [];
+            const required = documentTypesFor(c.study_path).filter((t) => t.required);
+            const done = required.filter((t) => docs.some((d) => d.doc_type === t.key && d.review_status !== "rejected")).length;
+            const toReview = docs.filter((d) => d.review_status === "pending").length;
+            const rejected = docs.filter((d) => d.review_status === "rejected").length;
+            const complete = done === required.length && !toReview && !rejected;
+            return (
+              <tr key={c.id} onClick={() => onOpen(c.id)} className="cursor-pointer align-top hover:bg-mist">
+                <td className="px-5 py-3">
+                  <p className="font-bold text-navy">{c.full_name}</p>
+                  <p className="text-xs text-slate-500">{c.email}</p>
+                </td>
+                <td className="w-44 px-3 py-3">
+                  <div className="flex items-center gap-2">
+                    <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-100">
+                      <span className={`block h-full rounded-full ${complete ? "bg-emerald-500" : "bg-brand"}`} style={{ width: `${(done / Math.max(1, required.length)) * 100}%` }} />
+                    </span>
+                    <span className="text-xs font-bold text-navy">{done}/{required.length}</span>
+                  </div>
+                  <p className={`mt-1 text-[11px] font-bold ${rejected ? "text-brand-red" : toReview ? "text-amber-700" : complete ? "text-emerald-700" : "text-slate-400"}`}>
+                    {rejected ? `${rejected} needs a new file` : toReview ? `${toReview} to review` : complete ? "✓ Complete" : "Waiting for more"}
+                  </p>
+                </td>
+                <td className="hidden whitespace-nowrap px-3 py-3 text-slate-500 sm:table-cell">{ago(lastUpload(c))}</td>
+                <td className="min-w-[14rem] px-5 py-3" onClick={(e) => e.stopPropagation()}>
+                  <CommentCell c={c} onSaved={onSaved} />
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
     </div>
   );
 }
