@@ -73,6 +73,8 @@ export function App() {
               }
             >
               <Route index element={<Requests />} />
+              <Route path="new-leads" element={<Requests key="new" mode="new" />} />
+              <Route path="documents" element={<Requests key="documents" mode="documents" />} />
               <Route path="calendar" element={<CalendarPage />} />
               <Route path="sessions" element={<SessionsDashboard />} />
               <Route path="team" element={<Team />} />

@@ -53,8 +53,8 @@ export function AdminLayout() {
   const countBadge = (value: number) => value ? <span className="rounded-full bg-brand/10 px-2 py-0.5 text-xs font-bold text-brand">{value}</span> : undefined;
   const sidebar: TabItem[] = [
     { to: "/admin", label: "All leads", icon: UsersRound, end: true, badge: countBadge(Object.values(leadCounts).reduce((a, b) => a + b, 0) - withDocs) },
-    { to: "/admin?view=documents", label: "Documents received", icon: FileCheck2, badge: countBadge(withDocs) },
-    { to: "/admin?status=new", label: "New leads", icon: UsersRound, badge: countBadge(leadCounts.new ?? 0) },
+    { to: "/admin/documents", label: "Documents received", icon: FileCheck2, badge: countBadge(withDocs) },
+    { to: "/admin/new-leads", label: "New leads", icon: UsersRound, badge: countBadge(leadCounts.new ?? 0) },
     { to: "/admin/calendar", label: "Calendar", icon: CalendarDays },
     { to: "/onlinesessions?present=1", label: "Online sessions", icon: Presentation },
     { to: "/admin/sessions", label: "Session stats", icon: BarChart3 },

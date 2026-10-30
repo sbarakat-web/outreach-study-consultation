@@ -31,7 +31,10 @@ const docCount = (c: Row) => c.documents?.length ?? 0;
 const lastUpload = (c: Row) => (c.documents ?? []).reduce((latest, d) => (d.created_at > latest ? d.created_at : latest), "");
 
 
-export function Requests() {
+const PAGE_TITLE = { all: "Leads", new: "New leads", documents: "Documents received" } as const;
+
+/** Lead list. `mode` gives "New leads" and "Documents received" their own pages (/admin/new-leads, /admin/documents). */
+export function Requests({ mode = "all" }: { mode?: "all" | "new" | "documents" }) {
   const [items, setItems] = useState<Row[] | null>(null);
   const [error, setError] = useState("");
   const [params, setParams] = useSearchParams();
@@ -48,6 +51,8 @@ export function Requests() {
   }, [params]);
   const [openId, setOpenId] = useState<string | null>(params.get("lead"));
   const [view, setView] = useState(params.get("view"));
+  const pageStatus = mode === "new" ? "new" : status;
+  const pageView = mode === "documents" ? "documents" : view;
 
   const load = useCallback(async () => {
     const { data, error } = await supabase
@@ -67,13 +72,13 @@ export function Requests() {
     const q = query.trim().toLowerCase();
     const rows = (items ?? []).filter(
       (c) =>
-        (!status || c.status === status) &&
-        (view !== "booked" || isBookedLead(c)) &&
-        (view === "documents" ? docCount(c) > 0 : status || view ? true : docCount(c) === 0) &&
+        (!pageStatus || c.status === pageStatus) &&
+        (pageView !== "booked" || isBookedLead(c)) &&
+        (pageView === "documents" ? docCount(c) > 0 : pageStatus || pageView ? true : docCount(c) === 0) &&
         (!q || [c.full_name, c.email, c.whatsapp, c.country, c.desired_course].some((v) => v?.toLowerCase().includes(q))),
     );
-    return view === "documents" ? rows.sort((a, b) => lastUpload(b).localeCompare(lastUpload(a))) : rows;
-  }, [items, query, status, view]);
+    return pageView === "documents" ? rows.sort((a, b) => lastUpload(b).localeCompare(lastUpload(a))) : rows;
+  }, [items, query, pageStatus, pageView]);
 
   const upcoming = useMemo(
     () =>
@@ -106,9 +111,11 @@ export function Requests() {
           </span>
         }
       >
-        Leads
+        {PAGE_TITLE[mode]} {mode !== "all" && <span className="text-lg font-normal text-slate-400">· {filtered.length}</span>}
       </PageTitle>
 
+      {mode === "all" && (
+      <>
       <StatStrip
         items={[
           {
@@ -186,6 +193,8 @@ export function Requests() {
           </button>
         )}
       </div>
+      </>
+      )}
 
       <div className="flex flex-col gap-3 sm:flex-row">
         <div className="relative flex-1">
@@ -198,6 +207,7 @@ export function Requests() {
             aria-label="Search requests"
           />
         </div>
+        {mode === "all" && (
         <select
           className="field sm:w-64"
           value={status}
@@ -215,6 +225,7 @@ export function Requests() {
             </option>
           ))}
         </select>
+        )}
       </div>
 
       <Card>
@@ -229,6 +240,7 @@ export function Requests() {
                   <th className="hidden px-3 py-3 font-bold md:table-cell">Course</th>
                   <th className="hidden px-3 py-3 font-bold sm:table-cell">Call</th>
                   <th className="px-3 py-3 font-bold">Status</th>
+                  {mode === "documents" && <th className="px-3 py-3 font-bold">Comments</th>}
                   <th className="hidden px-5 py-3 font-bold lg:table-cell">Received</th>
                 </tr>
               </thead>
@@ -263,6 +275,11 @@ export function Requests() {
                       <StatusBadge label={statusLabel(c.status)} muted={c.status === "not_interested"} />
                       {c.session_outcome && <div className="mt-1 text-[11px] font-bold text-slate-500">Session: {SESSION_LABEL[c.session_outcome]}</div>}
                     </td>
+                    {mode === "documents" && (
+                      <td className="min-w-[14rem] px-3 py-3" onClick={(e) => e.stopPropagation()}>
+                        <CommentCell c={c} onSaved={load} />
+                      </td>
+                    )}
                     <td className="hidden px-5 py-3 text-slate-500 lg:table-cell">{new Date(c.created_at).toLocaleDateString()}</td>
                   </tr>
                 ))}
@@ -539,6 +556,44 @@ function AddLead({ onClose, onCreated }: { onClose: () => void; onCreated: (id: 
           <Button type="submit" loading={saving} className="w-full"><Plus className="h-4 w-4" /> {booked ? "Add lead and send meeting email" : "Add lead and send email"}</Button>
         </form>
       </Card>
+    </div>
+  );
+}
+
+/** Inline staff comment on a lead (stored in admin_notes). */
+function CommentCell({ c, onSaved }: { c: Row; onSaved: () => void }) {
+  const [editing, setEditing] = useState(false);
+  const [text, setText] = useState(c.admin_notes ?? "");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  const save = async () => {
+    setSaving(true);
+    const { error } = await supabase.from("consultations").update({ admin_notes: text.trim() || null }).eq("id", c.id);
+    setSaving(false);
+    if (error) return setError(error.message);
+    setEditing(false);
+    onSaved();
+  };
+
+  if (!editing)
+    return (
+      <button onClick={() => { setText(c.admin_notes ?? ""); setEditing(true); }} className="block w-full text-left">
+        {c.admin_notes ? (
+          <span className="line-clamp-3 whitespace-pre-line text-slate-600 hover:text-navy">{c.admin_notes}</span>
+        ) : (
+          <span className="text-xs font-bold text-brand hover:underline">+ Add comment</span>
+        )}
+      </button>
+    );
+  return (
+    <div className="space-y-2">
+      <textarea autoFocus rows={3} className="field text-sm" value={text} onChange={(e) => setText(e.target.value)} placeholder="Comment for the team…" />
+      {error && <p className="text-xs font-bold text-brand-red">{error}</p>}
+      <div className="flex gap-2">
+        <Button type="button" loading={saving} onClick={save} className="min-h-8 px-4 text-xs">Save</Button>
+        <button type="button" onClick={() => setEditing(false)} className="text-xs font-bold text-slate-500 hover:text-navy">Cancel</button>
+      </div>
     </div>
   );
 }
