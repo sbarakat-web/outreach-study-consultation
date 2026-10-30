@@ -5,6 +5,7 @@
 //   10 min before                → presenters get a one-click sign-in link to the online session
 //   documents due in ≤3 days / due now, required files missing → email
 //   suggested call time not confirmed after 24h → one "please confirm" email (candidate's language)
+//   lead marked No longer interested → one "thank you, our door is open" email
 // Secrets: RESEND_API_KEY; optional MAIL_FROM, APP_URL, TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_WHATSAPP_FROM
 import { createClient } from "npm:@supabase/supabase-js@2.45.4";
 import { actions, button, eyebrow, facts, highlight, layout, para, title, escape } from "../_shared/email.ts";
@@ -127,7 +128,7 @@ Deno.serve(async () => {
   const db = createClient(env("SUPABASE_URL"), env("SUPABASE_SERVICE_ROLE_KEY"));
   const now = Date.now();
   const iso = (ms: number) => new Date(ms).toISOString();
-  const sent = { h24: 0, h1: 0, docs: 0, confirm: 0, presenter: 0 };
+  const sent = { h24: 0, h1: 0, docs: 0, confirm: 0, presenter: 0, goodbye: 0 };
 
   // Claim a reminder column atomically; returns the row only if this call won it.
   const claim = async (id: string, column: string) => {
@@ -240,6 +241,31 @@ Deno.serve(async () => {
       ),
     );
     sent.docs++;
+  }
+
+  // No longer interested → thank-you email (once; the column is reset if the lead is re-activated)
+  const { data: leaving } = await db.from("consultations").select("*").eq("status", "not_interested").is("not_interested_email_at", null).limit(50);
+  for (const c of leaving ?? []) {
+    if (!(await claim(c.id, "not_interested_email_at"))) continue;
+    const first = escape(String(c.full_name).split(" ")[0]);
+    const wa = `https://wa.me/35699728213?text=${encodeURIComponent(`Hi Outreach, this is ${c.full_name}. I'd like more information about studying in Malta.`)}`;
+    await sendEmail(
+      c.email,
+      `Thank you, ${String(c.full_name).split(" ")[0]} — our door is always open`,
+      layout(
+        eyebrow("Thank you") +
+          title(`Thank you, ${first} 🙏`) +
+          para("Thank you for your time and your interest in studying in Malta with Outreach. We understand this isn't the right moment for you, and we've updated your application.", true) +
+          `<div style="margin:0 0 18px;padding:18px;border-radius:16px;background:#f0eeff;text-align:center;color:#14123a">
+            <p style="margin:0 0 6px;font-size:17px;font-weight:bold">Our door is always open 🚪</p>
+            <p style="margin:0;color:#5b6080;font-size:14px">Whenever you need information, have a question, or feel ready to start your application, we're here to help — no pressure, no deadline.</p>
+          </div>` +
+          actions(button(wa, "Message us on WhatsApp", "#25D366"), button(`${APP_URL()}/login`, "Open my dashboard", "#14123a")) +
+          para("We wish you all the best with your plans!", true),
+        "Thank you — whenever you're ready, we're here to help.",
+      ),
+    );
+    sent.goodbye++;
   }
 
   return new Response(JSON.stringify({ ok: true, sent }), { headers: { "Content-Type": "application/json" } });

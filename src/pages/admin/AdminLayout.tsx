@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Outlet, useNavigate } from "react-router-dom";
-import { BarChart3, Bell, CalendarDays, FileCheck2, Mail, Presentation, Settings, Users, UsersRound } from "lucide-react";
+import { BarChart3, Bell, CalendarDays, FileCheck2, Mail, Presentation, Settings, UserRoundX, Users, UsersRound } from "lucide-react";
 import type { TabItem } from "../../components/TabBar";
 import { AppShell, Fab } from "../../components/dash";
 import { supabase } from "../../lib/supabase";
@@ -34,7 +34,7 @@ export function AdminLayout() {
         supabase.from("consultations").select("status, documents(count)"),
       ]);
       setToConfirm(count ?? 0);
-      setWithDocs((data ?? []).filter((row) => (row.documents as { count: number }[] | null)?.[0]?.count).length);
+      setWithDocs((data ?? []).filter((row) => row.status !== "not_interested" && (row.documents as { count: number }[] | null)?.[0]?.count).length);
       setLeadCounts((data ?? []).reduce<Record<string, number>>((out, row) => {
         out[row.status] = (out[row.status] ?? 0) + 1;
         return out;
@@ -52,9 +52,10 @@ export function AdminLayout() {
   const name = profile?.display_name || email.split("@")[0];
   const countBadge = (value: number) => value ? <span className="rounded-full bg-brand/10 px-2 py-0.5 text-xs font-bold text-brand">{value}</span> : undefined;
   const sidebar: TabItem[] = [
-    { to: "/admin", label: "All leads", icon: UsersRound, end: true, badge: countBadge(Object.values(leadCounts).reduce((a, b) => a + b, 0) - withDocs) },
+    { to: "/admin", label: "All leads", icon: UsersRound, end: true, badge: countBadge(Object.values(leadCounts).reduce((a, b) => a + b, 0) - withDocs - (leadCounts.not_interested ?? 0)) },
     { to: "/admin/documents", label: "Documents received", icon: FileCheck2, badge: countBadge(withDocs) },
     { to: "/admin/new-leads", label: "New leads", icon: UsersRound, badge: countBadge(leadCounts.new ?? 0) },
+    { to: "/admin/not-interested", label: "No longer interested", icon: UserRoundX, badge: countBadge(leadCounts.not_interested ?? 0) },
     { to: "/admin/calendar", label: "Calendar", icon: CalendarDays },
     { to: "/onlinesessions?present=1", label: "Online sessions", icon: Presentation },
     { to: "/admin/sessions", label: "Session stats", icon: BarChart3 },

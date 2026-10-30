@@ -31,10 +31,13 @@ const docCount = (c: Row) => c.documents?.length ?? 0;
 const lastUpload = (c: Row) => (c.documents ?? []).reduce((latest, d) => (d.created_at > latest ? d.created_at : latest), "");
 
 
-const PAGE_TITLE = { all: "Leads", new: "New leads", documents: "Documents received" } as const;
+const PAGE_TITLE = { all: "Leads", new: "New leads", documents: "Documents received", not_interested: "No longer interested" } as const;
 
-/** Lead list. `mode` gives "New leads" and "Documents received" their own pages (/admin/new-leads, /admin/documents). */
-export function Requests({ mode = "all" }: { mode?: "all" | "new" | "documents" }) {
+/**
+ * Lead list. `mode` gives "New leads", "Documents received" and "No longer interested" their own pages
+ * (/admin/new-leads, /admin/documents, /admin/not-interested).
+ */
+export function Requests({ mode = "all" }: { mode?: keyof typeof PAGE_TITLE }) {
   const [items, setItems] = useState<Row[] | null>(null);
   const [error, setError] = useState("");
   const [params, setParams] = useSearchParams();
@@ -51,7 +54,7 @@ export function Requests({ mode = "all" }: { mode?: "all" | "new" | "documents" 
   }, [params]);
   const [openId, setOpenId] = useState<string | null>(params.get("lead"));
   const [view, setView] = useState(params.get("view"));
-  const pageStatus = mode === "new" ? "new" : status;
+  const pageStatus = mode === "new" ? "new" : mode === "not_interested" ? "not_interested" : status;
   const pageView = mode === "documents" ? "documents" : view;
 
   const load = useCallback(async () => {
@@ -75,6 +78,8 @@ export function Requests({ mode = "all" }: { mode?: "all" | "new" | "documents" 
         (!pageStatus || c.status === pageStatus) &&
         (pageView !== "booked" || isBookedLead(c)) &&
         (pageView === "documents" ? docCount(c) > 0 : pageStatus || pageView ? true : docCount(c) === 0) &&
+        // No longer interested leads live on their own page, not in All leads or Documents received.
+        (pageStatus || (pageView && pageView !== "documents") || c.status !== "not_interested") &&
         (!q || [c.full_name, c.email, c.whatsapp, c.country, c.desired_course].some((v) => v?.toLowerCase().includes(q))),
     );
     return pageView === "documents" ? rows.sort((a, b) => lastUpload(b).localeCompare(lastUpload(a))) : rows;
