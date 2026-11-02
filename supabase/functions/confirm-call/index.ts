@@ -8,6 +8,7 @@
 // Secrets: RESEND_API_KEY; optional Google (see _shared/google.ts), ADMIN_NOTIFY_EMAIL, APP_URL
 import { createClient } from "npm:@supabase/supabase-js@2.45.4";
 import { actions, button, eyebrow, facts, highlight, layout, title, escape } from "../_shared/email.ts";
+import { adminRecipients } from "../_shared/admins.ts";
 import { APP_URL, CALL_MINUTES, confirmedEmail, loadAdvisor, sendEmail, tzOf } from "../_shared/call.ts";
 import { createCallEvent, googleConfigured, moveCallEvent } from "../_shared/google.ts";
 import { isCallSlot, isSlotFree } from "../_shared/slots.ts";
@@ -107,7 +108,7 @@ Deno.serve(async (req) => {
 
   const headline = { confirmed: "confirmed the call", picked: "picked a time — call confirmed", moved: "moved the call" }[kind];
   await sendEmail({
-    to: [...new Set([env("ADMIN_NOTIFY_EMAIL") || "sbarakat@outreachrecruitment.net", row.call_suggested_by].filter(Boolean))],
+    to: [...new Set([...(await adminRecipients(db)), row.call_suggested_by].filter(Boolean))],
     subject: `${kind === "moved" ? "🔁" : "✅"} ${row.full_name} ${headline} — ${malta(at)}`,
     html: layout(
       eyebrow(kind === "moved" ? "Call moved by candidate" : "Call confirmed by candidate") +

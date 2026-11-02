@@ -5,9 +5,11 @@
 // at most once and only within 15 minutes of creation, so the public endpoint
 // can't be used to re-send mail for old requests.
 //
+// Goes to every admin on the Team page (plus ADMIN_NOTIFY_EMAIL).
 // Secrets: RESEND_API_KEY (required for email); optional overrides MAIL_FROM, ADMIN_NOTIFY_EMAIL, APP_URL
 import { createClient } from "npm:@supabase/supabase-js@2.45.4";
 import { actions, button, eyebrow, facts, layout, title, escape } from "../_shared/email.ts";
+import { adminRecipients } from "../_shared/admins.ts";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -18,7 +20,6 @@ const env = (k: string) => Deno.env.get(k) ?? "";
 
 const DEFAULTS: Record<string, string> = {
   MAIL_FROM: "Outreach <hello@consultation.outreachstudy.eu>",
-  ADMIN_NOTIFY_EMAIL: "sbarakat@outreachrecruitment.net",
   APP_URL: "https://consultation.outreachstudy.eu",
 };
 const setting = (k: string) => env(k) || DEFAULTS[k] || "";
@@ -63,7 +64,7 @@ Deno.serve(async (req) => {
     headers: { Authorization: `Bearer ${env("RESEND_API_KEY")}`, "Content-Type": "application/json" },
     body: JSON.stringify({
       from: setting("MAIL_FROM"),
-      to: setting("ADMIN_NOTIFY_EMAIL"),
+      to: await adminRecipients(db),
       subject: `New lead: ${c.full_name} — ${course}${c.start_date ? " (" + c.start_date + ")" : ""}`,
       html: layout(
         eyebrow("New application") +

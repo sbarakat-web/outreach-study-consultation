@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
-import { Trash2 } from "lucide-react";
+import { Send, Trash2 } from "lucide-react";
 import { supabase } from "../../lib/supabase";
 import { useAuth } from "../../lib/auth";
 import { Alert, Button, Card, Spinner } from "../../components/ui";
@@ -16,7 +16,7 @@ export function Team() {
         table="admins"
         title="Admins"
         singular="admin"
-        description="Admins can see every lead, change statuses, run online sessions and add other team members."
+        description="Admins can see every lead, change statuses, run online sessions and add other team members. Every admin gets the team email alerts (new leads, call requests, confirmed calls)."
       />
       <RoleList
         table="session_presenters"
@@ -46,6 +46,16 @@ function RoleList({
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
   const [saving, setSaving] = useState(false);
+  const [sending, setSending] = useState("");
+  const role = table === "admins" ? "admin" : "presenter";
+
+  // Welcome email with a one-click sign-in link (also creates their sign-in account).
+  const welcome = async (to: string) => {
+    setSending(to);
+    const { data, error } = await supabase.functions.invoke("staff-welcome", { body: { email: to, role } });
+    setSending("");
+    return error || data?.error ? (data?.error ?? error?.message ?? "The welcome email could not be sent") : null;
+  };
 
   const load = useCallback(async () => {
     const { data, error } = await supabase.from(table).select("email, created_at").order("created_at");
@@ -62,10 +72,16 @@ function RoleList({
     setError("");
     setInfo("");
     setSaving(true);
-    const { error } = await supabase.from(table).insert({ email: email.trim().toLowerCase(), added_by: session?.user.id });
+    const added = email.trim().toLowerCase();
+    const { error } = await supabase.from(table).insert({ email: added, added_by: session?.user.id });
+    if (error) {
+      setSaving(false);
+      return setError(error.code === "23505" ? `That person is already a ${singular}.` : error.message);
+    }
+    const mailError = await welcome(added);
     setSaving(false);
-    if (error) return setError(error.code === "23505" ? `That person is already a ${singular}.` : error.message);
-    setInfo(`${email} is now a ${singular}. They can sign in at ${window.location.origin}/login with this email (we email them a sign-in code).`);
+    if (mailError) setError(`${added} is now a ${singular}, but the welcome email failed: ${mailError}`);
+    else setInfo(`${added} is now a ${singular}. We sent them a welcome email with a one-click sign-in link.`);
     setEmail("");
     load();
   };
@@ -111,11 +127,28 @@ function RoleList({
                 <span className="truncate font-bold">
                   {m.email} {m.email === me && <span className="font-normal text-slate-400">(you)</span>}
                 </span>
-                {!(table === "admins" && m.email === me) && (
-                  <button aria-label={`Remove ${m.email}`} onClick={() => remove(m)} className="text-slate-400 hover:text-brand-red">
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                )}
+                <span className="flex shrink-0 items-center gap-3">
+                  {m.email !== me && (
+                    <button
+                      onClick={async () => {
+                        setError("");
+                        setInfo("");
+                        const mailError = await welcome(m.email);
+                        if (mailError) setError(mailError);
+                        else setInfo(`Welcome email sent again to ${m.email}.`);
+                      }}
+                      disabled={sending === m.email}
+                      className="inline-flex items-center gap-1 text-xs font-bold text-brand hover:underline disabled:opacity-50"
+                    >
+                      <Send className="h-3.5 w-3.5" /> {sending === m.email ? "Sending…" : "Resend welcome"}
+                    </button>
+                  )}
+                  {!(table === "admins" && m.email === me) && (
+                    <button aria-label={`Remove ${m.email}`} onClick={() => remove(m)} className="text-slate-400 hover:text-brand-red">
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  )}
+                </span>
               </li>
             ))}
           </ul>
