@@ -6,8 +6,10 @@
 const env = (k: string) => Deno.env.get(k) ?? "";
 const APP_URL = () => env("APP_URL") || "https://consultation.outreachstudy.eu";
 export const CALL_MINUTES = 20;
-// Calendar the service account writes to (shared with it in Google Calendar); GOOGLE_CALENDAR_ID overrides.
-const DEFAULT_CALENDAR = "sbarakat@outreachrecruitment.net";
+// Calendar behind the Google appointment schedule "Study in Malta" (Nikolai Calleja): busy times are read from it
+// and booked calls are written to it, so the app and the booking page show the same free times.
+// It must be shared with the service account ("Make changes to events"); GOOGLE_CALENDAR_ID overrides.
+const DEFAULT_CALENDAR = "ncalleja@outreachrecruitment.net";
 export const calendarIdOf = () => env("GOOGLE_CALENDAR_ID") || DEFAULT_CALENDAR;
 export const SCOPES = "https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/calendar.freebusy";
 
@@ -98,7 +100,10 @@ export async function freeBusy(db: any, email: string | null | undefined, from: 
   });
   if (!res.ok) return null;
   const data = await res.json();
-  return { email: auth.email, busy: (data.calendars?.[auth.calendarId]?.busy ?? []) as { start: string; end: string }[] };
+  const cal = data.calendars?.[auth.calendarId];
+  // Not shared with us (e.g. "notFound"): unknown, not free.
+  if (!cal || cal.errors?.length) return null;
+  return { email: auth.email, busy: (cal.busy ?? []) as { start: string; end: string }[] };
 }
 
 /**

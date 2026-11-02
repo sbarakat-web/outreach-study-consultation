@@ -1,5 +1,5 @@
 // Server-side check of a call time picked by a candidate: must be a real call slot
-// (Mon–Fri 10:00–17:00 Malta, 20-minute steps, ≥ 12h ahead, ≤ 30 days) and still free
+// (Mon–Fri, on the hour 09:00–16:00 Malta like the Google appointment schedule, ≥ 12h ahead, ≤ 30 days) and still free
 // (no other confirmed call, nothing busy in the Google Calendar).
 import { CALL_MINUTES, freeBusy, googleConfigured } from "./google.ts";
 
@@ -16,7 +16,7 @@ export function isCallSlot(iso: string) {
       .map((x) => [x.type, x.value]),
   );
   const minutes = Number(p.hour) * 60 + Number(p.minute);
-  return ["Mon", "Tue", "Wed", "Thu", "Fri"].includes(p.weekday) && d.getUTCSeconds() === 0 && minutes % CALL_MINUTES === 0 && minutes >= 600 && minutes + CALL_MINUTES <= 1020;
+  return ["Mon", "Tue", "Wed", "Thu", "Fri"].includes(p.weekday) && d.getUTCSeconds() === 0 && minutes % 60 === 0 && minutes >= 9 * 60 && minutes + CALL_MINUTES <= 17 * 60;
 }
 
 // deno-lint-ignore no-explicit-any

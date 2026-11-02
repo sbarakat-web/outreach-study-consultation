@@ -83,7 +83,8 @@ Deno.serve(async (req) => {
 
   if (action === "public-busy") {
     const fb = await freeBusy(db(), await defaultEmail(), body.from, body.to).catch(() => null);
-    return json({ busy: fb?.busy ?? [] });
+    // Calendar unreadable (not shared with the service account): say so instead of claiming "all free".
+    return json(fb ? { busy: fb.busy } : { busy: [], error: "calendar-unavailable" });
   }
 
   const staff = await staffEmail(req);
