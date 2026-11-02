@@ -9,8 +9,9 @@
 import { createClient } from "npm:@supabase/supabase-js@2.45.4";
 import { actions, button, eyebrow, facts, highlight, layout, title, escape } from "../_shared/email.ts";
 import { adminRecipients } from "../_shared/admins.ts";
-import { APP_URL, CALL_MINUTES, confirmedEmail, loadAdvisor, sendEmail, tzOf } from "../_shared/call.ts";
-import { createCallEvent, googleConfigured, moveCallEvent } from "../_shared/google.ts";
+import { APP_URL, CALL_MINUTES, sendEmail, tzOf } from "../_shared/call.ts";
+import { googleConfigured } from "../_shared/google.ts";
+import { bookCall } from "../_shared/booked.ts";
 import { isCallSlot, isSlotFree } from "../_shared/slots.ts";
 
 const cors = {
@@ -57,18 +58,20 @@ Deno.serve(async (req) => {
 
   let at: string;
   let kind: "confirmed" | "picked" | "moved";
+  // The candidate's own tentative hold / confirmed event doesn't count as busy.
+  const own = c.google_event_id ? { preferred_call_at: c.call_status === "confirmed" ? c.preferred_call_at : c.suggested_call_at } : undefined;
   if (action === "confirm") {
     if (c.call_status === "confirmed") return json(view(c));
     if (!c.suggested_call_at) return json({ error: "no-suggestion" }, 409);
     if (new Date(c.suggested_call_at).getTime() < Date.now()) return json({ error: "expired" }, 410);
-    if (!(await isSlotFree(db, c.suggested_call_at, c.id))) return json({ error: "taken" }, 409);
+    if (!(await isSlotFree(db, c.suggested_call_at, c.id, own))) return json({ error: "taken" }, 409);
     at = c.suggested_call_at;
     kind = "confirmed";
   } else if (action === "reschedule") {
     if (typeof picked !== "string" || !isCallSlot(picked)) return json({ error: "invalid-time" }, 400);
     if (!view(c).canReschedule) return json({ error: "too-late" }, 409);
     const moving = c.call_status === "confirmed";
-    if (!(await isSlotFree(db, picked, c.id, moving ? c : undefined))) return json({ error: "taken" }, 409);
+    if (!(await isSlotFree(db, picked, c.id, own))) return json({ error: "taken" }, 409);
     at = new Date(picked).toISOString();
     kind = moving ? "moved" : "picked";
   } else {
@@ -76,35 +79,10 @@ Deno.serve(async (req) => {
   }
 
   const previous = c.preferred_call_at;
-  let q = db
-    .from("consultations")
-    .update({
-      call_status: "confirmed",
-      preferred_call_at: at,
-      suggested_call_at: at,
-      call_declined_at: null,
-      reminder_24h_at: null,
-      reminder_1h_at: null,
-      ...(["new", "no_show", "not_interested"].includes(c.status) ? { status: "consultation_booked" } : {}),
-    })
-    .eq("id", c.id);
-  if (kind !== "moved") q = q.neq("call_status", "confirmed"); // two clicks at once → one confirmation
-  const { data: updated, error } = await q.select("*").maybeSingle();
-  if (error) return json({ error: error.message }, 500);
-  if (!updated) return json(view(c));
-
-  // Google Calendar: create the event, or move the existing one.
-  let meetUrl: string | null = null;
-  if (googleConfigured()) {
-    const r = (
-      updated.google_event_id ? await moveCallEvent(db, updated, at).catch(() => null) : await createCallEvent(db, updated, at).catch(() => null)
-    ) as { meetUrl?: string | null } | null;
-    meetUrl = r?.meetUrl ?? null;
-  }
-  const row = { ...updated, meeting_url: meetUrl ?? updated.meeting_url };
-
-  const mail = confirmedEmail(row, await loadAdvisor(db, row.call_suggested_by));
-  await sendEmail({ to: row.email, subject: mail.subject, html: mail.html, attachments: mail.attachments });
+  // Confirm, put it in (or move it in) the Google Calendar and send the "We're waiting for you" email.
+  const booked = await bookCall(db, c, at, "confirm-link");
+  if ("error" in booked && booked.error) return json({ error: booked.error }, 500);
+  const row = (booked as { row: Row }).row;
 
   const headline = { confirmed: "confirmed the call", picked: "picked a time — call confirmed", moved: "moved the call" }[kind];
   await sendEmail({

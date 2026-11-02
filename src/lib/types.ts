@@ -45,6 +45,8 @@ export interface Consultation {
   is_starred: boolean;
   assigned_to: string | null;
   google_event_id: string | null;
+  /** Where the confirmed call was booked: Google booking page, admin, candidate dashboard or confirm link. */
+  booked_via?: "google" | "admin" | "dashboard" | "confirm-link" | null;
   documents_due_at: string | null;
   session_by: string | null;
   session_rating: number | null;

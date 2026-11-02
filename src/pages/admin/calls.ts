@@ -31,7 +31,7 @@ export async function confirmCall(c: Consultation, iso: string) {
 export const googleApi = (action: string, body: Record<string, unknown> = {}) =>
   supabase.functions.invoke("google-calendar", { body: { action, ...body } });
 
-export const notifyCandidate = (type: "call-confirmed" | "rebook" | "booking-link" | "suggest-time", consultationId: string, at?: string) =>
+export const notifyCandidate = (type: "call-confirmed" | "rebook" | "booking-link" | "suggest-time" | "book-now", consultationId: string, at?: string) =>
   supabase.functions.invoke("notify", { body: { type, consultationId, at } });
 
 /** Send the WhatsApp link to a tab opened synchronously in the click handler (or close it). */
@@ -83,6 +83,36 @@ export async function suggestTime(c: Consultation, iso: string, waTab: Window | 
   fillTab(waTab, error ? null : r.data?.waUrl);
   return { error, emailed: !!r.data?.ok };
 }
+
+/**
+ * Time already agreed with the candidate: confirm it now, put it in the Google Calendar and send the
+ * "We're waiting for you" email; the WhatsApp version opens in `waTab`.
+ */
+export async function bookNow(c: Consultation, iso: string, waTab: Window | null) {
+  const r = await notifyCandidate("book-now", c.id, iso);
+  const error = r.data?.error ?? (r.error ? r.error.message : undefined);
+  fillTab(waTab, error ? null : r.data?.waUrl);
+  return { error, emailed: !!r.data?.ok };
+}
+
+const maltaLong = (iso: string) =>
+  new Intl.DateTimeFormat("en-GB", { weekday: "long", day: "numeric", month: "long", hour: "2-digit", minute: "2-digit", timeZone: "Europe/Malta" }).format(new Date(iso));
+
+/** WhatsApp text for a confirmed call. Keep in sync with waitingWhatsApp in supabase/functions/_shared/booked.ts. */
+export const waitingWhatsApp = (c: Consultation) =>
+  [
+    `Hi ${c.full_name.split(" ")[0]} 👋 this is Soufiane from Outreach — Study in Malta.`,
+    "",
+    "Thank you for booking your free consultation! 🎉 We're waiting for you on:",
+    `📅 *${maltaLong(c.preferred_call_at!)} (Malta time)*`,
+    c.meeting_url ? `🎥 Google Meet: ${c.meeting_url}` : "🎥 We'll send you the Google Meet link before the call.",
+    "",
+    `In ${CALL_MINUTES} minutes we'll look at the best study options in Malta for you, the costs, scholarships and the visa steps — and answer all your questions.`,
+    "",
+    `📎 If you can, upload your passport and latest certificate before the call: ${window.location.origin}/dashboard`,
+    "",
+    "If you need to change the time, just reply here. See you soon! 😊",
+  ].join("\n");
 
 /** Admins + session presenters, for adviser pickers. */
 export async function loadStaff() {

@@ -1,20 +1,23 @@
 import { useState } from "react";
-import { CalendarCheck, Clock, Mail, MessageCircle, Send } from "lucide-react";
+import { CalendarCheck, Check, Clock, Copy, Mail, MessageCircle, Send, Video, Zap } from "lucide-react";
 import { supabase } from "../../lib/supabase";
 import { BOOKING_LINK, CALL_STAGE_LABELS, callStage, noReply24h, waLink } from "../../lib/options";
 import type { Consultation } from "../../lib/types";
 import { Alert, Button } from "../../components/ui";
-import { bookingMessage, confirmAndNotify, maltaTime, notifyCandidate, suggestTime } from "./calls";
+import { bookNow, bookingMessage, maltaTime, notifyCandidate, suggestTime, waitingWhatsApp } from "./calls";
 import { SlotPicker } from "./SlotPicker";
 
+const BOOKED_VIA = { google: "Booked via Google ✓", admin: "Booked by the team", dashboard: "Booked from the dashboard", "confirm-link": "Confirmed by the candidate" } as const;
+
 /**
- * Admin call workflow, kept simple: suggest a time (the candidate's own choice by default),
- * send it by email + WhatsApp, and wait for the candidate's one-click confirmation.
+ * Admin call workflow: pick a free time from the Google Calendar, then either send it for confirmation
+ * (email + WhatsApp, slot held as tentative) or book it straight away when the time is already agreed.
  */
 export function CallPanel({ c, onSaved }: { c: Consultation; onSaved: () => void }) {
   const stage = callStage(c);
   const [msg, setMsg] = useState<{ tone: "error" | "success"; text: string } | null>(null);
-  const [busy, setBusy] = useState<"" | "suggest" | "confirm" | "booking">("");
+  const [busy, setBusy] = useState<"" | "suggest" | "confirm" | "booking" | "book">("");
+  const [copied, setCopied] = useState(false);
   const requested = c.requested_call_times[0];
   // ISO time; the slot picker fills it with the best free time from Google Calendar.
   const [at, setAt] = useState("");
@@ -34,14 +37,23 @@ export function CallPanel({ c, onSaved }: { c: Consultation; onSaved: () => void
     onSaved();
   };
 
-  const markConfirmed = async (iso: string) => {
+  // Confirm now (time agreed, or the candidate replied YES): calendar event + "We're waiting for you" email.
+  const book = async (iso: string, kind: "book" | "confirm") => {
+    if (!iso) return setMsg({ tone: "error", text: "Pick a time first." });
     const waTab = c.whatsapp ? window.open("about:blank", "_blank") : null;
-    setBusy("confirm");
-    const r = await confirmAndNotify(c, iso, { google: true, waTab });
+    setBusy(kind);
+    const r = await bookNow(c, iso, waTab);
     setBusy("");
     if (r.error) return setMsg({ tone: "error", text: r.error });
-    setMsg({ tone: "success", text: `Confirmed for ${maltaTime(iso)} (Malta)${r.emailed ? " · email sent" : ""}. Now in the online-session queue.` });
+    setMsg({ tone: "success", text: `Booked for ${maltaTime(iso)} (Malta)${r.emailed ? " · “We're waiting for you” email sent" : ""}. Now in the online-session queue.` });
+    setEditing(false);
     onSaved();
+  };
+
+  const copyWhatsApp = async () => {
+    await navigator.clipboard.writeText(waitingWhatsApp(c)).catch(() => {});
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2500);
   };
 
   const sendBookingEmail = async () => {
@@ -61,15 +73,19 @@ export function CallPanel({ c, onSaved }: { c: Consultation; onSaved: () => void
   const picker = (
     <div className="space-y-2">
       <SlotPicker value={at} onChange={setAt} preferred={requested} />
-      <Button loading={busy === "suggest"} onClick={send} disabled={!at}>
-        <Send className="h-4 w-4" /> {reschedule ? "Send reschedule request" : "Send for confirmation"}
-        {at && <span className="font-normal opacity-80">· {maltaTime(at)}</span>}
-      </Button>
+      <div className="flex flex-wrap gap-2">
+        <Button loading={busy === "suggest"} onClick={send} disabled={!at}>
+          <Send className="h-4 w-4" /> {reschedule ? "Send reschedule request" : "Send for confirmation"}
+          {at && <span className="font-normal opacity-80">· {maltaTime(at)}</span>}
+        </Button>
+        <Button variant="secondary" loading={busy === "book"} onClick={() => book(at, "book")} disabled={!at}>
+          <Zap className="h-4 w-4" /> Book now (already agreed)
+        </Button>
+      </div>
       <p className="text-xs text-slate-500">
-        {reschedule
-          ? "Email + WhatsApp: “Can we move your call?” — shows their time crossed out and the new one."
-          : "Email + WhatsApp: “Good news, your time is available” with a “Yes, confirm” button."}{" "}
-        In their language.
+        <strong>Send for confirmation:</strong>{" "}
+        {reschedule ? "“Can we move your call?” with their time crossed out" : "“Good news, your time is available” with a “Yes, confirm” button"}; the slot is held in the
+        calendar meanwhile. <strong>Book now:</strong> confirmed immediately with the “We're waiting for you” email.
       </p>
     </div>
   );
@@ -97,12 +113,44 @@ export function CallPanel({ c, onSaved }: { c: Consultation; onSaved: () => void
 
       {stage === "confirmed" && c.preferred_call_at ? (
         <>
-          <p>
-            Confirmed: <strong>{maltaTime(c.preferred_call_at)}</strong> (Malta)
-          </p>
-          <Button variant="ghost" onClick={undo}>
-            Undo confirmation
-          </Button>
+          <div className="space-y-1.5 rounded-xl bg-white px-3 py-3 ring-1 ring-emerald-200">
+            <p>
+              Confirmed: <strong>{maltaTime(c.preferred_call_at)}</strong> (Malta)
+            </p>
+            {c.booked_via && <span className="inline-block rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-bold text-emerald-700">{BOOKED_VIA[c.booked_via]}</span>}
+            {c.meeting_url && (
+              <a href={c.meeting_url} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 break-all text-xs font-bold text-brand hover:underline">
+                <Video className="h-3.5 w-3.5 shrink-0" /> {c.meeting_url}
+              </a>
+            )}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="secondary" className="min-h-9" onClick={copyWhatsApp}>
+              {copied ? <Check className="h-4 w-4 text-emerald-600" /> : <Copy className="h-4 w-4" />} {copied ? "Copied" : "Copy WhatsApp message"}
+            </Button>
+            {c.whatsapp && (
+              <a href={waLink(c.whatsapp, waitingWhatsApp(c))} target="_blank" rel="noreferrer">
+                <Button variant="secondary" className="min-h-9">
+                  <MessageCircle className="h-4 w-4" /> Open WhatsApp
+                </Button>
+              </a>
+            )}
+            <Button variant="ghost" className="min-h-9" onClick={() => setEditing((v) => !v)}>
+              Change time
+            </Button>
+            <Button variant="ghost" className="min-h-9" onClick={undo}>
+              Undo confirmation
+            </Button>
+          </div>
+          {editing && (
+            <div className="space-y-2">
+              <SlotPicker value={at} onChange={setAt} />
+              <Button loading={busy === "book"} onClick={() => book(at, "book")} disabled={!at}>
+                <Zap className="h-4 w-4" /> Move the call{at && <span className="font-normal opacity-80">· {maltaTime(at)}</span>}
+              </Button>
+              <p className="text-xs text-slate-500">Moves the calendar event and sends the “new time” email.</p>
+            </div>
+          )}
         </>
       ) : stage === "suggested" && c.suggested_call_at ? (
         <>
@@ -121,7 +169,7 @@ export function CallPanel({ c, onSaved }: { c: Consultation; onSaved: () => void
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Button variant="secondary" loading={busy === "confirm"} onClick={() => markConfirmed(c.suggested_call_at!)}>
+            <Button variant="secondary" loading={busy === "confirm"} onClick={() => book(c.suggested_call_at!, "confirm")}>
               Mark confirmed (replied YES)
             </Button>
             <Button variant="ghost" onClick={() => setEditing((v) => !v)}>

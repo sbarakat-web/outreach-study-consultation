@@ -109,10 +109,12 @@ export async function freeBusy(db: any, email: string | null | undefined, from: 
 /**
  * Create the call event (with a Meet link and the candidate invited when Google allows it) and save
  * google_event_id / meeting_url. A plain service account can't invite or add Meet: the event is then
- * created without them instead of failing.
+ * created without them instead of failing. `tentative` holds the slot while the candidate confirms
+ * (it still counts as busy, so the Google booking page won't offer it). Our events are tagged
+ * (extendedProperties.private.outreach) so the booking sync can tell them from Google bookings.
  */
 // deno-lint-ignore no-explicit-any
-export async function createCallEvent(db: any, c: Record<string, any>, at: string, staffEmail?: string | null) {
+export async function createCallEvent(db: any, c: Record<string, any>, at: string, staffEmail?: string | null, opts: { tentative?: boolean } = {}) {
   const auth = await calendarAuth(db, c.assigned_to ?? staffEmail);
   if (!auth) return { error: "No connected Google Calendar" };
   const start = new Date(at);
@@ -132,6 +134,8 @@ export async function createCallEvent(db: any, c: Record<string, any>, at: strin
     start: { dateTime: start.toISOString() },
     end: { dateTime: end.toISOString() },
     reminders: { useDefault: true },
+    status: opts.tentative ? "tentative" : "confirmed",
+    extendedProperties: { private: { outreach: "1", consultationId: String(c.id) } },
   };
   const post = (body: Record<string, unknown>, query: string) =>
     fetch(`${base}?${query}`, { method: "POST", headers: { Authorization: `Bearer ${auth.token}`, "Content-Type": "application/json" }, body: JSON.stringify(body) });
@@ -153,8 +157,9 @@ export async function createCallEvent(db: any, c: Record<string, any>, at: strin
   return { meetUrl, eventId: created.id as string, calendar: auth.email };
 }
 
+/** Move the call event; `status` also turns a tentative hold into a confirmed call (or back). */
 // deno-lint-ignore no-explicit-any
-export async function moveCallEvent(db: any, c: Record<string, any>, at: string, staffEmail?: string | null) {
+export async function moveCallEvent(db: any, c: Record<string, any>, at: string, staffEmail?: string | null, status?: "tentative" | "confirmed") {
   if (!c.google_event_id) return { ok: true, skipped: "no event" };
   const auth = await calendarAuth(db, c.assigned_to ?? staffEmail);
   if (!auth) return { error: "No connected Google Calendar" };
@@ -165,7 +170,7 @@ export async function moveCallEvent(db: any, c: Record<string, any>, at: string,
     {
       method: "PATCH",
       headers: { Authorization: `Bearer ${auth.token}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ start: { dateTime: start.toISOString() }, end: { dateTime: end.toISOString() } }),
+      body: JSON.stringify({ start: { dateTime: start.toISOString() }, end: { dateTime: end.toISOString() }, ...(status ? { status } : {}) }),
     },
   );
   return { ok: res.ok };

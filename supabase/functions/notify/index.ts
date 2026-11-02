@@ -3,11 +3,16 @@
 //   { type: "rebook", consultationId }            missed session → pick a new time
 //   { type: "booking-link", consultationId }      send the real Google booking page for the call
 //   { type: "suggest-time", consultationId, at }  propose a time; the candidate confirms with one click
+//                                                  (the slot is held as a tentative event in the Google Calendar)
+//   { type: "book-now", consultationId, at }      time already agreed: confirm now, calendar event, "we're waiting" email
 // Returns waUrl (WhatsApp Web link with the same short message). Staff only.
 // Secrets: RESEND_API_KEY; optional MAIL_FROM, APP_URL, BOOKING_LINK
 import { createClient } from "npm:@supabase/supabase-js@2.45.4";
 import { actions, button, eyebrow, highlight, layout, para, title, escape } from "../_shared/email.ts";
-import { APP_URL, BOOKING_LINK, confirmByFor, confirmedEmail, firstName, loadAdvisor, sendEmail, suggestEmail, tzOf, whenIn } from "../_shared/call.ts";
+import { APP_URL, BOOKING_LINK, confirmByFor, firstName, loadAdvisor, sendEmail, suggestEmail, tzOf, whenIn } from "../_shared/call.ts";
+import { bookCall, waitingEmail, waitingWhatsApp, BOOKED_CC } from "../_shared/booked.ts";
+import { createCallEvent, googleConfigured, moveCallEvent } from "../_shared/google.ts";
+import { isSlotFree } from "../_shared/slots.ts";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -43,7 +48,20 @@ Deno.serve(async (req) => {
   let subject = "";
   let html = "";
   let wa = "";
-  let attachments: { filename: string; content: string }[] | undefined;
+  let cc: string | undefined;
+  const waUrl = (text: string) => (digits ? `https://web.whatsapp.com/send?phone=${digits}&text=${encodeURIComponent(text)}` : null);
+
+  if (type === "book-now") {
+    const when = new Date(at);
+    if (isNaN(when.getTime()) || when.getTime() < Date.now()) return json({ error: "Pick a future time" }, 400);
+    // The candidate's own hold / event at that time doesn't count as busy.
+    const own = c.google_event_id ? { preferred_call_at: c.call_status === "confirmed" ? c.preferred_call_at : c.suggested_call_at } : undefined;
+    if (!(await isSlotFree(db, when.toISOString(), c.id, own))) return json({ error: "This time is no longer free in the calendar — pick another." }, 409);
+    const r = await bookCall(db, c, when.toISOString(), "admin", email);
+    if ("error" in r && r.error) return json({ error: r.error }, 500);
+    const row = (r as { row: Record<string, unknown> }).row;
+    return json({ ok: (r as { emailed: boolean }).emailed, email: (r as { emailed: boolean }).emailed ? "sent" : "failed", waUrl: waUrl(waitingWhatsApp(row)), waText: waitingWhatsApp(row) });
+  }
 
   if (type === "call-confirmed") {
     if (!c.preferred_call_at) return json({ error: "No confirmed time" }, 400);
@@ -52,7 +70,9 @@ Deno.serve(async (req) => {
       c.call_confirm_token = crypto.randomUUID();
       await db.from("consultations").update({ call_confirm_token: c.call_confirm_token }).eq("id", c.id);
     }
-    ({ subject, html, wa, attachments } = confirmedEmail(c, await loadAdvisor(db, c.call_suggested_by ?? email)));
+    ({ subject, html } = waitingEmail(c));
+    wa = waitingWhatsApp(c);
+    cc = BOOKED_CC();
   } else if (type === "rebook") {
     subject = `${first}, let's find a new time for your call`;
     html = layout(
@@ -95,11 +115,16 @@ Deno.serve(async (req) => {
       })
       .eq("id", c.id);
     if (error) return json({ error: error.message }, 500);
+    // Hold the slot in the Google Calendar (tentative) so nobody books it on the booking page meanwhile.
+    if (googleConfigured()) {
+      const held = { ...c, suggested_call_at: when.toISOString() };
+      await (c.google_event_id ? moveCallEvent(db, held, when.toISOString(), email, "tentative") : createCallEvent(db, held, when.toISOString(), email, { tentative: true })).catch(() => null);
+    }
     ({ subject, html, wa } = suggestEmail(c, { at: when.toISOString(), token, advisor: await loadAdvisor(db, email), confirmBy }));
   } else {
     return json({ error: "Unknown type" }, 400);
   }
 
-  const sent = await sendEmail({ to: c.email, subject, html, attachments });
-  return json({ ok: sent === "sent", email: sent, waUrl: digits ? `https://web.whatsapp.com/send?phone=${digits}&text=${encodeURIComponent(wa)}` : null });
+  const sent = await sendEmail({ to: c.email, ...(cc && cc !== c.email ? { cc } : {}), subject, html });
+  return json({ ok: sent === "sent", email: sent, waUrl: waUrl(wa), waText: wa });
 });

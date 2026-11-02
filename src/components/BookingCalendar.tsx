@@ -19,8 +19,8 @@ const weekdays = () => Array.from({ length: 7 }, (_, i) => dayLabel(new Date(202
 const longDate = (iso: string) => formatSlot(iso, { weekday: "long", month: "long" });
 
 /**
- * Candidate picks one preferred call time. This is a request only: an advisor
- * reviews the profile and confirms the call manually, so nothing is reserved here.
+ * Candidate picks a free call time (the adviser's Google Calendar, same slots as the booking page)
+ * and it is booked instantly: confirmed call, calendar event and "We're waiting for you" email.
  */
 export function BookingCalendar({ c, onRequested }: { c: Consultation; onRequested: () => void }) {
   const { t } = useI18n();
@@ -60,23 +60,15 @@ export function BookingCalendar({ c, onRequested }: { c: Consultation; onRequest
     if (!picked) return setError(t("cal.errPick"));
     setError("");
     setSaving(true);
-    const { error } = await supabase.rpc("request_call_times", {
-      p_consultation_id: c.id,
-      p_times: [picked.toISOString()],
-    });
+    const { data, error } = await supabase.functions.invoke("book-call", { body: { consultationId: c.id, at: picked.toISOString() } });
     setSaving(false);
-    if (error) {
+    const code = data?.error ?? (error ? "failed" : null);
+    if (code) {
       setError(
-        error.message.includes("ALREADY_CONFIRMED")
-          ? t("cal.errConfirmed")
-          : error.message.includes("INVALID_TIME")
-            ? t("cal.errTime")
-            : error.message,
+        code === "taken" ? t("cal.errTaken") : code === "too-late" ? t("cal.errConfirmed") : code === "invalid-time" ? t("cal.errTime") : t("cal.errFailed"),
       );
       return;
     }
-    // Instant alert to the team; best-effort.
-    supabase.functions.invoke("call-request-alert", { body: { consultation_id: c.id } }).catch(() => {});
     setEditing(false);
     setPicked(null);
     onRequested();
