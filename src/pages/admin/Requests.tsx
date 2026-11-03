@@ -314,7 +314,7 @@ export function Requests({ mode = "all" }: { mode?: keyof typeof PAGE_TITLE }) {
         )}
       </Card>
 
-      {open && <Detail c={open as Row} all={items} onClose={() => setOpenId(null)} onSaved={load} />}
+      {open && <Detail key={open.id} c={open as Row} all={items} onClose={() => setOpenId(null)} onSaved={load} />}
       {adding && (
         <AddLead
           onClose={() => { setAdding(false); setParams({}); }}
@@ -716,7 +716,9 @@ function CallBadge({ c }: { c: Row }) {
 type DetailTab = "call" | "confirmation" | "profile" | "documents" | "comments";
 
 function Detail({ c, all, onClose, onSaved }: { c: Row; all: Row[]; onClose: () => void; onSaved: () => void }) {
-  const [tab, setTab] = useState<DetailTab>("call");
+  // Opens on Confirmation while the call awaits it (book on the Google page first), otherwise on Call.
+  const awaiting = ["requested", "reviewed"].includes(callStage(c)) && !!(c.preferred_call_at ?? c.requested_call_times[0]);
+  const [tab, setTab] = useState<DetailTab>(awaiting ? "confirmation" : "call");
   const [docs, setDocs] = useState<DocumentRow[]>([]);
   const [msg, setMsg] = useState<{ tone: "error" | "success"; text: string } | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -846,8 +848,8 @@ function Detail({ c, all, onClose, onSaved }: { c: Row; all: Row[]; onClose: () 
           <div role="tablist" aria-label="Lead details" className="mt-3 flex gap-1 overflow-x-auto px-4">
             {(
               [
+                ["confirmation", "Confirmation", CalendarPlus, awaiting ? "To book" : null],
                 ["call", "Call", CalendarCheck, callStage(c) === "none" ? null : CALL_STAGE_LABELS[callStage(c)]],
-                ["confirmation", "Confirmation", CalendarPlus, null],
                 ["profile", "Profile", UserRound, null],
                 ["documents", "Documents", FileText, `${requiredDocs.filter((t) => hasDoc(t.key)).length}/${requiredDocs.length}`],
                 ["comments", "Comments", MessageSquare, c.admin_notes ? "•" : null],
@@ -868,7 +870,7 @@ function Detail({ c, all, onClose, onSaved }: { c: Row; all: Row[]; onClose: () 
                     className={`rounded-full px-1.5 py-0.5 text-[10px] font-black ${
                       key === "call" && callStage(c) === "confirmed"
                         ? "bg-emerald-100 text-emerald-800"
-                        : key === "call"
+                        : key === "call" || key === "confirmation"
                           ? "bg-amber-100 text-amber-800"
                           : key === "comments"
                             ? "text-brand"

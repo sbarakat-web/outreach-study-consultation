@@ -1,10 +1,10 @@
 import { useState } from "react";
-import { CalendarCheck, CalendarPlus, Check, CheckCircle2, Clock, Copy, Hand, Mail, MessageCircle, Send, Video } from "lucide-react";
+import { CalendarCheck, Check, CheckCircle2, Clock, Copy, Hand, Mail, MessageCircle, Send, Video } from "lucide-react";
 import { supabase } from "../../lib/supabase";
 import { BOOKING_LINK, CALL_STAGE_LABELS, callStage, noReply24h, waLink } from "../../lib/options";
 import type { Consultation } from "../../lib/types";
 import { Alert, Button } from "../../components/ui";
-import { bookingMessage, confirmWithMeet, googleEventUrl, holdTime, maltaTime, notifyCandidate, suggestTime, waitingWhatsApp } from "./calls";
+import { bookingMessage, confirmWithMeet, holdTime, maltaTime, notifyCandidate, suggestTime, waitingWhatsApp } from "./calls";
 import { SlotPicker } from "./SlotPicker";
 
 const BOOKED_VIA = { google: "Google booking page", admin: "Picked by the team", dashboard: "Candidate dashboard", "confirm-link": "Candidate's confirm link" } as const;
@@ -15,9 +15,8 @@ const waitedFor = (iso: string) => {
 };
 
 /**
- * Admin call workflow. Every booking arrives as "Awaiting confirmation"; the team confirms it in three steps:
- * add it to Google Calendar (with Meet, invite sent), paste the Meet link, Confirm & send (the "We're waiting for you"
- * email). Or suggest another time for the candidate to accept.
+ * Admin call workflow. Every booking arrives as "Awaiting confirmation"; the team books it on the Google page (Confirmation
+ * tab), then pastes the Meet link here and clicks Confirm & send (the "We're waiting for you" email). Or suggest another time for the candidate to accept.
  */
 export function CallPanel({ c, onSaved }: { c: Consultation; onSaved: () => void }) {
   const stage = callStage(c);
@@ -193,32 +192,14 @@ export function CallPanel({ c, onSaved }: { c: Consultation; onSaved: () => void
             <ol className="space-y-3">
               <li className="flex gap-2.5">
                 <Step n={1} />
-                <div className="min-w-0 flex-1 space-y-1">
-                  {c.booked_via === "google" ? (
-                    <p className="font-bold text-emerald-700">
-                      <CheckCircle2 className="mr-1 inline h-4 w-4" /> Already in Google Calendar (booked on the Google page)
-                    </p>
-                  ) : (
-                    <>
-                      <a href={googleEventUrl(c, pendingAt)} target="_blank" rel="noreferrer">
-                        <Button variant="secondary" className="min-h-9">
-                          <CalendarPlus className="h-4 w-4" /> Add to Google Calendar
-                        </Button>
-                      </a>
-                      <p className="text-xs text-slate-500">Opens the event filled in · add <strong>Google Meet</strong>, click <strong>Save</strong>, then <strong>Send</strong> the invite.</p>
-                    </>
-                  )}
-                </div>
-              </li>
-              <li className="flex gap-2.5">
-                <Step n={2} />
                 <label className="min-w-0 flex-1 space-y-1">
                   <span className="block text-xs font-bold">Google Meet link</span>
+                  {c.booked_via !== "google" && <span className="block text-xs text-slate-500">Book it first in the Confirmation tab, then copy the Meet link from the event.</span>}
                   <input className="field py-2" type="url" placeholder="https://meet.google.com/abc-defg-hij" value={meet} onChange={(e) => setMeet(e.target.value)} />
                 </label>
               </li>
               <li className="flex gap-2.5">
-                <Step n={3} />
+                <Step n={2} />
                 <div className="min-w-0 flex-1 space-y-1">
                   <Button loading={busy === "confirm"} onClick={confirm} disabled={!meet.trim()}>
                     <CheckCircle2 className="h-4 w-4" /> Confirm &amp; send
