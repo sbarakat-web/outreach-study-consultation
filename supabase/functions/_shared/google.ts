@@ -67,9 +67,28 @@ async function serviceToken(sa: ServiceAccount) {
   return access_token as string;
 }
 
-/** Token + calendar to use: the service account when set up, otherwise the adviser's (or default) OAuth connection. */
+// deno-lint-ignore no-explicit-any
+async function oauthToken(conn: any) {
+  const res = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({ client_id: env("GOOGLE_CLIENT_ID"), client_secret: env("GOOGLE_CLIENT_SECRET"), refresh_token: conn.refresh_token, grant_type: "refresh_token" }),
+  });
+  if (!res.ok) return null;
+  return (await res.json()).access_token as string;
+}
+
+/**
+ * Token + calendar to use. First choice: the booking calendar's owner signed in with Google (OAuth) — full access,
+ * Meet links and invites, no Workspace admin needed. Then the service account, then any adviser's OAuth connection.
+ */
 // deno-lint-ignore no-explicit-any
 export async function calendarAuth(db: any, email?: string | null): Promise<CalendarAuth | null> {
+  if (oauthConfigured()) {
+    const { data: owner } = await db.from("google_connections").select("email, refresh_token").eq("email", calendarIdOf()).maybeSingle();
+    const token = owner ? await oauthToken(owner) : null;
+    if (token) return { token, calendarId: owner.email, email: owner.email, limited: false };
+  }
   const sa = serviceAccount();
   if (sa) {
     const calendarId = env("GOOGLE_CALENDAR_ID") || DEFAULT_CALENDAR;
@@ -79,14 +98,9 @@ export async function calendarAuth(db: any, email?: string | null): Promise<Cale
   const { data: rows } = await db.from("google_connections").select("email, refresh_token, calendar_id, is_default");
   const conn = rows?.find((r: { email: string }) => r.email === email) ?? rows?.find((r: { is_default: boolean }) => r.is_default) ?? rows?.[0];
   if (!conn) return null;
-  const res = await fetch("https://oauth2.googleapis.com/token", {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({ client_id: env("GOOGLE_CLIENT_ID"), client_secret: env("GOOGLE_CLIENT_SECRET"), refresh_token: conn.refresh_token, grant_type: "refresh_token" }),
-  });
-  if (!res.ok) return null;
-  const { access_token } = await res.json();
-  return { token: access_token, calendarId: conn.calendar_id, email: conn.email, limited: false };
+  const token = await oauthToken(conn);
+  if (!token) return null;
+  return { token, calendarId: conn.calendar_id, email: conn.email, limited: false };
 }
 
 // deno-lint-ignore no-explicit-any

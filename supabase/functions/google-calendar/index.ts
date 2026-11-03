@@ -11,7 +11,7 @@
 //   POST { action: "disconnect" | "set-default" }        staff / admin
 // Secrets: GOOGLE_SERVICE_ACCOUNT, GOOGLE_CALENDAR_ID, optional GOOGLE_IMPERSONATE; or GOOGLE_CLIENT_ID/SECRET; optional APP_URL
 import { createClient } from "npm:@supabase/supabase-js@2.45.4";
-import { SCOPES, calendarIdOf, createCallEvent, freeBusy, googleConfigured, moveCallEvent, oauthConfigured, serviceAccount } from "../_shared/google.ts";
+import { SCOPES, calendarAuth, calendarIdOf, createCallEvent, freeBusy, googleConfigured, moveCallEvent, oauthConfigured, serviceAccount } from "../_shared/google.ts";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -56,7 +56,8 @@ Deno.serve(async (req) => {
     if (!code || !state) return back("error");
     const { data: st } = await db().from("oauth_states").select("email, created_at").eq("state", state).maybeSingle();
     await db().from("oauth_states").delete().eq("state", state);
-    if (!st || Date.now() - new Date(st.created_at).getTime() > 15 * 60_000) return back("expired");
+    // 24h so an admin can send the link to the calendar owner (e.g. Nikolai) to approve from their own device.
+    if (!st || Date.now() - new Date(st.created_at).getTime() > 24 * 3_600_000) return back("expired");
     const res = await fetch("https://oauth2.googleapis.com/token", {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -70,8 +71,13 @@ Deno.serve(async (req) => {
     });
     const tok = await res.json();
     if (!res.ok || !tok.refresh_token) return back("error");
+    // Save the Google account that actually signed in (from the id_token), not the app user who made the link.
+    let google = st.email;
+    try {
+      google = String(JSON.parse(atob(tok.id_token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/"))).email || st.email).toLowerCase();
+    } catch { /* keep the app email */ }
     const hasDefault = !!(await defaultEmail());
-    await db().from("google_connections").upsert({ email: st.email, refresh_token: tok.refresh_token, is_default: !hasDefault });
+    await db().from("google_connections").upsert({ email: google, calendar_id: google, refresh_token: tok.refresh_token, is_default: !hasDefault || google === calendarIdOf() });
     return back("connected");
   }
 
@@ -93,30 +99,37 @@ Deno.serve(async (req) => {
   try {
     switch (action) {
       case "auth-url": {
-        if (!oauthConfigured()) return json({ error: "Calendar is connected through the service account" }, 400);
+        if (!oauthConfigured()) return json({ error: "Google sign-in is not set up yet — add GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in Supabase." }, 400);
         const state = crypto.randomUUID();
         await db().from("oauth_states").insert({ state, email: staff.email });
         const params = new URLSearchParams({
           client_id: env("GOOGLE_CLIENT_ID"),
           redirect_uri: redirectUri(),
           response_type: "code",
-          scope: SCOPES,
+          scope: `openid email ${SCOPES}`,
           access_type: "offline",
           prompt: "consent",
           include_granted_scopes: "true",
-          login_hint: staff.email,
+          login_hint: body.forOwner ? calendarIdOf() : staff.email,
           state,
         });
         return json({ url: `https://accounts.google.com/o/oauth2/v2/auth?${params}` });
       }
       case "status": {
+        // The booking calendar's owner signed in with Google: full access (bookings sync, holds, Meet links).
+        const { data: owner } = await db().from("google_connections").select("email").eq("email", calendarIdOf()).maybeSingle();
+        const ownerOk = !!owner && !!(await calendarAuth(db(), null).catch(() => null));
+        if (ownerOk) {
+          return json({ service: { calendar: calendarIdOf(), account: calendarIdOf(), ok: true, delegated: true, owner: true }, connections: [{ email: calendarIdOf(), is_default: true }], oauth: oauthConfigured() });
+        }
         if (serviceAccount()) {
           // Check the shared calendar is actually reachable.
           const now = new Date();
           const fb = await freeBusy(db(), null, now.toISOString(), new Date(now.getTime() + 3_600_000).toISOString());
           return json({
-            service: { calendar: calendarIdOf(), account: serviceAccount()!.client_email, ok: !!fb, delegated: !!env("GOOGLE_IMPERSONATE") },
+            service: { calendar: calendarIdOf(), account: serviceAccount()!.client_email, ok: !!fb, delegated: !!env("GOOGLE_IMPERSONATE"), owner: false },
             connections: fb ? [{ email: calendarIdOf(), is_default: true }] : [],
+            oauth: oauthConfigured(),
           });
         }
         const { data } = await db().from("google_connections").select("email, is_default");

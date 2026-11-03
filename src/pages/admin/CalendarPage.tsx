@@ -68,7 +68,8 @@ export function CalendarPage() {
   const [google, setGoogle] = useState<{
     configured: boolean;
     connections: { email: string; is_default: boolean }[];
-    service?: { calendar: string; account: string; ok: boolean; delegated: boolean };
+    service?: { calendar: string; account: string; ok: boolean; delegated: boolean; owner?: boolean };
+    oauth?: boolean;
   }>({ configured: false, connections: [] });
   const [busy, setBusy] = useState<Busy[]>([]);
   const [error, setError] = useState("");
@@ -94,7 +95,7 @@ export function CalendarPage() {
 
   useEffect(() => {
     load();
-    googleApi("status").then((r) => setGoogle({ configured: !r.error && !r.data?.error, connections: r.data?.connections ?? [], service: r.data?.service }));
+    googleApi("status").then((r) => setGoogle({ configured: !r.error && !r.data?.error, connections: r.data?.connections ?? [], service: r.data?.service, oauth: r.data?.oauth }));
     if (params.get("google")) setParams({}, { replace: true });
   }, [load]);
 
@@ -202,6 +203,16 @@ export function CalendarPage() {
     else setError(r.data?.error ?? "Google is not set up yet — add GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in Supabase.");
   };
 
+  // The booking calendar's owner approves once with their Google login (works without a Workspace admin).
+  const connectOwner = async (copy: boolean) => {
+    const r = await googleApi("auth-url", { forOwner: true });
+    if (!r.data?.url) return setError(r.data?.error ?? "Google sign-in is not set up yet.");
+    if (!copy) return void (window.location.href = r.data.url);
+    await navigator.clipboard.writeText(r.data.url).catch(() => null);
+    setFlash(`Link copied — send it to ${google.service?.calendar}. They open it, sign in with Google and click Allow (valid 24 hours).`);
+  };
+  const ownerMissing = !!google.service && !google.service.owner;
+
   // ------------------------------------------------------------ agenda
   const agenda = useMemo(() => {
     const d = new Date(`${agendaDay}T00:00`);
@@ -258,7 +269,11 @@ export function CalendarPage() {
           google.service.ok ? (
             <p className="flex flex-wrap items-center gap-2 text-slate-600">
               <Check className="h-4 w-4 text-emerald-600" /> Google Calendar connected: <strong>{google.service.calendar}</strong>
-              {!google.service.delegated && <span className="text-xs text-slate-400">(Meet links and invites need Workspace delegation)</span>}
+              {google.service.owner ? (
+                <span className="text-xs text-slate-400">(full access — bookings sync, Meet links and invites)</span>
+              ) : (
+                <span className="text-xs text-amber-600">free/busy only — connect the calendar to sync bookings and create Meet links</span>
+              )}
             </p>
           ) : (
             <p className="text-slate-600">
@@ -275,6 +290,16 @@ export function CalendarPage() {
           <p className="text-slate-600">Connect your Google Calendar to see busy times and create Meet links on confirm.</p>
         )}
         <div className="flex flex-wrap gap-2">
+          {ownerMissing && google.oauth && (
+            <>
+              <Button onClick={() => connectOwner(false)}>
+                <Link2 className="h-4 w-4" /> Connect booking calendar
+              </Button>
+              <Button variant="secondary" onClick={() => connectOwner(true)}>
+                Copy link for {google.service?.calendar.split("@")[0]}
+              </Button>
+            </>
+          )}
           {google.configured && !google.service && !myConnection && (
             <Button onClick={connectGoogle}>
               <Link2 className="h-4 w-4" /> Connect Google Calendar
