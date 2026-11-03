@@ -68,7 +68,7 @@ export function CalendarPage() {
   const [google, setGoogle] = useState<{
     configured: boolean;
     connections: { email: string; is_default: boolean }[];
-    service?: { calendar: string; account: string; ok: boolean; delegated: boolean; owner?: boolean };
+    service?: { calendar: string; account: string; ok: boolean; delegated: boolean; owner?: boolean; role?: string };
     oauth?: boolean;
   }>({ configured: false, connections: [] });
   const [busy, setBusy] = useState<Busy[]>([]);
@@ -203,13 +203,11 @@ export function CalendarPage() {
     else setError(r.data?.error ?? "Google is not set up yet — add GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in Supabase.");
   };
 
-  // The booking calendar's owner approves once with their Google login (works without a Workspace admin).
-  const connectOwner = async (copy: boolean) => {
-    const r = await googleApi("auth-url", { forOwner: true });
-    if (!r.data?.url) return setError(r.data?.error ?? "Google sign-in is not set up yet.");
-    if (!copy) return void (window.location.href = r.data.url);
-    await navigator.clipboard.writeText(r.data.url).catch(() => null);
-    setFlash(`Link copied — send it to ${google.service?.calendar}. They open it, sign in with Google and click Allow (valid 24 hours).`);
+  // Sign in once with a Google account that can edit the booking calendar (works without a Workspace admin).
+  const connectOwner = async () => {
+    const r = await googleApi("auth-url");
+    if (r.data?.url) window.location.href = r.data.url;
+    else setError(r.data?.error ?? "Google sign-in is not set up yet.");
   };
   const ownerMissing = !!google.service && !google.service.owner;
 
@@ -270,9 +268,13 @@ export function CalendarPage() {
             <p className="flex flex-wrap items-center gap-2 text-slate-600">
               <Check className="h-4 w-4 text-emerald-600" /> Google Calendar connected: <strong>{google.service.calendar}</strong>
               {google.service.owner ? (
-                <span className="text-xs text-slate-400">(full access — bookings sync, Meet links and invites)</span>
+                <span className="text-xs text-slate-400">(full access through {google.service.account} — bookings sync, Meet links and invites)</span>
+              ) : google.service.role ? (
+                <span className="text-xs text-amber-600">
+                  {google.service.account} can only {google.service.role === "reader" ? "read" : "see free/busy"} — give it “Make changes and see all event details” on this calendar
+                </span>
               ) : (
-                <span className="text-xs text-amber-600">free/busy only — connect the calendar to sync bookings and create Meet links</span>
+                <span className="text-xs text-amber-600">free/busy only — connect with Google to sync bookings and create Meet links</span>
               )}
             </p>
           ) : (
@@ -292,11 +294,8 @@ export function CalendarPage() {
         <div className="flex flex-wrap gap-2">
           {ownerMissing && google.oauth && (
             <>
-              <Button onClick={() => connectOwner(false)}>
-                <Link2 className="h-4 w-4" /> Connect booking calendar
-              </Button>
-              <Button variant="secondary" onClick={() => connectOwner(true)}>
-                Copy link for {google.service?.calendar.split("@")[0]}
+              <Button onClick={connectOwner}>
+                <Link2 className="h-4 w-4" /> Connect with Google
               </Button>
             </>
           )}

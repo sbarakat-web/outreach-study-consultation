@@ -76,8 +76,9 @@ Deno.serve(async (req) => {
     try {
       google = String(JSON.parse(atob(tok.id_token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/"))).email || st.email).toLowerCase();
     } catch { /* keep the app email */ }
-    const hasDefault = !!(await defaultEmail());
-    await db().from("google_connections").upsert({ email: google, calendar_id: google, refresh_token: tok.refresh_token, is_default: !hasDefault || google === calendarIdOf() });
+    // The newest sign-in becomes the account the app uses for the booking calendar.
+    await db().from("google_connections").update({ is_default: false }).neq("email", google);
+    await db().from("google_connections").upsert({ email: google, calendar_id: google, refresh_token: tok.refresh_token, is_default: true });
     return back("connected");
   }
 
@@ -110,17 +111,20 @@ Deno.serve(async (req) => {
           access_type: "offline",
           prompt: "consent",
           include_granted_scopes: "true",
-          login_hint: body.forOwner ? calendarIdOf() : staff.email,
+          login_hint: staff.email,
           state,
         });
         return json({ url: `https://accounts.google.com/o/oauth2/v2/auth?${params}` });
       }
       case "status": {
-        // The booking calendar's owner signed in with Google: full access (bookings sync, holds, Meet links).
-        const { data: owner } = await db().from("google_connections").select("email").eq("email", calendarIdOf()).maybeSingle();
-        const ownerOk = !!owner && !!(await calendarAuth(db(), null).catch(() => null));
-        if (ownerOk) {
-          return json({ service: { calendar: calendarIdOf(), account: calendarIdOf(), ok: true, delegated: true, owner: true }, connections: [{ email: calendarIdOf(), is_default: true }], oauth: oauthConfigured() });
+        // A colleague signed in with Google: report their access to the booking calendar
+        // (owner / writer = full: bookings sync, holds, Meet links; reader / freeBusyReader = not enough).
+        const auth = oauthConfigured() ? await calendarAuth(db(), null).catch(() => null) : null;
+        if (auth && !serviceAccount()?.client_email.includes(auth.email)) {
+          const r = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(auth.calendarId)}/events?maxResults=1`, { headers: { Authorization: `Bearer ${auth.token}` } });
+          const role = r.ok ? ((await r.json()).accessRole as string) : "none";
+          const full = role === "owner" || role === "writer";
+          return json({ service: { calendar: calendarIdOf(), account: auth.email, ok: r.ok, delegated: full, owner: full, role }, connections: [{ email: calendarIdOf(), is_default: true }], oauth: true });
         }
         if (serviceAccount()) {
           // Check the shared calendar is actually reachable.

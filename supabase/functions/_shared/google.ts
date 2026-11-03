@@ -79,15 +79,18 @@ async function oauthToken(conn: any) {
 }
 
 /**
- * Token + calendar to use. First choice: the booking calendar's owner signed in with Google (OAuth) — full access,
- * Meet links and invites, no Workspace admin needed. Then the service account, then any adviser's OAuth connection.
+ * Token + calendar to use. First choice: a colleague signed in with Google (OAuth) — the booking calendar's owner, or
+ * someone it is shared with as "Make changes and see all event details" (e.g. sbarakat@). Inside the company this needs
+ * no Workspace admin and gives full access, Meet links and invites. Then the service account, then any OAuth connection
+ * on its own calendar.
  */
 // deno-lint-ignore no-explicit-any
 export async function calendarAuth(db: any, email?: string | null): Promise<CalendarAuth | null> {
   if (oauthConfigured()) {
-    const { data: owner } = await db.from("google_connections").select("email, refresh_token").eq("email", calendarIdOf()).maybeSingle();
-    const token = owner ? await oauthToken(owner) : null;
-    if (token) return { token, calendarId: owner.email, email: owner.email, limited: false };
+    const { data: rows } = await db.from("google_connections").select("email, refresh_token, is_default").eq("is_default", true);
+    const conn = rows?.find((r: { email: string }) => r.email === calendarIdOf()) ?? rows?.[0];
+    const token = conn ? await oauthToken(conn) : null;
+    if (token) return { token, calendarId: calendarIdOf(), email: conn.email, limited: false };
   }
   const sa = serviceAccount();
   if (sa) {
