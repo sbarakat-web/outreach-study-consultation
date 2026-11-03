@@ -119,8 +119,9 @@ Deno.serve(async (req) => {
       case "status": {
         // A colleague signed in with Google: report their access to the booking calendar
         // (owner / writer = full: bookings sync, holds, Meet links; reader / freeBusyReader = not enough).
-        const auth = oauthConfigured() ? await calendarAuth(db(), null).catch(() => null) : null;
-        if (auth && !serviceAccount()?.client_email.includes(auth.email)) {
+        const signedIn = oauthConfigured() ? await defaultEmail() : null;
+        const auth = signedIn ? await calendarAuth(db(), null).catch(() => null) : null;
+        if (auth && auth.email === signedIn) {
           const r = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(auth.calendarId)}/events?maxResults=1`, { headers: { Authorization: `Bearer ${auth.token}` } });
           const role = r.ok ? ((await r.json()).accessRole as string) : "none";
           const full = role === "owner" || role === "writer";
