@@ -523,6 +523,8 @@ export function CallPage() {
             )
           )}
 
+          {lost && <BookAgain c={c} onRequested={reload} />}
+
           {!lost && (progress.done < progress.total || rejected > 0) && (
             <div
               className={`flex flex-wrap items-center justify-between gap-3 rounded-2xl px-4 py-3 ${rejected ? "bg-brand-red/5" : "bg-brand/5"}`}
@@ -557,6 +559,20 @@ export function CallPage() {
       {c.session_outcome === "interviewed" && <SessionFeedback c={c} onSent={reload} />}
 
     </>
+  );
+}
+
+/** "No longer interested" candidates keep their account and can book a new call whenever they like. */
+function BookAgain({ c, onRequested }: { c: Consultation; onRequested: () => void }) {
+  const { t } = useI18n();
+  const [open, setOpen] = useState(false);
+  if (open) return <BookingCalendar c={{ ...c, call_status: "none", preferred_call_at: null, suggested_call_at: null, requested_call_times: [] }} onRequested={onRequested} />;
+  return (
+    <div className="space-y-3 rounded-2xl bg-brand/5 px-5 py-5 text-center ring-1 ring-brand/20">
+      <p className="text-lg font-black">{t("lost.title")}</p>
+      <p className="text-sm text-slate-600">{t("lost.text")}</p>
+      <Button onClick={() => setOpen(true)}>{t("lost.button")}</Button>
+    </div>
   );
 }
 

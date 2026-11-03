@@ -15,6 +15,8 @@ interface Suggestion {
   pending: boolean;
   meetingUrl: string | null;
   canReschedule: boolean;
+  attendanceConfirmed?: boolean;
+  attendanceDeadline?: string | null;
 }
 
 const longWhen = (iso: string) => formatSlot(iso, { weekday: "long", month: "long" });
@@ -32,6 +34,8 @@ export function ConfirmCall() {
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const [picking, setPicking] = useState(params.get("pick") === "1");
+  // ?attend=1 (from the "We're waiting for you" email): highlight the attendance button. Opening the link changes nothing.
+  const attendLink = params.get("attend") === "1";
   const [done, setDone] = useState<"confirmed" | "moved" | null>(null);
 
   useEffect(() => {
@@ -84,7 +88,7 @@ export function ConfirmCall() {
             <div className="space-y-5 text-center">
               <Clock className="mx-auto h-12 w-12 text-amber-500" />
               <h1 className="text-2xl font-black">{done ? t("confirm.pendingTitle") : t("confirm.pendingAlready")}</h1>
-              {when && <TimeBox when={when} tone="brand" />}
+              {when && <TimeBox when={when} at={s.at} tone="brand" />}
               <p className="text-sm text-slate-600">{t("confirm.pendingText")}</p>
               <Link to="/dashboard/documents" className="block">
                 <Button className="w-full">{t("confirm.uploadDocs")}</Button>
@@ -99,7 +103,13 @@ export function ConfirmCall() {
             <div className="space-y-5 text-center">
               <CheckCircle2 className="mx-auto h-12 w-12 text-emerald-500" />
               <h1 className="text-2xl font-black">{done === "moved" ? t("confirm.movedTitle") : done ? t("confirm.doneTitle") : t("confirm.alreadyTitle")}</h1>
-              {when && <TimeBox when={when} tone="emerald" />}
+              {when && <TimeBox when={when} at={s.at} tone="emerald" />}
+              {!s.attendanceConfirmed && s.attendanceDeadline ? (
+                <AttendBox by={longWhen(s.attendanceDeadline)} saving={saving} strong={attendLink} onAttend={() => call({ action: "attend" }, "confirmed")} />
+              ) : s.attendanceConfirmed && attendLink ? (
+                <Alert tone="success">{t("attend.done")}</Alert>
+              ) : null}
+              {error && <Alert>{error}</Alert>}
               {s.meetingUrl && (
                 <a href={s.meetingUrl} target="_blank" rel="noreferrer" className="block">
                   <Button className="w-full">
@@ -122,7 +132,7 @@ export function ConfirmCall() {
               <CalendarCheck className="mx-auto h-12 w-12 text-brand" />
               <h1 className="text-2xl font-black">{t("confirm.title", { name: s.firstName })}</h1>
               <p className="text-sm text-slate-600">{t("confirm.sub")}</p>
-              {when && <TimeBox when={when} tone="brand" />}
+              {when && <TimeBox when={when} at={s.at} tone="brand" />}
               {error && <Alert>{error}</Alert>}
               <Button className="w-full" loading={saving} onClick={() => call({ action: "confirm" }, "confirmed")} disabled={!s.at}>
                 {t("confirm.yes")}
@@ -138,13 +148,30 @@ export function ConfirmCall() {
   );
 }
 
-function TimeBox({ when, tone }: { when: string; tone: "brand" | "emerald" }) {
+/** The candidate's own time first, with Malta time underneath when it differs. */
+function TimeBox({ when, at, tone }: { when: string; at: string | null; tone: "brand" | "emerald" }) {
   const { t } = useI18n();
+  const malta = at ? formatSlot(at, { weekday: "long", month: "long", timeZone: "Europe/Malta" }) : null;
   return (
     <p className={`rounded-2xl px-4 py-3 text-lg font-black text-navy ring-1 ${tone === "emerald" ? "bg-emerald-50 ring-emerald-200" : "bg-brand/5 ring-brand/20"}`}>
       {when}
+      {malta && malta !== when && <span className="block text-sm font-bold text-slate-500">🇲🇹 {t("call.malta", { when: malta })}</span>}
       <span className="block text-xs font-bold text-slate-500">{t("confirm.minutes", { min: CALL_MINUTES })}</span>
     </p>
+  );
+}
+
+/** Confirmed call not yet confirmed by the candidate: unconfirmed bookings are cancelled at the deadline. */
+export function AttendBox({ by, saving, strong, onAttend }: { by: string; saving: boolean; strong?: boolean; onAttend: () => void }) {
+  const { t } = useI18n();
+  return (
+    <div className={`space-y-3 rounded-2xl border-2 border-amber-400 bg-amber-50 p-4 text-center text-amber-900 ${strong ? "shadow-lg ring-4 ring-amber-200" : ""}`}>
+      <p className="text-base font-black">{t("attend.title")}</p>
+      <p className="text-sm">{t("attend.text", { by })}</p>
+      <Button className="w-full bg-emerald-600 hover:bg-emerald-700" loading={saving} onClick={onAttend}>
+        {t("attend.button")}
+      </Button>
+    </div>
   );
 }
 

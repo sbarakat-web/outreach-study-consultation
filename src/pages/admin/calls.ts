@@ -2,8 +2,31 @@
 import { supabase } from "../../lib/supabase";
 import { BOOKING_LINK, CALL_MINUTES, formatSlot } from "../../lib/options";
 import type { Consultation } from "../../lib/types";
+import { COUNTRIES, timeZonesOf } from "../../lib/countries";
 
 export const maltaTime = (iso: string) => formatSlot(iso, { weekday: "long", month: "long", timeZone: "Europe/Malta" });
+
+/** The candidate's time zone: from their browser when they applied, else their country, else Malta. */
+export function candidateTz(c: Pick<Consultation, "tracking" | "country">) {
+  if (c.tracking?.tz) return c.tracking.tz;
+  const code = COUNTRIES.find((x) => x.name === c.country || x.code === c.country)?.code;
+  return (code && timeZonesOf(code)[0]) || "Europe/Malta";
+}
+
+const place = (tz: string) => tz.split("/").pop()!.replace(/_/g, " ");
+const sameClock = (iso: string, tz: string) =>
+  formatSlot(iso, { timeZone: tz, weekday: undefined }) === formatSlot(iso, { timeZone: "Europe/Malta", weekday: undefined });
+
+/** "Tuesday 4 November, 10:00 (Casablanca)" — the candidate's own time; null when it equals Malta time. */
+export function candidateTime(c: Pick<Consultation, "tracking" | "country">, iso: string, opts: Intl.DateTimeFormatOptions = { weekday: "long", month: "long" }) {
+  const tz = candidateTz(c);
+  if (tz === "Europe/Malta" || sameClock(iso, tz)) return null;
+  try {
+    return `${formatSlot(iso, { ...opts, timeZone: tz })} (${place(tz)})`;
+  } catch {
+    return null;
+  }
+}
 
 // datetime-local value in the admin's own time zone
 export const toLocalInput = (iso: string | null) => {
@@ -16,7 +39,7 @@ export const googleApi = (action: string, body: Record<string, unknown> = {}) =>
   supabase.functions.invoke("google-calendar", { body: { action, ...body } });
 
 export const notifyCandidate = (
-  type: "call-confirmed" | "rebook" | "booking-link" | "suggest-time" | "hold" | "confirm" | "pick-another",
+  type: "call-confirmed" | "rebook" | "booking-link" | "suggest-time" | "hold" | "confirm" | "pick-another" | "reinvite",
   consultationId: string,
   at?: string,
   extra: Record<string, unknown> = {},
@@ -77,9 +100,18 @@ export const waitingWhatsApp = (c: Consultation) =>
     `Hi ${c.full_name.split(" ")[0]} 👋 this is Soufiane from Outreach — Study in Malta.`,
     "",
     "Thank you for booking your free consultation! 🎉 We're waiting for you on:",
-    `📅 *${maltaLong(c.preferred_call_at!)} (Malta time)*`,
+    ...(candidateTime(c, c.preferred_call_at!)
+      ? [`📅 *${candidateTime(c, c.preferred_call_at!)}*`, `🇲🇹 ${maltaLong(c.preferred_call_at!)} (Malta time)`]
+      : [`📅 *${maltaLong(c.preferred_call_at!)} (Malta time)*`]),
     c.meeting_url ? `🎥 Google Meet: ${c.meeting_url}` : "🎥 We'll send you the Google Meet link before the call.",
     "📩 You'll also get a Google Calendar invitation by email — please accept it.",
+    ...(c.attendance_deadline && !c.attendance_confirmed_at
+      ? [
+          "",
+          `⚠️ *IMPORTANT:* please reply *YES* to confirm you'll attend${c.call_confirm_token ? ` (or tap: ${window.location.origin}/confirm-call?t=${c.call_confirm_token}&attend=1)` : ""}.`,
+          `If we don't hear from you by *${candidateTime(c, c.attendance_deadline, { weekday: "long", month: "long" }) ?? `${maltaLong(c.attendance_deadline)} (Malta time)`}*, the booking will be cancelled automatically.`,
+        ]
+      : []),
     "",
     `In ${CALL_MINUTES} minutes we'll look at the best study options in Malta for you, the costs, scholarships and the visa steps — and answer all your questions.`,
     "",

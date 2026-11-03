@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { AlertTriangle, CalendarCheck, CalendarPlus, Check, CheckCircle2, ClipboardPaste, Clock, Copy, ExternalLink, FileText, MessageCircle, MessageSquare, Play, Plus, Presentation, Search, Star, UserRound, UsersRound, Video, X } from "lucide-react";
+import { AlertTriangle, CalendarCheck, CalendarX2, RotateCcw, ThumbsUp, CalendarPlus, Check, CheckCircle2, ClipboardPaste, Clock, Copy, ExternalLink, FileText, MessageCircle, MessageSquare, Play, Plus, Presentation, Search, Star, UserRound, UsersRound, Video, X } from "lucide-react";
 import { supabase } from "../../lib/supabase";
 import {
   BOOKING_EMBED,
@@ -22,7 +22,7 @@ import { CountryPicker } from "../../components/CountryPicker";
 import { COUNTRIES, countryByCode, timeZonesOf } from "../../lib/countries";
 import { AREAS, ENGLISH_COURSES, ENGLISH_PROVIDERS, PROGRAMMES, programmeValue } from "../sessions/data";
 import { CallPanel, PickAnotherButton } from "./CallPanel";
-import { confirmWithMeet, maltaTime, waitingWhatsApp } from "./calls";
+import { candidateTime, confirmWithMeet, maltaTime, notifyCandidate, waitingWhatsApp } from "./calls";
 import { SessionPanel, sessionHref } from "./SessionPanel";
 import type { Consultation, DocumentRow, Status } from "../../lib/types";
 import { Alert, Button, Card, Spinner, StatusBadge } from "../../components/ui";
@@ -320,6 +320,9 @@ export function Requests({ mode = "all" }: { mode?: keyof typeof PAGE_TITLE }) {
                     </td>
                     <td className="px-3 py-3">
                       <StatusBadge label={statusLabel(c.status)} muted={c.status === "not_interested"} />
+                      {c.status === "not_interested" && c.not_interested_reason && (
+                        <div className="mt-1 max-w-[14rem] text-[11px] font-bold leading-snug text-brand-red">Reason: {c.not_interested_reason}</div>
+                      )}
                       {c.session_outcome && <div className="mt-1 text-[11px] font-bold text-slate-500">Session: {SESSION_LABEL[c.session_outcome]}</div>}
                     </td>
                     <td className="hidden px-5 py-3 text-slate-500 lg:table-cell">{new Date(c.created_at).toLocaleDateString()}</td>
@@ -749,6 +752,7 @@ function Detail({ c, all, onClose, onSaved, onNext }: { c: Row; all: Row[]; onCl
   const [docs, setDocs] = useState<DocumentRow[]>([]);
   const [msg, setMsg] = useState<{ tone: "error" | "success"; text: string } | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [askReason, setAskReason] = useState(false);
 
   const loadDocs = useCallback(() => {
     supabase
@@ -864,7 +868,9 @@ function Detail({ c, all, onClose, onSaved, onNext }: { c: Row; all: Row[]; onCl
           </div>
           <div className="flex flex-wrap items-center gap-2 px-6 pt-3">
             <label htmlFor="lead-status" className="sr-only">Lead status</label>
-            <select id="lead-status" className="field w-auto py-1.5 text-sm font-bold" value={c.status} onChange={(e) => quickUpdate({ status: e.target.value as Status })}>
+            <select id="lead-status" className="field w-auto py-1.5 text-sm font-bold" value={c.status}
+              onChange={(e) => (e.target.value === "not_interested" ? setAskReason(true) : quickUpdate({ status: e.target.value as Status }))}
+            >
               {STATUSES.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
             </select>
             <span className="text-xs text-slate-500">{c.user_id ? "Has an account" : "No account yet"}</span>
@@ -872,6 +878,17 @@ function Detail({ c, all, onClose, onSaved, onNext }: { c: Row; all: Row[]; onCl
               <ExternalLink className="h-3.5 w-3.5" /> Candidate dashboard
             </a>
           </div>
+          {askReason && (
+            <ReasonPicker
+              initial={c.not_interested_reason}
+              onCancel={() => setAskReason(false)}
+              onSave={(reason) => {
+                setAskReason(false);
+                quickUpdate({ status: "not_interested", not_interested_reason: reason, not_interested_at: c.status === "not_interested" ? c.not_interested_at : new Date().toISOString() });
+              }}
+            />
+          )}
+          {c.status === "not_interested" && !askReason && <NotInterestedBanner c={c} onEdit={() => setAskReason(true)} onSaved={onSaved} />}
           <LeadProgress c={c} />
           <div role="tablist" aria-label="Lead details" className="mt-3 flex gap-1 overflow-x-auto px-4">
             {(
@@ -916,6 +933,7 @@ function Detail({ c, all, onClose, onSaved, onNext }: { c: Row; all: Row[]; onCl
         <div className="space-y-6 px-6 py-5" role="tabpanel">
           {tab === "call" && (
             <>
+              {callStage(c) === "confirmed" && <AttendanceBox c={c} onSave={quickUpdate} />}
               <CallPanel c={c} onSaved={onSaved} />
               <SessionPanel c={c} />
               {callStage(c) === "confirmed" && (
@@ -1068,6 +1086,7 @@ function LeadProgress({ c }: { c: Row }) {
     ["Booked in Google", !!c.google_event_id || !!c.meeting_url || stage === "confirmed"],
     ["Meet link", !!c.meeting_url],
     ["Confirmed", stage === "confirmed" || c.session_outcome === "interviewed"],
+    ["Will attend", !!c.attendance_confirmed_at || c.session_outcome === "interviewed"],
     ["Session done", c.session_outcome === "interviewed"],
   ];
   return (
@@ -1137,6 +1156,7 @@ function BookingTab({ c, all, onSaved, onNext }: { c: Row; all: Row[]; onSaved: 
         <CopyField label="Email" value={c.email} />
         {c.whatsapp && <CopyField label="Phone" value={c.whatsapp} />}
         <CopyField label="Date & time" value={at ? `${maltaTime(at)} (Malta)` : "No time requested yet"} copy={!!at} />
+        {at && candidateTime(c, at) && <CopyField label="Candidate's time" value={candidateTime(c, at)!} copy={false} />}
       </Section>
 
       <Section n={2} title={c.booked_via === "google" ? "Already booked on the Google page ✓" : "Book the same day and time on the Google page"}>
@@ -1267,6 +1287,7 @@ function CallQueue({ rows, all, mode, onOpen }: { rows: Row[]; all: Row[]; mode:
                   {at ? (
                     <>
                       <div className="font-bold">{maltaTime(at)}</div>
+                      {candidateTime(c, at) && <div className="text-xs text-slate-500">Candidate: {candidateTime(c, at, { weekday: "short", month: "short" })}</div>}
                       {new Date(at).getTime() < Date.now() && <div className="text-xs font-bold text-brand-red">Time has passed</div>}
                     </>
                   ) : (
@@ -1345,7 +1366,13 @@ function TodayCalls({ items, onOpen }: { items: Row[]; onOpen: (id: string) => v
                 <span className="w-14 shrink-0 text-lg font-black text-brand">{maltaClock(c.preferred_call_at!)}</span>
                 <button onClick={() => onOpen(c.id)} className="min-w-0 flex-1 text-left">
                   <span className="block truncate font-bold hover:text-brand">{c.full_name}</span>
-                  <span className="block truncate text-xs text-slate-500">{c.desired_course || c.email}</span>
+                  <span className="block truncate text-xs text-slate-500">
+                    {candidateTime(c, c.preferred_call_at!, { weekday: undefined, day: undefined, month: undefined }) && <>Their time {candidateTime(c, c.preferred_call_at!, { weekday: undefined, day: undefined, month: undefined })} · </>}
+                    {c.desired_course || c.email}
+                  </span>
+                  <span className={`text-[11px] font-bold ${c.attendance_confirmed_at ? "text-emerald-700" : "text-amber-700"}`}>
+                    {c.attendance_confirmed_at ? "✓ Will attend" : "Attendance not confirmed yet"}
+                  </span>
                 </button>
                 <span className="flex flex-wrap gap-1.5">
                   {c.meeting_url && (
@@ -1371,5 +1398,124 @@ function TodayCalls({ items, onOpen }: { items: Row[]; onOpen: (id: string) => v
         </ul>
       </div>
     </Card>
+  );
+}
+
+const NOT_INTERESTED_REASONS = [
+  "Too expensive / budget",
+  "Chose another country",
+  "Went with another agency",
+  "Not ready yet — later intake",
+  "Visa concerns",
+  "Course not available",
+  "No reply / unreachable",
+];
+
+/** Moving a lead to "No longer interested" asks why (kept on the lead and shown in the lists). */
+function ReasonPicker({ initial, onCancel, onSave }: { initial?: string | null; onCancel: () => void; onSave: (reason: string) => void }) {
+  const preset = NOT_INTERESTED_REASONS.includes(initial ?? "") ? initial! : initial ? "Other" : "";
+  const [choice, setChoice] = useState(preset);
+  const [other, setOther] = useState(preset === "Other" ? initial ?? "" : "");
+  const reason = choice === "Other" ? other.trim() : choice;
+  return (
+    <div className="mx-6 mt-3 space-y-3 rounded-2xl border-2 border-brand-red/30 bg-red-50 p-4">
+      <p className="text-sm font-black text-brand-red">Why is this candidate no longer interested?</p>
+      <div className="flex flex-wrap gap-1.5">
+        {[...NOT_INTERESTED_REASONS, "Other"].map((r) => (
+          <button
+            key={r}
+            type="button"
+            onClick={() => setChoice(r)}
+            className={`rounded-full px-3 py-1 text-xs font-bold ring-1 ${choice === r ? "bg-brand-red text-white ring-brand-red" : "bg-white text-navy ring-slate-200 hover:bg-slate-50"}`}
+          >
+            {r}
+          </button>
+        ))}
+      </div>
+      {choice === "Other" && (
+        <input autoFocus className="field py-2 text-sm" placeholder="Write the reason…" value={other} onChange={(e) => setOther(e.target.value)} aria-label="Reason" />
+      )}
+      <p className="text-xs text-slate-600">Their account is kept. They get a short "thank you — our door is open" email, and you can invite them to book again any time.</p>
+      <div className="flex gap-2">
+        <Button onClick={() => reason && onSave(reason)} disabled={!reason}>
+          Save reason
+        </Button>
+        <button type="button" onClick={onCancel} className="rounded-full px-4 text-sm font-bold text-slate-500 hover:text-navy">
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/** Lead header while "No longer interested": the reason, and a button inviting them to book a new call. */
+function NotInterestedBanner({ c, onEdit, onSaved }: { c: Row; onEdit: () => void; onSaved: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<{ tone: "error" | "success"; text: string; waUrl?: string | null } | null>(null);
+  const reinvite = async () => {
+    if (!confirm(`Invite ${c.full_name} to book a new call? Their status goes back to New and they get an email with a booking link.`)) return;
+    setBusy(true);
+    const { data, error } = await notifyCandidate("reinvite", c.id);
+    setBusy(false);
+    if (error || data?.error) return setMsg({ tone: "error", text: data?.error ?? error?.message ?? "Could not send the invitation" });
+    setMsg({ tone: "success", text: data?.email === "sent" ? "Invitation emailed — status is New again." : "Status is New again, but the email failed.", waUrl: data?.waUrl });
+    onSaved();
+  };
+  return (
+    <div className="mx-6 mt-3 space-y-2 rounded-2xl border-2 border-brand-red/30 bg-red-50 p-4">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className="flex items-center gap-1.5 text-xs font-black uppercase tracking-wider text-brand-red">
+            <CalendarX2 className="h-4 w-4" /> No longer interested{c.not_interested_at && ` · ${new Date(c.not_interested_at).toLocaleDateString()}`}
+          </p>
+          <p className="mt-1 text-base font-black text-navy">{c.not_interested_reason || "No reason recorded"}</p>
+        </div>
+        <button type="button" onClick={onEdit} className="text-xs font-bold text-brand hover:underline">
+          {c.not_interested_reason ? "Edit reason" : "Add reason"}
+        </button>
+      </div>
+      <Button onClick={reinvite} loading={busy} disabled={busy}>
+        <RotateCcw className="h-4 w-4" /> Invite to book again
+      </Button>
+      {msg && (
+        <Alert tone={msg.tone}>
+          {msg.text}
+          {msg.waUrl && (
+            <a href={msg.waUrl} target="_blank" rel="noreferrer" className="ml-2 font-bold underline">
+              Send on WhatsApp
+            </a>
+          )}
+        </Alert>
+      )}
+    </div>
+  );
+}
+
+/** Confirmed call: has the candidate confirmed they'll attend (email link or WhatsApp YES)? */
+function AttendanceBox({ c, onSave }: { c: Row; onSave: (fields: Partial<Row>) => Promise<void> }) {
+  if (c.attendance_confirmed_at) {
+    return (
+      <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+        <span className="flex items-center gap-1.5 font-bold">
+          <ThumbsUp className="h-4 w-4" /> Will attend — confirmed {new Date(c.attendance_confirmed_at).toLocaleString([], { weekday: "short", hour: "2-digit", minute: "2-digit" })}
+        </span>
+        <button type="button" onClick={() => onSave({ attendance_confirmed_at: null })} className="text-xs font-bold text-slate-500 hover:text-navy">
+          Undo
+        </button>
+      </div>
+    );
+  }
+  return (
+    <div className="space-y-2 rounded-2xl border-2 border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+      <p className="font-black">⚠️ Attendance not confirmed yet</p>
+      <p className="text-xs">
+        {c.attendance_deadline
+          ? <>If they don't confirm by <strong>{maltaTime(c.attendance_deadline)} (Malta)</strong>, the booking is cancelled automatically and they get a link to choose a new time.</>
+          : "No automatic cancellation for this booking (booked too close to the call)."}
+      </p>
+      <Button onClick={() => onSave({ attendance_confirmed_at: new Date().toISOString() })}>
+        <Check className="h-4 w-4" /> Mark confirmed (replied YES on WhatsApp)
+      </Button>
+    </div>
   );
 }

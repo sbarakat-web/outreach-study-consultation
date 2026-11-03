@@ -7,6 +7,7 @@ import { useFreeTimes } from "../lib/freeTimes";
 import type { Consultation } from "../lib/types";
 import { Alert, Button } from "./ui";
 import { currentLocale, useI18n } from "../lib/i18n";
+import { AttendBox } from "../pages/ConfirmCall";
 
 
 // Local calendar day key, so times group by the candidate's own date.
@@ -75,7 +76,7 @@ export function BookingCalendar({ c, onRequested }: { c: Consultation; onRequest
   };
 
   if (!editing && stage !== "none") {
-    return <CallStatus c={c} stage={stage} onChange={() => setEditing(true)} />;
+    return <CallStatus c={c} stage={stage} onChange={() => setEditing(true)} onReload={onRequested} />;
   }
 
   const dayTimes = day ? byDay.get(day) ?? [] : [];
@@ -236,7 +237,7 @@ function Timeline({ reached }: { reached: number }) {
   );
 }
 
-function CallStatus({ c, stage, onChange }: { c: Consultation; stage: ReturnType<typeof callStage>; onChange: () => void }) {
+function CallStatus({ c, stage, onChange, onReload }: { c: Consultation; stage: ReturnType<typeof callStage>; onChange: () => void; onReload: () => void }) {
   const { t } = useI18n();
   if (stage === "declined") {
     return (
@@ -253,7 +254,7 @@ function CallStatus({ c, stage, onChange }: { c: Consultation; stage: ReturnType
     return (
       <div className="space-y-4 rounded-2xl bg-emerald-50 px-4 py-4 ring-1 ring-emerald-200 sm:px-5">
         <Timeline reached={2} />
-        <ConfirmedCall at={c.preferred_call_at} course={c.desired_course || "your studies"} meetUrl={c.meeting_url} />
+        <ConfirmedCall c={c} at={c.preferred_call_at} course={c.desired_course || "your studies"} meetUrl={c.meeting_url} onChanged={onReload} />
         {c.call_confirm_token && new Date(c.preferred_call_at).getTime() > Date.now() + 12 * 3_600_000 && (
           <Link to={`/confirm-call?t=${c.call_confirm_token}&pick=1`} className="inline-block text-sm font-bold text-brand hover:underline">
             {t("confirm.change")}
@@ -326,8 +327,16 @@ function untilText(ms: number) {
   return `${m} min`;
 }
 
-function ConfirmedCall({ at, course, meetUrl }: { at: string; course: string; meetUrl?: string | null }) {
+function ConfirmedCall({ c, at, course, meetUrl, onChanged }: { c: Consultation; at: string; course: string; meetUrl?: string | null; onChanged: () => void }) {
   const { t } = useI18n();
+  const [attending, setAttending] = useState(false);
+  const attend = async () => {
+    setAttending(true);
+    await supabase.functions.invoke("book-call", { body: { consultationId: c.id, attend: true } });
+    setAttending(false);
+    onChanged();
+  };
+  const malta = formatSlot(at, { weekday: "long", month: "long", timeZone: "Europe/Malta" });
   const [now, setNow] = useState(Date.now());
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 30_000);
@@ -379,9 +388,16 @@ function ConfirmedCall({ at, course, meetUrl }: { at: string; course: string; me
         <div>
           <p className="text-xs font-bold uppercase tracking-wider text-emerald-700">{t("call.confirmedTitle")}</p>
           <p className="text-lg font-black">{longDate(at)}</p>
+          {malta !== longDate(at) && <p className="text-xs font-bold text-slate-500">🇲🇹 {t("call.malta", { when: malta })}</p>}
           <p className="text-sm text-slate-600">{t("call.confirmedSub", { min: CALL_MINUTES })}</p>
         </div>
       </div>
+      {!c.attendance_confirmed_at && c.attendance_deadline && toStart > 0 && (
+        <div className="mt-3">
+          <AttendBox by={longDate(c.attendance_deadline)} saving={attending} onAttend={attend} />
+        </div>
+      )}
+      {c.attendance_confirmed_at && toStart > 0 && <p className="mt-3 text-sm font-bold text-emerald-700">✓ {t("attend.done")}</p>}
       {toStart > -CALL_MINUTES * 60_000 && (
         <p className={`mt-3 text-sm font-black ${live ? "text-emerald-700" : "text-navy"}`}>
           {live ? t("call.live") : t("call.countdown", { t: untilText(toStart) })}

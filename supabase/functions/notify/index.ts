@@ -8,6 +8,8 @@
 //                                                  "We're waiting for you" email (CC main admin) + WhatsApp text
 //   { type: "pick-another", consultationId }      their time isn't available: release it and send a link to choose
 //                                                  another free time themselves (back to awaiting confirmation after)
+//   { type: "reinvite", consultationId }          a "no longer interested" candidate: back to New, with a link to book
+//                                                  a new call (their account and the reason are kept)
 // Returns waUrl (WhatsApp Web link with the same short message). Staff only.
 // Secrets: RESEND_API_KEY; optional MAIL_FROM, APP_URL, BOOKING_LINK
 import { createClient } from "npm:@supabase/supabase-js@2.45.4";
@@ -149,6 +151,45 @@ Deno.serve(async (req) => {
       `📅 Please choose another free time here (only available times are shown): ${pickUrl}`,
       "",
       "We'll confirm it and send you your Google Meet link. Thank you! 😊",
+    ].join("\n");
+  } else if (type === "reinvite") {
+    const token = c.call_confirm_token ?? crypto.randomUUID();
+    const { error } = await db
+      .from("consultations")
+      .update({
+        status: "new",
+        call_status: "none",
+        preferred_call_at: null,
+        requested_call_times: [],
+        suggested_call_at: null,
+        meeting_url: null,
+        call_requested_at: null,
+        attendance_deadline: null,
+        attendance_confirmed_at: null,
+        call_confirm_token: token,
+      })
+      .eq("id", c.id);
+    if (error) return json({ error: error.message }, 500);
+    const pickUrl = `${APP_URL()}/confirm-call?t=${token}&pick=1`;
+    subject = `${first}, would you like to book a new call?`;
+    html = layout(
+      eyebrow("Book a new call") +
+        title(`Hi ${escape(first)},`) +
+        para("We'd be happy to help you with your studies in Malta whenever you're ready. You can book a new free consultation at a time that suits you:", true) +
+        actions(button(pickUrl, "📅 Book a new call")) +
+        para(`Your account is still active — you can also sign in at <a href="${APP_URL()}/dashboard" style="color:#442DFA;font-weight:bold">your dashboard</a>.`, true) +
+        para(`Questions? <a href="https://wa.me/35699728213" style="color:#442DFA;font-weight:bold">WhatsApp +356 9972 8213</a>`, true),
+      "Book a new free call with Outreach",
+      "en",
+      { url: "https://outreachstudy.eu", label: "outreachstudy.eu", brand: "Outreach Recruitment — Study in Malta" },
+    );
+    wa = [
+      `Hi ${first} 👋 this is Soufiane from Outreach — Study in Malta.`,
+      "",
+      "Whenever you're ready, you can book a new free consultation here (only available times are shown):",
+      pickUrl,
+      "",
+      "Thank you! 😊",
     ].join("\n");
   } else if (type === "suggest-time") {
     const when = new Date(at);

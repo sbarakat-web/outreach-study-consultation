@@ -18,7 +18,7 @@ import { adminRecipients } from "../_shared/admins.ts";
 import { APP_URL, sendEmail } from "../_shared/call.ts";
 import { calendarAuth, calendarIdOf } from "../_shared/google.ts";
 import { parseIcs } from "../_shared/ical.ts";
-import { remindPendingRequests, requestCall } from "../_shared/booked.ts";
+import { autoCancelUnconfirmed, remindPendingRequests, requestCall } from "../_shared/booked.ts";
 
 const env = (k: string) => Deno.env.get(k) ?? "";
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
@@ -43,6 +43,7 @@ Deno.serve(async (req) => {
   const db = createClient(env("SUPABASE_URL"), env("SUPABASE_SERVICE_ROLE_KEY"));
   const debug = (await req.json().catch(() => ({})))?.debug === true;
   await remindPendingRequests(db).catch(() => 0);
+  await autoCancelUnconfirmed(db).catch(() => 0);
   const { data: state } = await db.from("google_sync").select("*").eq("id", 1).maybeSingle();
   const firstRun = !state?.last_sync_at;
   const startedAt = new Date().toISOString();

@@ -49,6 +49,10 @@ export interface Consultation {
   booked_via?: "google" | "admin" | "dashboard" | "confirm-link" | null;
   call_requested_at?: string | null;
   repick_requested_at?: string | null;
+  attendance_confirmed_at?: string | null;
+  attendance_deadline?: string | null;
+  not_interested_reason?: string | null;
+  not_interested_at?: string | null;
   documents_due_at: string | null;
   session_by: string | null;
   session_rating: number | null;

@@ -3,6 +3,7 @@
 //   POST { action: "confirm", token }         accept the suggested time → awaiting confirmation by the team
 //   POST { action: "reschedule", token, at }  pick another free time → awaiting confirmation by the team
 //                                             (also changes an already-confirmed call, ≥ 12h ahead)
+//   POST { action: "attend", token }          the candidate confirms they'll attend a confirmed call
 // The team then confirms in admin with the Google Meet link (see _shared/booked.ts).
 // The token is the secret (call_confirm_token); no sign-in needed. Opening the link never changes anything.
 import { createClient } from "npm:@supabase/supabase-js@2.45.4";
@@ -35,6 +36,8 @@ const view = (row: Row) => {
     pending,
     at,
     meetingUrl: confirmed ? row.meeting_url : null,
+    attendanceConfirmed: confirmed && !!row.attendance_confirmed_at,
+    attendanceDeadline: confirmed ? row.attendance_deadline : null,
     // A confirmed call can still be moved until 12h before it starts.
     canReschedule: !confirmed || (!!at && new Date(at).getTime() > Date.now() + 12 * H),
   };
@@ -51,6 +54,19 @@ Deno.serve(async (req) => {
   if (!c) return json({ error: "invalid" }, 404);
 
   if (action === "get") return json(view(c));
+
+  if (action === "attend") {
+    if (c.call_status !== "confirmed") return json({ error: "not-confirmed" }, 409);
+    if (c.attendance_confirmed_at) return json(view(c));
+    const { data: row, error } = await db
+      .from("consultations")
+      .update({ attendance_confirmed_at: new Date().toISOString() })
+      .eq("id", c.id)
+      .select("*")
+      .single();
+    if (error) return json({ error: error.message }, 500);
+    return json(view(row));
+  }
 
   let at: string;
   if (action === "confirm") {

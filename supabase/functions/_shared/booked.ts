@@ -2,6 +2,8 @@
 // confirm link, the Google booking page, or the team picking an agreed time. The team then adds the call to Google
 // Calendar by hand (with a Meet link), pastes the link in admin and confirms: that sends the "We're waiting for you"
 // email (CC to the main admin), and the WhatsApp text is ready to copy.
+// Attendance confirmation: the candidate then confirms they'll attend (link in the email, or a WhatsApp YES the team
+// marks); bookings still unconfirmed at attendance_deadline are cancelled automatically (autoCancelUnconfirmed).
 import { actions, button, eyebrow, facts, layout, para, title, escape } from "./email.ts";
 import { APP_URL, CALL_MINUTES, firstName, sendEmail, tzOf, whenIn } from "./call.ts";
 import { adminRecipients } from "./admins.ts";
@@ -19,6 +21,18 @@ export const BOOKED_CC = () => Deno.env.get("BOOKED_CC") || Deno.env.get("ADMIN_
 
 const malta = (iso: string, opts: Intl.DateTimeFormatOptions = { weekday: "long", day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" }) =>
   new Intl.DateTimeFormat("en-GB", { ...opts, timeZone: "Europe/Malta" }).format(new Date(iso));
+
+const H = 3_600_000;
+
+/** When an unconfirmed booking is cancelled: 12h before the call, or 1h before when it is booked late; none if too close. */
+export function attendanceDeadline(at: string) {
+  const call = new Date(at).getTime();
+  let by = call - 12 * H;
+  if (by < Date.now() + 3 * H) by = call - H;
+  return by < Date.now() + 30 * 60_000 ? null : new Date(by).toISOString();
+}
+
+const attendUrl = (c: Row) => `${APP_URL()}/confirm-call?t=${c.call_confirm_token}&attend=1`;
 
 const SITE = { url: "https://outreachstudy.eu", label: "outreachstudy.eu", brand: "Outreach Recruitment — Study in Malta" };
 
@@ -86,6 +100,13 @@ export function waitingEmail(c: Row, opts: { moved?: boolean } = {}) {
           true,
         ) +
         timeCard(c, c.preferred_call_at) +
+        (c.attendance_deadline && !c.attendance_confirmed_at && c.call_confirm_token
+          ? `<div style="margin:0 0 16px;padding:16px 18px;border:2px solid #f59e0b;border-radius:14px;background:#fffbeb;text-align:center;color:#78350f">
+              <p style="margin:0 0 6px;font-size:16px;font-weight:bold">⚠️ Important: please confirm you'll attend</p>
+              <p style="margin:0 0 12px;font-size:14px;line-height:1.5">Click the button below (or reply <strong>YES</strong> on WhatsApp). If we don't hear from you by <strong>${escape(whenIn(c.attendance_deadline, tzOf(c)).main)}</strong>, your booking will be <strong>cancelled automatically</strong> so another student can take the time.</p>
+              ${button(attendUrl(c), "✅ Yes, I'll attend", "#16a34a")}
+            </div>`
+          : "") +
         meet +
         `<p style="margin:0 0 16px;padding:12px 16px;border-radius:12px;background:#f0f9f4;color:#1d6b45;text-align:center;font-size:14px">📩 You'll also receive a <strong>Google Calendar invitation</strong> from Outreach by email — please click <strong>“Yes”</strong> to add the call to your calendar.</p>` +
         `<div style="margin:0 0 16px;padding:16px 18px;border:2px solid #f0eeff;border-radius:14px">
@@ -115,9 +136,18 @@ export function waitingWhatsApp(c: Row) {
     `Hi ${firstName(c)} 👋 this is Soufiane from Outreach — Study in Malta.`,
     "",
     "Thank you for booking your free consultation! 🎉 We're waiting for you on:",
-    `📅 *${malta(c.preferred_call_at)} (Malta time)*`,
+    ...(tzOf(c) !== "Europe/Malta"
+      ? [`📅 *${whenIn(c.preferred_call_at, tzOf(c)).main}*`, `🇲🇹 ${malta(c.preferred_call_at)} (Malta time)`]
+      : [`📅 *${malta(c.preferred_call_at)} (Malta time)*`]),
     c.meeting_url ? `🎥 Google Meet: ${c.meeting_url}` : "🎥 We'll send you the Google Meet link before the call.",
     "📩 You'll also get a Google Calendar invitation by email — please accept it.",
+    ...(c.attendance_deadline && !c.attendance_confirmed_at
+      ? [
+          "",
+          `⚠️ *IMPORTANT:* please reply *YES* to confirm you'll attend${c.call_confirm_token ? ` (or tap: ${attendUrl(c)})` : ""}.`,
+          `If we don't hear from you by *${whenIn(c.attendance_deadline, tzOf(c)).main}*, the booking will be cancelled automatically.`,
+        ]
+      : []),
     "",
     `In ${CALL_MINUTES} minutes we'll look at the best study options in Malta for you, the costs, scholarships and the visa steps — and answer all your questions.`,
     "",
@@ -192,6 +222,8 @@ export async function requestCall(db: Db, c: Row, at: string, via: BookedVia, op
       reminder_1h_at: null,
       booked_via: via,
       call_confirm_token: c.call_confirm_token ?? crypto.randomUUID(),
+      // A "no longer interested" candidate booking again is an active lead again (the reason stays on record).
+      ...(c.status === "not_interested" ? { status: "new" } : {}),
       ...(opts.meetUrl !== undefined ? { meeting_url: opts.meetUrl } : previous ? { meeting_url: null } : {}),
       ...(opts.googleEventId ? { google_event_id: opts.googleEventId } : {}),
     })
@@ -224,6 +256,8 @@ export async function confirmCall(db: Db, c: Row, meetUrl: string | null, staffE
       reminder_24h_at: null,
       reminder_1h_at: null,
       request_reminder_at: null,
+      attendance_confirmed_at: null,
+      attendance_deadline: attendanceDeadline(at),
       booked_via: c.booked_via ?? "admin",
       call_confirm_token: c.call_confirm_token ?? crypto.randomUUID(),
       call_reviewed_at: c.call_reviewed_at ?? new Date().toISOString(),
@@ -265,4 +299,67 @@ export async function remindPendingRequests(db: Db) {
     ),
   });
   return stale.length;
+}
+
+/**
+ * Bookings whose attendance wasn't confirmed by the deadline: free the time, tell the candidate (with a link to choose
+ * a new time) and alert the admins.
+ */
+export async function autoCancelUnconfirmed(db: Db) {
+  const { data: due } = await db
+    .from("consultations")
+    .select("*")
+    .eq("call_status", "confirmed")
+    .is("attendance_confirmed_at", null)
+    .not("attendance_deadline", "is", null)
+    .lt("attendance_deadline", new Date().toISOString())
+    .gt("preferred_call_at", new Date().toISOString())
+    .limit(20);
+  let n = 0;
+  for (const c of due ?? []) {
+    // Claim it: only one run cancels (and emails) each booking.
+    const { data: claimed } = await db
+      .from("consultations")
+      .update({ call_status: "none", preferred_call_at: null, suggested_call_at: null, requested_call_times: [], meeting_url: null, attendance_deadline: null, repick_requested_at: new Date().toISOString() })
+      .eq("id", c.id)
+      .eq("call_status", "confirmed")
+      .is("attendance_confirmed_at", null)
+      .select("id");
+    if (!claimed?.length) continue;
+    n++;
+    const first = firstName(c);
+    const when = whenIn(c.preferred_call_at, tzOf(c));
+    await sendEmail({
+      to: c.email,
+      subject: `${first}, your call on ${when.short} was cancelled`,
+      html: layout(
+        eyebrow("Booking cancelled") +
+          title(`Hi ${escape(first)},`) +
+          para(`We didn't receive your confirmation, so your free consultation on <strong>${escape(when.main)}</strong> was cancelled to free the time for another student.`, true) +
+          para("No problem — you can choose a new time whenever you're ready:", true) +
+          actions(button(`${APP_URL()}/confirm-call?t=${c.call_confirm_token}&pick=1`, "📅 Choose a new time")) +
+          para(`Questions? <a href="https://wa.me/35699728213" style="color:#442DFA;font-weight:bold">WhatsApp ${WHATSAPP}</a>`, true),
+        "Your booking was cancelled — choose a new time",
+        "en",
+        SITE,
+      ),
+    });
+    await sendEmail({
+      to: await adminRecipients(db),
+      subject: `❌ Auto-cancelled (no confirmation): ${c.full_name} — ${malta(c.preferred_call_at, { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}`,
+      html: layout(
+        eyebrow("Attendance not confirmed") +
+          title(`${escape(c.full_name)}'s booking was cancelled`) +
+          facts([
+            ["Was", `${malta(c.preferred_call_at)} (Malta)`],
+            ["Email", c.email],
+            ["WhatsApp", c.whatsapp],
+          ]) +
+          para("They were sent a link to choose a new time. Remember to delete the event from Google Calendar.", true) +
+          actions(button(`${APP_URL()}/admin?lead=${c.id}`, "Open lead")),
+        `${c.full_name}: booking cancelled`,
+      ),
+    });
+  }
+  return n;
 }

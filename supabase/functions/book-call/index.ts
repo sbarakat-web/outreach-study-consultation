@@ -2,6 +2,7 @@
 //   POST { consultationId, at }   signed-in owner of the application
 // The time must be a real call slot that is still free (other calls and requests + Google Calendar). It is held as
 // "Awaiting confirmation": the candidate gets "request received", the admins an alert with the steps to confirm.
+//   POST { consultationId, attend: true }   the candidate confirms they'll attend their confirmed call
 import { createClient } from "npm:@supabase/supabase-js@2.45.4";
 import { isCallSlot, isSlotFree } from "../_shared/slots.ts";
 import { requestCall } from "../_shared/booked.ts";
@@ -20,10 +21,16 @@ Deno.serve(async (req) => {
   const user = auth?.user;
   if (!user) return json({ error: "Not signed in" }, 401);
 
-  const { consultationId, at } = await req.json().catch(() => ({}));
+  const { consultationId, at, attend } = await req.json().catch(() => ({}));
   const { data: c } = await db.from("consultations").select("*").eq("id", consultationId).maybeSingle();
   const owns = c && (c.user_id === user.id || (user.email_confirmed_at && c.email === user.email?.toLowerCase()));
   if (!owns) return json({ error: "not-allowed" }, 403);
+  if (attend === true) {
+    if (c.call_status !== "confirmed") return json({ error: "not-confirmed" }, 409);
+    const confirmedAt = c.attendance_confirmed_at ?? new Date().toISOString();
+    if (!c.attendance_confirmed_at) await db.from("consultations").update({ attendance_confirmed_at: confirmedAt }).eq("id", c.id);
+    return json({ ok: true, attendanceConfirmedAt: confirmedAt });
+  }
   if (typeof at !== "string" || !isCallSlot(at)) return json({ error: "invalid-time" }, 400);
   // A confirmed call can be changed here until 12h before it starts.
   if (c.call_status === "confirmed" && c.preferred_call_at && new Date(c.preferred_call_at).getTime() < Date.now() + 12 * 3_600_000) {
