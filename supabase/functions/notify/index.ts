@@ -10,7 +10,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2.45.4";
 import { actions, button, eyebrow, highlight, layout, para, title, escape } from "../_shared/email.ts";
 import { APP_URL, BOOKING_LINK, confirmByFor, firstName, loadAdvisor, sendEmail, suggestEmail, tzOf, whenIn } from "../_shared/call.ts";
-import { bookCall, waitingEmail, waitingWhatsApp, BOOKED_CC } from "../_shared/booked.ts";
+import { bookCall, inviteOwner, waitingEmail, waitingWhatsApp, BOOKED_CC } from "../_shared/booked.ts";
 import { createCallEvent, googleConfigured, moveCallEvent } from "../_shared/google.ts";
 import { isSlotFree } from "../_shared/slots.ts";
 
@@ -115,11 +115,15 @@ Deno.serve(async (req) => {
       })
       .eq("id", c.id);
     if (error) return json({ error: error.message }, 500);
-    // Hold the slot in the Google Calendar (tentative) so nobody books it on the booking page meanwhile.
-    if (googleConfigured()) {
-      const held = { ...c, suggested_call_at: when.toISOString() };
-      await (c.google_event_id ? moveCallEvent(db, held, when.toISOString(), email, "tentative") : createCallEvent(db, held, when.toISOString(), email, { tentative: true })).catch(() => null);
-    }
+    // Hold the slot in the Google Calendar (tentative) so nobody books it on the booking page meanwhile;
+    // without write access, hold it with an invitation to the calendar owner.
+    const held = { ...c, suggested_call_at: when.toISOString() };
+    const r = googleConfigured()
+      ? ((await (c.google_event_id ? moveCallEvent(db, held, when.toISOString(), email, "tentative") : createCallEvent(db, held, when.toISOString(), email, { tentative: true })).catch(
+          () => null,
+        )) as { eventId?: string; ok?: boolean; skipped?: string } | null)
+      : null;
+    if (!(r?.eventId || (r?.ok && !r.skipped))) await inviteOwner(held, when.toISOString(), { hold: true }).catch(() => null);
     ({ subject, html, wa } = suggestEmail(c, { at: when.toISOString(), token, advisor: await loadAdvisor(db, email), confirmBy }));
   } else {
     return json({ error: "Unknown type" }, 400);

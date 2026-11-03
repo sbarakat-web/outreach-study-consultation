@@ -175,7 +175,7 @@ export function confirmedEmail(c: Row, advisor: Advisor | null = null) {
   };
 }
 
-export async function sendEmail(msg: { to: string | string[]; cc?: string | string[]; subject: string; html: string; attachments?: { filename: string; content: string }[] }) {
+export async function sendEmail(msg: { to: string | string[]; cc?: string | string[]; subject: string; html: string; attachments?: { filename: string; content: string; content_type?: string }[] }) {
   const key = Deno.env.get("RESEND_API_KEY");
   if (!key) return "not-configured";
   const res = await fetch("https://api.resend.com/emails", {

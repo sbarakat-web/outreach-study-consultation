@@ -1,8 +1,9 @@
 // A confirmed call, wherever it was booked (Google booking page, admin "Book now", the candidate's dashboard,
 // the one-click confirm link): one "We're waiting for you" email (CC to the main admin) and one WhatsApp text.
 import { actions, button, eyebrow, layout, para, title, escape } from "./email.ts";
-import { APP_URL, CALL_MINUTES, confirmedEmail, firstName, sendEmail, tzOf, whenIn } from "./call.ts";
-import { createCallEvent, googleConfigured, moveCallEvent } from "./google.ts";
+import { APP_URL, CALL_MINUTES, MAIL_FROM, confirmedEmail, firstName, sendEmail, tzOf, whenIn } from "./call.ts";
+import { calendarIdOf, createCallEvent, googleConfigured, moveCallEvent } from "./google.ts";
+import { inviteIcs } from "./ical.ts";
 
 // deno-lint-ignore no-explicit-any
 type Db = any;
@@ -84,6 +85,34 @@ export function waitingWhatsApp(c: Row) {
   ].join("\n");
 }
 
+const b64 = (s: string) => btoa(String.fromCharCode(...new TextEncoder().encode(s)));
+
+/**
+ * Email the booking calendar's owner (Nikolai) a calendar invitation for a call booked in the app. Gmail adds it to
+ * the calendar, so the Google booking page stops offering that time. Used when the app can't write to the calendar.
+ */
+export async function inviteOwner(c: Row, at: string, opts: { hold?: boolean } = {}) {
+  const ics = inviteIcs(c, { at, minutes: CALL_MINUTES, organizer: /<([^>]+)>/.exec(MAIL_FROM())?.[1] ?? MAIL_FROM(), attendee: calendarIdOf(), hold: opts.hold, appUrl: APP_URL() });
+  const when = `${malta(at)} (Malta)`;
+  return sendEmail({
+    to: calendarIdOf(),
+    subject: `${opts.hold ? "Hold" : "Booked"}: Outreach call with ${c.full_name} — ${when}`,
+    html: layout(
+      eyebrow(opts.hold ? "Time held" : "Call booked in the app") +
+        title(escape(`${c.full_name} — ${when}`)) +
+        para(
+          opts.hold
+            ? "This time is held while the candidate confirms. It is in your calendar so the booking page doesn't offer it."
+            : "This call was booked in the Outreach app. It is in your calendar so the booking page doesn't offer this time.",
+          true,
+        ) +
+        actions(button(`${APP_URL()}/admin?lead=${c.id}`, "Open lead")),
+      when,
+    ),
+    attachments: [{ filename: "invite.ics", content: b64(ics), content_type: "text/calendar; method=REQUEST" }],
+  });
+}
+
 /** Send the waiting email to the candidate, CC the main admin. Google bookings skip the .ics (Google already invited them). */
 export async function sendWaitingEmail(c: Row, opts: { moved?: boolean; via?: BookedVia } = {}) {
   const mail = waitingEmail(c, opts);
@@ -124,16 +153,20 @@ export async function bookCall(db: Db, c: Row, at: string, via: BookedVia, staff
   if (error || !updated) return { error: error?.message ?? "Could not save the call" };
 
   let row = updated;
+  let written = false;
   if (googleConfigured()) {
     const r = (
       updated.google_event_id
         ? await moveCallEvent(db, updated, at, staffEmail, "confirmed").catch(() => null)
         : await createCallEvent(db, updated, at, staffEmail).catch(() => null)
-    ) as { meetUrl?: string | null } | null;
+    ) as { meetUrl?: string | null; eventId?: string; ok?: boolean; skipped?: string } | null;
+    written = !!(r?.eventId || (r?.ok && !r.skipped));
     if (r?.meetUrl) row = { ...row, meeting_url: r.meetUrl };
     const { data: fresh } = await db.from("consultations").select("*").eq("id", c.id).single();
     if (fresh) row = { ...fresh, meeting_url: row.meeting_url ?? fresh.meeting_url };
   }
+  // No write access to the booking calendar: block the time with an invitation instead.
+  if (!written) await inviteOwner(row, at).catch(() => null);
   const email = await sendWaitingEmail(row, { moved, via });
   return { row, moved, emailed: email === "sent" };
 }

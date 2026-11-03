@@ -6,12 +6,15 @@
 //   cancelled  set the call back to "not booked" and alert the admins
 // Events created by the app itself carry extendedProperties.private.outreach and are skipped.
 // The first run only links existing bookings (no emails), so nobody gets a late duplicate.
+// Source: the calendar's secret iCal address when saved in google_sync.ical_url (works without Workspace sharing;
+// a booking that disappears from the feed counts as cancelled), otherwise the Calendar API.
 // Secrets: GOOGLE_SERVICE_ACCOUNT (+ calendar shared with it); optional BOOKING_TITLE (default "Study in Malta")
 import { createClient } from "npm:@supabase/supabase-js@2.45.4";
 import { actions, button, eyebrow, facts, layout, title, escape } from "../_shared/email.ts";
 import { adminRecipients } from "../_shared/admins.ts";
 import { APP_URL, sendEmail } from "../_shared/call.ts";
-import { calendarAuth } from "../_shared/google.ts";
+import { calendarAuth, calendarIdOf } from "../_shared/google.ts";
+import { parseIcs } from "../_shared/ical.ts";
 import { sendWaitingEmail } from "../_shared/booked.ts";
 
 const env = (k: string) => Deno.env.get(k) ?? "";
@@ -36,37 +39,51 @@ function bookerOf(ev: Event) {
 Deno.serve(async (req) => {
   const db = createClient(env("SUPABASE_URL"), env("SUPABASE_SERVICE_ROLE_KEY"));
   const debug = (await req.json().catch(() => ({})))?.debug === true;
-  const auth = await calendarAuth(db, null).catch(() => null);
-  if (!auth) return json({ error: "Google Calendar not configured" }, 503);
-
   const { data: state } = await db.from("google_sync").select("*").eq("id", 1).maybeSingle();
   const firstRun = !state?.last_sync_at;
   const startedAt = new Date().toISOString();
-  const params = new URLSearchParams({
-    singleEvents: "true",
-    showDeleted: "true",
-    maxResults: "250",
-    timeMin: new Date(Date.now() - 24 * 3_600_000).toISOString(),
-    timeMax: new Date(Date.now() + 120 * 24 * 3_600_000).toISOString(),
-    ...(firstRun ? {} : { updatedMin: new Date(new Date(state.last_sync_at).getTime() - 10 * 60_000).toISOString() }),
-  });
-  const events: Event[] = [];
-  for (let page: string | undefined, i = 0; i < 8; i++) {
-    if (page) params.set("pageToken", page);
-    const res = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(auth.calendarId)}/events?${params}`, {
-      headers: { Authorization: `Bearer ${auth.token}` },
-    });
-    if (!res.ok) return json({ error: `Google ${res.status}: ${await res.text()}` }, 502);
-    const data = await res.json();
-    events.push(...(data.items ?? []));
-    page = data.nextPageToken;
-    if (!page) break;
-  }
+  const feed = state?.ical_url as string | null;
+  // deno-lint-ignore no-explicit-any
+  let events: any[] = [];
 
-  // Shared as "See only free/busy": events come back without titles or guests, so bookings can't be recognised.
-  // Stop without moving the checkpoint; the first run with full access then links existing bookings silently.
-  if (events.length && events.every((ev) => !ev.summary && !(ev.attendees ?? []).length)) {
-    return json({ error: "Calendar shared as free/busy only — share it with the service account as \"Make changes to events\"" }, 409);
+  if (feed) {
+    const res = await fetch(feed).catch(() => null);
+    const body = res?.ok ? await res.text() : "";
+    if (!body.startsWith("BEGIN:VCALENDAR")) return json({ error: `iCal feed unreadable (${res?.status ?? "network"})` }, 502);
+    const from = Date.now() - 24 * 3_600_000;
+    const to = Date.now() + 120 * 24 * 3_600_000;
+    events = parseIcs(body, calendarIdOf()).filter((ev) => {
+      const t = ev.start.dateTime ? new Date(ev.start.dateTime).getTime() : NaN;
+      return !ev.recurring && t >= from && t <= to;
+    });
+  } else {
+    const auth = await calendarAuth(db, null).catch(() => null);
+    if (!auth) return json({ error: "Google Calendar not configured" }, 503);
+    const params = new URLSearchParams({
+      singleEvents: "true",
+      showDeleted: "true",
+      maxResults: "250",
+      timeMin: new Date(Date.now() - 24 * 3_600_000).toISOString(),
+      timeMax: new Date(Date.now() + 120 * 24 * 3_600_000).toISOString(),
+      ...(firstRun ? {} : { updatedMin: new Date(new Date(state.last_sync_at).getTime() - 10 * 60_000).toISOString() }),
+    });
+    for (let page: string | undefined, i = 0; i < 8; i++) {
+      if (page) params.set("pageToken", page);
+      const res = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(auth.calendarId)}/events?${params}`, {
+        headers: { Authorization: `Bearer ${auth.token}` },
+      });
+      if (!res.ok) return json({ error: `Google ${res.status}: ${await res.text()}` }, 502);
+      const data = await res.json();
+      events.push(...(data.items ?? []));
+      page = data.nextPageToken;
+      if (!page) break;
+    }
+
+    // Shared as "See only free/busy": events come back without titles or guests, so bookings can't be recognised.
+    // Stop without moving the checkpoint; the first run with full access then links existing bookings silently.
+    if (events.length && events.every((ev) => !ev.summary && !(ev.attendees ?? []).length)) {
+      return json({ error: "Calendar shared as free/busy only — share it with the service account as \"Make changes to events\"" }, 409);
+    }
   }
 
   // Debug: store the shape of the events (no names/emails) in google_sync.debug, readable only by staff in the DB.
@@ -81,7 +98,7 @@ Deno.serve(async (req) => {
       meet: !!ev.hangoutLink,
       creatorSelf: !!ev.creator?.self,
     }));
-    await db.from("google_sync").upsert({ id: 1, last_sync_at: state?.last_sync_at ?? null, debug: shape });
+    await db.from("google_sync").update({ debug: shape }).eq("id", 1);
     return json({ ok: true, debug: shape.length });
   }
 
@@ -97,6 +114,19 @@ Deno.serve(async (req) => {
     });
 
   const out = { seen: 0, booked: 0, moved: 0, cancelled: 0, linkedSilently: 0, skipped: 0 };
+  // deno-lint-ignore no-explicit-any
+  const cancel = async (known: any, name: string, email: string) => {
+    await db.from("google_bookings").update({ status: "cancelled", updated_at: startedAt }).eq("event_id", known.event_id);
+    if (known.consultation_id) {
+      await db
+        .from("consultations")
+        .update({ call_status: "none", preferred_call_at: null, suggested_call_at: null, google_event_id: null, meeting_url: null })
+        .eq("id", known.consultation_id)
+        .eq("google_event_id", known.event_id);
+    }
+    if (!firstRun) await alert(`❌ Booking cancelled: ${name} — ${malta(known.start_at)}`, `${name} cancelled their booking`, [["Was", malta(known.start_at) + " (Malta)"], ["Email", email]], known.consultation_id);
+    out.cancelled++;
+  };
   for (const ev of events) {
     if (ev.extendedProperties?.private?.outreach) continue; // created by the app
     if (!String(ev.summary ?? "").toLowerCase().includes(BOOKING_TITLE())) continue;
@@ -106,17 +136,7 @@ Deno.serve(async (req) => {
     const { data: known } = await db.from("google_bookings").select("*").eq("event_id", ev.id).maybeSingle();
 
     if (ev.status === "cancelled") {
-      if (!known || known.status === "cancelled") continue;
-      await db.from("google_bookings").update({ status: "cancelled", updated_at: startedAt }).eq("event_id", ev.id);
-      if (known.consultation_id) {
-        await db
-          .from("consultations")
-          .update({ call_status: "none", preferred_call_at: null, suggested_call_at: null, google_event_id: null, meeting_url: null })
-          .eq("id", known.consultation_id)
-          .eq("google_event_id", ev.id);
-      }
-      if (!firstRun) await alert(`❌ Booking cancelled: ${booker.name} — ${malta(known.start_at)}`, `${booker.name} cancelled their booking`, [["Was", malta(known.start_at) + " (Malta)"], ["Email", booker.email]], known.consultation_id);
-      out.cancelled++;
+      if (known && known.status !== "cancelled") await cancel(known, booker.name, booker.email);
       continue;
     }
 
@@ -188,6 +208,13 @@ Deno.serve(async (req) => {
     moved ? out.moved++ : out.booked++;
   }
 
-  await db.from("google_sync").upsert({ id: 1, last_sync_at: startedAt });
+  // iCal feed: deleted events simply disappear, so an upcoming booking missing from the feed was cancelled.
+  if (feed && events.length) {
+    const ids = new Set(events.map((ev) => ev.id));
+    const { data: open } = await db.from("google_bookings").select("*").eq("status", "booked").gt("start_at", startedAt);
+    for (const known of open ?? []) if (!ids.has(known.event_id)) await cancel(known, known.booker_email ?? "Candidate", known.booker_email ?? "");
+  }
+
+  await db.from("google_sync").update({ last_sync_at: startedAt }).eq("id", 1);
   return json({ ok: true, firstRun, events: events.length, ...out });
 });
