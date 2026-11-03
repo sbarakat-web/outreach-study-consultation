@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { CalendarCheck, CheckCircle2, Clock, ExternalLink, FileText, Play, Plus, Presentation, Search, Star, UsersRound, Video, X } from "lucide-react";
+import { CalendarCheck, CheckCircle2, Clock, ExternalLink, FileText, MessageSquare, Play, Plus, Presentation, Search, Star, UserRound, UsersRound, Video, X } from "lucide-react";
 import { supabase } from "../../lib/supabase";
 import {
   ENGLISH_LEVELS,
@@ -11,6 +11,7 @@ import {
   labelFor,
   statusLabel,
   callStage,
+  CALL_STAGE_LABELS,
   maltaDateTime,
   noReply24h,
 } from "../../lib/options";
@@ -688,7 +689,10 @@ function CallBadge({ c }: { c: Row }) {
   return <span className={`inline-flex shrink-0 rounded-full px-2 py-0.5 text-[11px] font-bold ${style}`}>{label}</span>;
 }
 
+type DetailTab = "call" | "profile" | "documents" | "comments";
+
 function Detail({ c, all, onClose, onSaved }: { c: Row; all: Row[]; onClose: () => void; onSaved: () => void }) {
+  const [tab, setTab] = useState<DetailTab>("call");
   const [docs, setDocs] = useState<DocumentRow[]>([]);
   const [msg, setMsg] = useState<{ tone: "error" | "success"; text: string } | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -782,121 +786,198 @@ function Detail({ c, all, onClose, onSaved }: { c: Row; all: Row[]; onClose: () 
         className="flex h-full w-full max-w-xl flex-col overflow-y-auto bg-white shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="sticky top-0 flex items-start justify-between gap-3 border-b border-slate-100 bg-white px-6 py-5">
-          <div>
-            <h2 id="detail-title" className="flex items-center gap-2 text-xl font-black">
-              {c.full_name}
-              <button
-                aria-label={c.is_starred ? "Unstar" : "Star (shown first in the presenter queue)"}
-                aria-pressed={c.is_starred}
-                onClick={() => quickUpdate({ is_starred: !c.is_starred })}
-                className="rounded-full p-1 hover:bg-amber-50"
-              >
-                <Star className={`h-5 w-5 ${c.is_starred ? "fill-amber-400 text-amber-400" : "text-slate-300"}`} />
-              </button>
-            </h2>
-            <p className="text-sm text-slate-500">{c.user_id ? "Has an account" : "No linked account yet"}</p>
+        <div className="sticky top-0 z-10 border-b border-slate-100 bg-white">
+          <div className="flex items-start justify-between gap-3 px-6 pt-5">
+            <div className="min-w-0">
+              <h2 id="detail-title" className="flex items-center gap-2 text-xl font-black">
+                <span className="truncate">{c.full_name}</span>
+                <button
+                  aria-label={c.is_starred ? "Unstar" : "Star (shown first in the presenter queue)"}
+                  aria-pressed={c.is_starred}
+                  onClick={() => quickUpdate({ is_starred: !c.is_starred })}
+                  className="rounded-full p-1 hover:bg-amber-50"
+                >
+                  <Star className={`h-5 w-5 ${c.is_starred ? "fill-amber-400 text-amber-400" : "text-slate-300"}`} />
+                </button>
+              </h2>
+              <p className="truncate text-sm text-slate-500">
+                {c.email}
+                {c.whatsapp && <> · {c.whatsapp}</>}
+              </p>
+            </div>
+            <button aria-label="Close" onClick={onClose} className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-brand/5 hover:bg-brand/10">
+              <X className="h-5 w-5" />
+            </button>
           </div>
-          <button aria-label="Close" onClick={onClose} className="grid h-10 w-10 place-items-center rounded-full bg-brand/5 hover:bg-brand/10">
-            <X className="h-5 w-5" />
-          </button>
-        </div>
-
-        <div className="space-y-6 px-6 py-5">
-          <CallPanel c={c} onSaved={onSaved} />
-
-          <div className="rounded-2xl bg-mist p-4">
-            <label htmlFor="lead-status" className="label">Lead status</label>
-            <select
-              id="lead-status"
-              className="field mt-1"
-              value={c.status}
-              onChange={(e) => quickUpdate({ status: e.target.value as Status })}
-            >
+          <div className="flex flex-wrap items-center gap-2 px-6 pt-3">
+            <label htmlFor="lead-status" className="sr-only">Lead status</label>
+            <select id="lead-status" className="field w-auto py-1.5 text-sm font-bold" value={c.status} onChange={(e) => quickUpdate({ status: e.target.value as Status })}>
               {STATUSES.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
             </select>
-            <a
-              href={`/dashboard?preview=${encodeURIComponent(c.id)}`}
-              target="_blank"
-              rel="noreferrer"
-              className="mt-3 inline-flex items-center gap-2 text-sm font-bold text-brand hover:underline"
-            >
-              <ExternalLink className="h-4 w-4" /> Open candidate dashboard
+            <span className="text-xs text-slate-500">{c.user_id ? "Has an account" : "No account yet"}</span>
+            <a href={`/dashboard?preview=${encodeURIComponent(c.id)}`} target="_blank" rel="noreferrer" className="ml-auto inline-flex items-center gap-1 text-xs font-bold text-brand hover:underline">
+              <ExternalLink className="h-3.5 w-3.5" /> Candidate dashboard
             </a>
           </div>
-
-          <SessionPanel c={c} />
-
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-            <label htmlFor="meet-link" className="flex shrink-0 items-center gap-1.5 text-sm font-bold">
-              <Video className="h-4 w-4 text-brand" /> Meet link
-            </label>
-            <input
-              id="meet-link"
-              type="url"
-              placeholder="https://meet.google.com/…"
-              className="field py-2"
-              defaultValue={c.meeting_url ?? ""}
-              onBlur={(e) => e.target.value.trim() !== (c.meeting_url ?? "") && quickUpdate({ meeting_url: e.target.value.trim() || null })}
-            />
-          </div>
-
-          <dl className="grid grid-cols-[5.5rem_minmax(0,1fr)] gap-x-3 gap-y-2 text-sm sm:grid-cols-[8rem_1fr] sm:gap-x-4">
-            {rows.map(([k, v]) => (
-              <div key={k} className="contents">
-                <dt className="text-slate-500">{k}</dt>
-                <dd className="whitespace-pre-wrap break-words font-medium">{v || "—"}</dd>
-              </div>
+          <div role="tablist" aria-label="Lead details" className="mt-3 flex gap-1 overflow-x-auto px-4">
+            {(
+              [
+                ["call", "Call", CalendarCheck, callStage(c) === "none" ? null : CALL_STAGE_LABELS[callStage(c)]],
+                ["profile", "Profile", UserRound, null],
+                ["documents", "Documents", FileText, `${requiredDocs.filter((t) => hasDoc(t.key)).length}/${requiredDocs.length}`],
+                ["comments", "Comments", MessageSquare, c.admin_notes ? "•" : null],
+              ] as const
+            ).map(([key, label, Icon, badge]) => (
+              <button
+                key={key}
+                role="tab"
+                aria-selected={tab === key}
+                onClick={() => setTab(key)}
+                className={`flex shrink-0 items-center gap-1.5 border-b-2 px-3 py-2.5 text-sm font-bold transition ${
+                  tab === key ? "border-brand text-brand" : "border-transparent text-slate-500 hover:text-navy"
+                }`}
+              >
+                <Icon className="h-4 w-4" /> {label}
+                {badge && (
+                  <span
+                    className={`rounded-full px-1.5 py-0.5 text-[10px] font-black ${
+                      key === "call" && callStage(c) === "confirmed"
+                        ? "bg-emerald-100 text-emerald-800"
+                        : key === "call"
+                          ? "bg-amber-100 text-amber-800"
+                          : key === "comments"
+                            ? "text-brand"
+                            : "bg-slate-100 text-slate-600"
+                    }`}
+                  >
+                    {badge}
+                  </span>
+                )}
+              </button>
             ))}
-          </dl>
+          </div>
+        </div>
 
-          <div>
-            <h3 className="mb-2 text-sm font-extrabold">
-              Documents{" "}
-              <span className="font-normal text-slate-500">
-                ({requiredDocs.filter((t) => hasDoc(t.key)).length}/{requiredDocs.length} required:{" "}
-                {requiredDocs.map((t) => `${hasDoc(t.key) ? "✓" : "✗"} ${t.label}`).join(", ")})
-              </span>
-            </h3>
-            {docs.length === 0 ? (
-              <p className="text-sm text-slate-500">No documents uploaded.</p>
-            ) : (
-              <ul className="space-y-2">
-                {docs.map((d) => (
-                  <li key={d.id} className="rounded-xl bg-mist px-3 py-2">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <button onClick={() => openDoc(d)} className="flex min-w-0 items-center gap-2 text-sm hover:underline">
-                        <FileText className="h-4 w-4 shrink-0 text-slate-400" /> <span className="truncate">{d.file_name}</span>
-                        {d.doc_type && (
-                          <span className="shrink-0 rounded-full bg-white px-2 py-0.5 text-[11px] font-bold text-slate-500">
-                            {documentTypesFor(c.study_path).find((t) => t.key === d.doc_type)?.label ?? d.doc_type}
-                          </span>
-                        )}
-                      </button>
-                      <span className="flex items-center gap-1.5">
-                        <button onClick={() => openDoc(d)} className="rounded-full bg-white px-3 py-1 text-xs font-bold text-navy ring-1 ring-slate-200 hover:bg-slate-50">
-                          View
-                        </button>
-                        <button onClick={() => openDoc(d, true)} className="rounded-full bg-brand px-3 py-1 text-xs font-bold text-white hover:bg-brand/90">
-                          Download
-                        </button>
-                      </span>
-                    </div>
+        <div className="space-y-6 px-6 py-5" role="tabpanel">
+          {tab === "call" && (
+            <>
+              <CallPanel c={c} onSaved={onSaved} />
+              <SessionPanel c={c} />
+              {callStage(c) === "confirmed" && (
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                  <label htmlFor="meet-link" className="flex shrink-0 items-center gap-1.5 text-sm font-bold">
+                    <Video className="h-4 w-4 text-brand" /> Meet link
+                  </label>
+                  <input
+                    id="meet-link"
+                    type="url"
+                    placeholder="https://meet.google.com/…"
+                    className="field py-2"
+                    defaultValue={c.meeting_url ?? ""}
+                    onBlur={(e) => e.target.value.trim() !== (c.meeting_url ?? "") && quickUpdate({ meeting_url: e.target.value.trim() || null })}
+                  />
+                </div>
+              )}
+            </>
+          )}
+
+          {tab === "profile" && (
+            <>
+              <dl className="grid grid-cols-[5.5rem_minmax(0,1fr)] gap-x-3 gap-y-2 text-sm sm:grid-cols-[8rem_1fr] sm:gap-x-4">
+                {rows.map(([k, v]) => (
+                  <div key={k} className="contents">
+                    <dt className="text-slate-500">{k}</dt>
+                    <dd className="whitespace-pre-wrap break-words font-medium">{v || "—"}</dd>
+                  </div>
+                ))}
+              </dl>
+              <div className="space-y-3 border-t border-slate-100 pt-5">
+                <p className="text-xs text-slate-500">Permanently removes all leads for this email, their uploaded documents and email records, and the linked login account.</p>
+                <Button variant="danger" onClick={remove} loading={deleting} disabled={deleting}>
+                  Delete lead and account
+                </Button>
+              </div>
+            </>
+          )}
+
+          {tab === "documents" && (
+            <div>
+              <ul className="mb-4 grid gap-1.5 text-sm">
+                {requiredDocs.map((t) => (
+                  <li key={t.key} className={`flex items-center gap-2 ${hasDoc(t.key) ? "text-emerald-700" : "text-slate-500"}`}>
+                    {hasDoc(t.key) ? <CheckCircle2 className="h-4 w-4" /> : <Clock className="h-4 w-4" />} {t.label}
                   </li>
                 ))}
               </ul>
-            )}
-          </div>
+              {docs.length === 0 ? (
+                <p className="text-sm text-slate-500">No documents uploaded.</p>
+              ) : (
+                <ul className="space-y-2">
+                  {docs.map((d) => (
+                    <li key={d.id} className="rounded-xl bg-mist px-3 py-2">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <button onClick={() => openDoc(d)} className="flex min-w-0 items-center gap-2 text-sm hover:underline">
+                          <FileText className="h-4 w-4 shrink-0 text-slate-400" /> <span className="truncate">{d.file_name}</span>
+                          {d.doc_type && (
+                            <span className="shrink-0 rounded-full bg-white px-2 py-0.5 text-[11px] font-bold text-slate-500">
+                              {documentTypesFor(c.study_path).find((t) => t.key === d.doc_type)?.label ?? d.doc_type}
+                            </span>
+                          )}
+                        </button>
+                        <span className="flex items-center gap-1.5">
+                          <button onClick={() => openDoc(d)} className="rounded-full bg-white px-3 py-1 text-xs font-bold text-navy ring-1 ring-slate-200 hover:bg-slate-50">
+                            View
+                          </button>
+                          <button onClick={() => openDoc(d, true)} className="rounded-full bg-brand px-3 py-1 text-xs font-bold text-white hover:bg-brand/90">
+                            Download
+                          </button>
+                        </span>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
 
-          <div className="space-y-3 border-t border-slate-100 pt-5">
-            {msg && <Alert tone={msg.tone}>{msg.text}</Alert>}
-            <p className="text-xs text-slate-500">Permanently removes all leads for this email, their uploaded documents and email records, and the linked login account.</p>
-            <Button variant="danger" onClick={remove} loading={deleting} disabled={deleting}>
-              Delete lead and account
-            </Button>
-          </div>
+          {tab === "comments" && <NotesEditor key={c.id} c={c} onSave={(text) => quickUpdate({ admin_notes: text || null })} />}
+
+          {msg && <Alert tone={msg.tone}>{msg.text}</Alert>}
         </div>
       </aside>
+    </div>
+  );
+}
+
+/** Staff comments on the lead (admin_notes), shared with the Documents received table. */
+function NotesEditor({ c, onSave }: { c: Row; onSave: (text: string) => Promise<void> }) {
+  const [text, setText] = useState(c.admin_notes ?? "");
+  const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const dirty = text.trim() !== (c.admin_notes ?? "").trim();
+  const save = async () => {
+    setSaving(true);
+    await onSave(text.trim());
+    setSaving(false);
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
+  };
+  return (
+    <div className="space-y-2">
+      <label htmlFor="lead-notes" className="label">Comments for the team</label>
+      <textarea
+        id="lead-notes"
+        className="field min-h-48"
+        placeholder="Call outcome, what the candidate needs, next steps…"
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+      />
+      <div className="flex items-center gap-3">
+        <Button onClick={save} loading={saving} disabled={!dirty}>
+          Save comment
+        </Button>
+        {saved && <span className="flex items-center gap-1 text-sm font-bold text-emerald-700"><CheckCircle2 className="h-4 w-4" /> Saved</span>}
+      </div>
     </div>
   );
 }
