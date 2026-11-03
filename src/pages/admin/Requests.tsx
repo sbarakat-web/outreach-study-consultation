@@ -34,11 +34,26 @@ const docCount = (c: Row) => c.documents?.length ?? 0;
 const lastUpload = (c: Row) => (c.documents ?? []).reduce((latest, d) => (d.created_at > latest ? d.created_at : latest), "");
 
 
-const PAGE_TITLE = { all: "Leads", new: "New leads", documents: "Documents received", not_interested: "No longer interested" } as const;
+const PAGE_TITLE = {
+  all: "Leads",
+  new: "New leads",
+  documents: "Documents received",
+  not_interested: "No longer interested",
+  awaiting: "Awaiting confirmation",
+  waiting: "Waiting for candidate",
+} as const;
+
+/** The call time a lead is waiting on: their requested time, or the time we suggested. */
+const pendingCallAt = (c: Row) => (callStage(c) === "suggested" ? c.suggested_call_at : c.preferred_call_at ?? c.requested_call_times[0]) ?? "";
+/** Call pages: requests to confirm (Meet link + Confirm & send) and times sent that the candidate hasn't accepted yet. */
+const inCallPage = (mode: string, c: Row) =>
+  c.status !== "not_interested" &&
+  (mode === "awaiting" ? ["requested", "reviewed"].includes(callStage(c)) && !!pendingCallAt(c) : callStage(c) === "suggested");
 
 /**
- * Lead list. `mode` gives "New leads", "Documents received" and "No longer interested" their own pages
- * (/admin/new-leads, /admin/documents, /admin/not-interested).
+ * Lead list. `mode` gives "New leads", "Documents received", "No longer interested", "Awaiting confirmation" and
+ * "Waiting for candidate" their own pages (/admin/new-leads, /admin/documents, /admin/not-interested,
+ * /admin/awaiting-confirmation, /admin/waiting-for-candidate).
  */
 export function Requests({ mode = "all" }: { mode?: keyof typeof PAGE_TITLE }) {
   const [items, setItems] = useState<Row[] | null>(null);
@@ -76,6 +91,11 @@ export function Requests({ mode = "all" }: { mode?: keyof typeof PAGE_TITLE }) {
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
+    const matches = (c: Row) => !q || [c.full_name, c.email, c.whatsapp, c.country, c.desired_course].some((v) => v?.toLowerCase().includes(q));
+    // Call pages: every lead in that call state, soonest call first.
+    if (mode === "awaiting" || mode === "waiting") {
+      return (items ?? []).filter((c) => inCallPage(mode, c) && matches(c)).sort((a, b) => pendingCallAt(a).localeCompare(pendingCallAt(b)));
+    }
     const rows = (items ?? []).filter(
       (c) =>
         (!pageStatus || c.status === pageStatus) &&
@@ -86,7 +106,7 @@ export function Requests({ mode = "all" }: { mode?: keyof typeof PAGE_TITLE }) {
         (!q || [c.full_name, c.email, c.whatsapp, c.country, c.desired_course].some((v) => v?.toLowerCase().includes(q))),
     );
     return pageView === "documents" ? rows.sort((a, b) => lastUpload(b).localeCompare(lastUpload(a))) : rows;
-  }, [items, query, pageStatus, pageView]);
+  }, [items, query, pageStatus, pageView, mode]);
 
   const upcoming = useMemo(
     () =>
@@ -241,6 +261,8 @@ export function Requests({ mode = "all" }: { mode?: keyof typeof PAGE_TITLE }) {
           <p className="px-6 py-10 text-center text-slate-500">No requests match.</p>
         ) : mode === "documents" ? (
           <DocumentsTable rows={filtered} onOpen={setOpenId} onSaved={load} />
+        ) : mode === "awaiting" || mode === "waiting" ? (
+          <CallQueue rows={filtered} mode={mode} onOpen={setOpenId} />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">
@@ -1033,6 +1055,72 @@ function CopyField({ label, value, copy = true }: { label: string; value: string
           {done ? <Check className="h-3.5 w-3.5 text-emerald-600" /> : <Copy className="h-3.5 w-3.5" />} {done ? "Copied" : "Copy"}
         </button>
       )}
+    </div>
+  );
+}
+
+const SOURCE_LABEL: Record<string, string> = { google: "Google booking page", admin: "Team", dashboard: "Dashboard", "confirm-link": "Confirm link" };
+
+const since = (iso: string | null | undefined) => {
+  if (!iso) return "";
+  const h = Math.floor((Date.now() - new Date(iso).getTime()) / 3_600_000);
+  return h < 1 ? "just now" : h < 24 ? `${h}h ago` : `${Math.floor(h / 24)}d ago`;
+};
+
+/** Awaiting confirmation / Waiting for candidate: soonest call first, with where it came from and how long it has waited. */
+function CallQueue({ rows, mode, onOpen }: { rows: Row[]; mode: "awaiting" | "waiting"; onOpen: (id: string) => void }) {
+  return (
+    <div className="overflow-x-auto">
+      <p className="border-b border-slate-100 px-5 py-3 text-xs text-slate-500">
+        {mode === "awaiting"
+          ? "Open a lead → Confirmation tab to book it on the Google page (or Add to Google Calendar), then paste the Meet link and Confirm & send in the Call tab."
+          : "We sent these candidates a time; they haven't accepted it yet. Resend, or message them on WhatsApp."}
+      </p>
+      <table className="w-full text-left text-sm">
+        <thead className="text-xs uppercase tracking-wider text-slate-500">
+          <tr className="border-b border-slate-100">
+            <th className="px-5 py-3 font-bold">Candidate</th>
+            <th className="px-3 py-3 font-bold">{mode === "awaiting" ? "Requested time" : "Time sent"} (Malta)</th>
+            <th className="hidden px-3 py-3 font-bold md:table-cell">{mode === "awaiting" ? "From" : "Sent"}</th>
+            <th className="px-5 py-3 text-right font-bold"><span className="sr-only">Action</span></th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-slate-100">
+          {rows.map((c) => {
+            const at = pendingCallAt(c);
+            return (
+              <tr key={c.id} onClick={() => onOpen(c.id)} className="cursor-pointer hover:bg-mist">
+                <td className="px-5 py-3">
+                  <div className="font-bold">{c.full_name}</div>
+                  <div className="text-xs text-slate-500">{c.email}{c.whatsapp ? ` · ${c.whatsapp}` : ""}</div>
+                </td>
+                <td className="px-3 py-3">
+                  <div className="font-bold">{maltaTime(at)}</div>
+                  {new Date(at).getTime() < Date.now() && <div className="text-xs font-bold text-brand-red">Time has passed</div>}
+                </td>
+                <td className="hidden px-3 py-3 text-xs text-slate-500 md:table-cell">
+                  {mode === "awaiting" ? (
+                    <>
+                      {c.booked_via ? SOURCE_LABEL[c.booked_via] : "Application form"}
+                      {c.call_requested_at && <div className="font-bold text-amber-700">waiting {since(c.call_requested_at).replace(" ago", "")}</div>}
+                    </>
+                  ) : (
+                    <>
+                      {since(c.call_suggested_at)}
+                      {noReply24h(c) && <div className="font-bold text-brand-red">No reply 24h+</div>}
+                    </>
+                  )}
+                </td>
+                <td className="px-5 py-3 text-right">
+                  <span className={`inline-flex rounded-full px-3 py-1 text-xs font-bold ${mode === "awaiting" ? "bg-brand text-white" : "bg-white text-navy ring-1 ring-slate-200"}`}>
+                    {mode === "awaiting" ? "Confirm →" : "Open →"}
+                  </span>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
     </div>
   );
 }

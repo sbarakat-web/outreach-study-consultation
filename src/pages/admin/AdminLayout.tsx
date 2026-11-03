@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Outlet, useNavigate } from "react-router-dom";
-import { BarChart3, Bell, CalendarDays, FileCheck2, Mail, Presentation, Settings, UserRoundX, Users, UsersRound } from "lucide-react";
+import { BarChart3, Bell, CalendarDays, Clock, FileCheck2, Mail, Presentation, Send, Settings, UserRoundX, Users, UsersRound } from "lucide-react";
 import type { TabItem } from "../../components/TabBar";
 import { AppShell, Fab } from "../../components/dash";
 import { supabase } from "../../lib/supabase";
@@ -24,16 +24,18 @@ export function AdminLayout() {
   const [toConfirm, setToConfirm] = useState(0);
   const [leadCounts, setLeadCounts] = useState<Record<string, number>>({});
   const [withDocs, setWithDocs] = useState(0);
+  const [waitingCandidate, setWaitingCandidate] = useState(0);
 
   useEffect(() => {
     supabase.from("staff_profiles").select("display_name, photo_url").eq("email", email).maybeSingle().then(({ data }) => setProfile(data));
-    // Requests not confirmed yet (bell badge → Calendar "To confirm")
+    // Call counts: requests awaiting confirmation (bell badge) and suggested times the candidate hasn't accepted yet.
     const loadCounts = async () => {
-      const [{ count }, { data }] = await Promise.all([
-        supabase.from("consultations").select("id", { count: "exact", head: true }).eq("call_status", "requested").is("call_declined_at", null),
-        supabase.from("consultations").select("status, documents(count)"),
-      ]);
-      setToConfirm(count ?? 0);
+      const { data } = await supabase
+        .from("consultations")
+        .select("status, call_status, preferred_call_at, suggested_call_at, requested_call_times, call_declined_at, documents(count)");
+      const open = (data ?? []).filter((row) => row.status !== "not_interested" && !row.call_declined_at && row.call_status !== "confirmed");
+      setToConfirm(open.filter((row) => !row.suggested_call_at && (row.preferred_call_at || row.requested_call_times?.[0])).length);
+      setWaitingCandidate(open.filter((row) => row.suggested_call_at).length);
       setWithDocs((data ?? []).filter((row) => row.status !== "not_interested" && (row.documents as { count: number }[] | null)?.[0]?.count).length);
       setLeadCounts((data ?? []).reduce<Record<string, number>>((out, row) => {
         out[row.status] = (out[row.status] ?? 0) + 1;
@@ -57,12 +59,14 @@ export function AdminLayout() {
     { to: "/admin/new-leads", label: "New leads", icon: UsersRound, badge: countBadge(leadCounts.new ?? 0) },
     { to: "/admin/not-interested", label: "No longer interested", icon: UserRoundX, badge: countBadge(leadCounts.not_interested ?? 0) },
     {
-      to: "/admin/calendar",
-      label: "Calendar",
-      icon: CalendarDays,
-      // Calls awaiting confirmation (Meet link + Confirm & send).
-      badge: toConfirm ? <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-800" title="Awaiting confirmation">{toConfirm}</span> : undefined,
+      to: "/admin/awaiting-confirmation",
+      label: "Awaiting confirmation",
+      icon: Clock,
+      // Calls to confirm (Meet link + Confirm & send).
+      badge: toConfirm ? <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-800">{toConfirm}</span> : undefined,
     },
+    { to: "/admin/waiting-for-candidate", label: "Waiting for candidate", icon: Send, badge: countBadge(waitingCandidate) },
+    { to: "/admin/calendar", label: "Calendar", icon: CalendarDays },
     { to: "/onlinesessions?present=1", label: "Online sessions", icon: Presentation },
     { to: "/admin/sessions", label: "Session stats", icon: BarChart3 },
     { to: "/admin/email-marketing", label: "Email marketing", icon: Mail },
@@ -84,7 +88,7 @@ export function AdminLayout() {
         await signOut();
         navigate("/");
       }}
-      fab={<Fab to="/admin/calendar" label={`${toConfirm} calls awaiting confirmation`} icon={Bell} badge={toConfirm} />}
+      fab={<Fab to="/admin/awaiting-confirmation" label={`${toConfirm} calls awaiting confirmation`} icon={Bell} badge={toConfirm} />}
     >
       <Outlet />
     </AppShell>
