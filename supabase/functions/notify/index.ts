@@ -6,6 +6,8 @@
 //   { type: "hold", consultationId, at }          time agreed with the candidate: hold it as awaiting confirmation
 //   { type: "confirm", consultationId, meetUrl }  confirm the held time with the Meet link created in Google Calendar:
 //                                                  "We're waiting for you" email (CC main admin) + WhatsApp text
+//   { type: "pick-another", consultationId }      their time isn't available: release it and send a link to choose
+//                                                  another free time themselves (back to awaiting confirmation after)
 // Returns waUrl (WhatsApp Web link with the same short message). Staff only.
 // Secrets: RESEND_API_KEY; optional MAIL_FROM, APP_URL, BOOKING_LINK
 import { createClient } from "npm:@supabase/supabase-js@2.45.4";
@@ -103,6 +105,51 @@ Deno.serve(async (req) => {
       "Choose your free call time",
     );
     wa = `Hi ${first}, this is Outreach. Thank you for your application for ${c.desired_course || "your studies"}! Please book your free call here: ${BOOKING_LINK()}`;
+  } else if (type === "pick-another") {
+    if (c.call_status === "confirmed") return json({ error: "This call is already confirmed — use Change time instead." }, 409);
+    const old = c.preferred_call_at ?? c.requested_call_times?.[0] ?? null;
+    const token = c.call_confirm_token ?? crypto.randomUUID();
+    const { error } = await db
+      .from("consultations")
+      .update({
+        call_status: "none",
+        preferred_call_at: null,
+        requested_call_times: [],
+        suggested_call_at: null,
+        meeting_url: null,
+        call_requested_at: null,
+        request_reminder_at: null,
+        call_confirm_token: token,
+        repick_requested_at: new Date().toISOString(),
+      })
+      .eq("id", c.id);
+    if (error) return json({ error: error.message }, 500);
+    const pickUrl = `${APP_URL()}/confirm-call?t=${token}&pick=1`;
+    const oldText = old ? whenIn(old, tz).main : null;
+    subject = `${first}, please choose another time for your call`;
+    html = layout(
+      eyebrow("New time needed") +
+        title(`Hi ${escape(first)}, sorry!`) +
+        para(
+          `The time you chose${oldText ? ` (<strong>${escape(oldText)}</strong>)` : ""} is no longer available. Please pick another free time — it only takes a few seconds.`,
+          true,
+        ) +
+        actions(button(pickUrl, "📅 Choose another time")) +
+        para("Only available times are shown. We'll confirm your new time and email you your Google Meet link.", true) +
+        para(`Questions? <a href="https://wa.me/35699728213" style="color:#442DFA;font-weight:bold">WhatsApp +356 9972 8213</a>`, true),
+      "Please choose another time for your free call",
+      "en",
+      { url: "https://outreachstudy.eu", label: "outreachstudy.eu", brand: "Outreach Recruitment — Study in Malta" },
+    );
+    wa = [
+      `Hi ${first} 👋 this is Soufiane from Outreach — Study in Malta.`,
+      "",
+      `Sorry, the time you chose${old ? ` (${new Intl.DateTimeFormat("en-GB", { weekday: "long", day: "numeric", month: "long", hour: "2-digit", minute: "2-digit", timeZone: "Europe/Malta" }).format(new Date(old))}, Malta time)` : ""} is no longer available.`,
+      "",
+      `📅 Please choose another free time here (only available times are shown): ${pickUrl}`,
+      "",
+      "We'll confirm it and send you your Google Meet link. Thank you! 😊",
+    ].join("\n");
   } else if (type === "suggest-time") {
     const when = new Date(at);
     if (isNaN(when.getTime()) || when.getTime() < Date.now()) return json({ error: "Pick a future time" }, 400);

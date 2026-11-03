@@ -1,10 +1,10 @@
 import { useState } from "react";
-import { CalendarCheck, Check, CheckCircle2, Clock, Copy, Hand, Mail, MessageCircle, Send, Video } from "lucide-react";
+import { CalendarCheck, Check, CheckCircle2, Clock, Copy, Hand, Mail, MessageCircle, RefreshCw, Send, Video } from "lucide-react";
 import { supabase } from "../../lib/supabase";
 import { BOOKING_LINK, CALL_STAGE_LABELS, callStage, noReply24h, waLink } from "../../lib/options";
 import type { Consultation } from "../../lib/types";
 import { Alert, Button } from "../../components/ui";
-import { bookingMessage, confirmWithMeet, holdTime, maltaTime, notifyCandidate, suggestTime, waitingWhatsApp } from "./calls";
+import { askToPickAnother, bookingMessage, confirmWithMeet, holdTime, maltaTime, notifyCandidate, suggestTime, waitingWhatsApp } from "./calls";
 import { SlotPicker } from "./SlotPicker";
 import { useFreeTimes } from "../../lib/freeTimes";
 
@@ -227,8 +227,9 @@ export function CallPanel({ c, onSaved }: { c: Consultation; onSaved: () => void
               </li>
             </ol>
           </div>
+          <PickAnotherButton c={c} onDone={onSaved} />
           <button onClick={() => setEditing((v) => !v)} className="text-xs font-bold text-brand hover:underline">
-            {editing ? "Hide" : "Not possible? Suggest another time"}
+            {editing ? "Hide" : "Or suggest a specific time yourself"}
           </button>
           {editing && picker}
         </>
@@ -260,7 +261,13 @@ export function CallPanel({ c, onSaved }: { c: Consultation; onSaved: () => void
         </>
       ) : (
         <>
-          <p className="text-slate-500">The candidate hasn’t picked a time yet — you can suggest one or hold an agreed time.</p>
+          {c.repick_requested_at ? (
+            <p className="rounded-xl bg-sky-50 px-3 py-2 text-sky-800">
+              Asked to pick another time {new Date(c.repick_requested_at).toLocaleString([], { dateStyle: "medium", timeStyle: "short" })} — waiting for the candidate.
+            </p>
+          ) : (
+            <p className="text-slate-500">The candidate hasn’t picked a time yet — you can suggest one or hold an agreed time.</p>
+          )}
           {picker}
           <details className="text-xs text-slate-500">
             <summary className="cursor-pointer font-bold">Or send the Google booking page</summary>
@@ -291,3 +298,30 @@ export function CallPanel({ c, onSaved }: { c: Consultation; onSaved: () => void
 const Step = ({ n }: { n: number }) => (
   <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-brand text-xs font-black text-white">{n}</span>
 );
+
+/**
+ * "Time not available": frees the candidate's time and sends them (email + WhatsApp) a link to choose another free
+ * time themselves. Used in the Call and Confirmation tabs.
+ */
+export function PickAnotherButton({ c, onDone }: { c: Consultation; onDone: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<{ tone: "error" | "success"; text: string } | null>(null);
+  const go = async () => {
+    if (!confirm(`Tell ${c.full_name} this time isn't available and send them a link to choose another free time?`)) return;
+    const waTab = c.whatsapp ? window.open("about:blank", "_blank") : null;
+    setBusy(true);
+    const r = await askToPickAnother(c, waTab);
+    setBusy(false);
+    if (r.error) return setMsg({ tone: "error", text: r.error });
+    setMsg({ tone: "success", text: `Sent${r.emailed ? " by email" : ""}${waTab ? " + WhatsApp" : ""}. Their new pick will appear in Awaiting confirmation.` });
+    onDone();
+  };
+  return (
+    <div className="space-y-2">
+      <Button variant="secondary" className="min-h-9" loading={busy} onClick={go}>
+        <RefreshCw className="h-4 w-4" /> Time not available — ask to pick another
+      </Button>
+      {msg && <Alert tone={msg.tone}>{msg.text}</Alert>}
+    </div>
+  );
+}

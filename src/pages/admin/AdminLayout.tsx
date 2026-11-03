@@ -32,10 +32,10 @@ export function AdminLayout() {
     const loadCounts = async () => {
       const { data } = await supabase
         .from("consultations")
-        .select("status, call_status, preferred_call_at, suggested_call_at, requested_call_times, call_declined_at, documents(count)");
+        .select("status, call_status, preferred_call_at, suggested_call_at, requested_call_times, call_declined_at, repick_requested_at, documents(count)");
       const open = (data ?? []).filter((row) => row.status !== "not_interested" && !row.call_declined_at && row.call_status !== "confirmed");
       setToConfirm(open.filter((row) => !row.suggested_call_at && (row.preferred_call_at || row.requested_call_times?.[0])).length);
-      setWaitingCandidate(open.filter((row) => row.suggested_call_at).length);
+      setWaitingCandidate(open.filter((row) => row.suggested_call_at || (row.call_status === "none" && row.repick_requested_at)).length);
       setWithDocs((data ?? []).filter((row) => row.status !== "not_interested" && (row.documents as { count: number }[] | null)?.[0]?.count).length);
       setLeadCounts((data ?? []).reduce<Record<string, number>>((out, row) => {
         out[row.status] = (out[row.status] ?? 0) + 1;

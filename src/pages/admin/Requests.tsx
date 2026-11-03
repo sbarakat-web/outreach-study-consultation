@@ -21,7 +21,7 @@ import { parsePhoneNumberFromString, type CountryCode } from "libphonenumber-js/
 import { CountryPicker } from "../../components/CountryPicker";
 import { COUNTRIES, countryByCode, timeZonesOf } from "../../lib/countries";
 import { AREAS, ENGLISH_COURSES, ENGLISH_PROVIDERS, PROGRAMMES, programmeValue } from "../sessions/data";
-import { CallPanel } from "./CallPanel";
+import { CallPanel, PickAnotherButton } from "./CallPanel";
 import { confirmWithMeet, maltaTime, waitingWhatsApp } from "./calls";
 import { SessionPanel, sessionHref } from "./SessionPanel";
 import type { Consultation, DocumentRow, Status } from "../../lib/types";
@@ -46,10 +46,14 @@ const PAGE_TITLE = {
 
 /** The call time a lead is waiting on: their requested time, or the time we suggested. */
 const pendingCallAt = (c: Row) => (callStage(c) === "suggested" ? c.suggested_call_at : c.preferred_call_at ?? c.requested_call_times[0]) ?? "";
+// Sort key for leads without a call time (asked to pick another): after the dated ones.
+const c9 = (c: Row) => `9${c.repick_requested_at ?? ""}`;
 /** Call pages: requests to confirm (Meet link + Confirm & send) and times sent that the candidate hasn't accepted yet. */
 const inCallPage = (mode: string, c: Row) =>
   c.status !== "not_interested" &&
-  (mode === "awaiting" ? ["requested", "reviewed"].includes(callStage(c)) && !!pendingCallAt(c) : callStage(c) === "suggested");
+  (mode === "awaiting"
+    ? ["requested", "reviewed"].includes(callStage(c)) && !!pendingCallAt(c)
+    : callStage(c) === "suggested" || (c.call_status === "none" && !!c.repick_requested_at));
 
 /**
  * Lead list. `mode` gives "New leads", "Documents received", "No longer interested", "Awaiting confirmation" and
@@ -103,7 +107,9 @@ export function Requests({ mode = "all" }: { mode?: keyof typeof PAGE_TITLE }) {
     const matches = (c: Row) => !q || [c.full_name, c.email, c.whatsapp, c.country, c.desired_course].some((v) => v?.toLowerCase().includes(q));
     // Call pages: every lead in that call state, soonest call first.
     if (mode === "awaiting" || mode === "waiting") {
-      return (items ?? []).filter((c) => inCallPage(mode, c) && matches(c)).sort((a, b) => pendingCallAt(a).localeCompare(pendingCallAt(b)));
+      return (items ?? [])
+        .filter((c) => inCallPage(mode, c) && matches(c))
+        .sort((a, b) => (pendingCallAt(a) || c9(a)).localeCompare(pendingCallAt(b) || c9(b)));
     }
     const rows = (items ?? []).filter(
       (c) =>
@@ -1124,6 +1130,7 @@ function BookingTab({ c, all, onSaved, onNext }: { c: Row; all: Row[]; onSaved: 
   return (
     <div className="space-y-4">
       <ClashWarning c={c} all={all} />
+      {!confirmed && at && <PickAnotherButton c={c} onDone={onSaved} />}
 
       <Section n={1} title="Copy into the booking form">
         <CopyField label="Full name" value={c.full_name} />
@@ -1236,7 +1243,7 @@ function CallQueue({ rows, all, mode, onOpen }: { rows: Row[]; all: Row[]; mode:
       <p className="border-b border-slate-100 px-5 py-3 text-xs text-slate-500">
         {mode === "awaiting"
           ? "Open a lead → Confirmation tab to book it on the Google page (or Add to Google Calendar), then paste the Meet link and Confirm & send in the Call tab."
-          : "We sent these candidates a time; they haven't accepted it yet. Resend, or message them on WhatsApp."}
+          : "We sent these candidates a time, or asked them to pick another one; they haven't answered yet. Resend, or message them on WhatsApp."}
       </p>
       <table className="w-full text-left text-sm">
         <thead className="text-xs uppercase tracking-wider text-slate-500">
@@ -1257,8 +1264,14 @@ function CallQueue({ rows, all, mode, onOpen }: { rows: Row[]; all: Row[]; mode:
                   <div className="text-xs text-slate-500">{c.email}{c.whatsapp ? ` · ${c.whatsapp}` : ""}</div>
                 </td>
                 <td className="px-3 py-3">
-                  <div className="font-bold">{maltaTime(at)}</div>
-                  {new Date(at).getTime() < Date.now() && <div className="text-xs font-bold text-brand-red">Time has passed</div>}
+                  {at ? (
+                    <>
+                      <div className="font-bold">{maltaTime(at)}</div>
+                      {new Date(at).getTime() < Date.now() && <div className="text-xs font-bold text-brand-red">Time has passed</div>}
+                    </>
+                  ) : (
+                    <div className="font-bold text-sky-700">Asked to pick another time</div>
+                  )}
                   {mode === "awaiting" && clashesOf(c, all).length > 0 && (
                     <div className="flex items-center gap-1 text-xs font-bold text-brand-red">
                       <AlertTriangle className="h-3 w-3" /> Clash with {clashesOf(c, all).map((x) => x.full_name).join(", ")}
@@ -1273,7 +1286,7 @@ function CallQueue({ rows, all, mode, onOpen }: { rows: Row[]; all: Row[]; mode:
                     </>
                   ) : (
                     <>
-                      {since(c.call_suggested_at)}
+                      {since(at ? c.call_suggested_at : c.repick_requested_at)}
                       {noReply24h(c) && <div className="font-bold text-brand-red">No reply 24h+</div>}
                     </>
                   )}
