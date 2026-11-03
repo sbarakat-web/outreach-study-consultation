@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { CalendarCheck, CalendarPlus, Check, ChevronLeft, ChevronRight, Download, Info, Video } from "lucide-react";
 import { Link } from "react-router-dom";
 import { supabase } from "../lib/supabase";
@@ -315,9 +315,28 @@ function CallStatus({ c, stage, onChange }: { c: Consultation; stage: ReturnType
   );
 }
 
+/** "2 days 4 hours" / "3 hours 12 min" / "8 min" until the call. */
+function untilText(ms: number) {
+  const min = Math.max(1, Math.round(ms / 60_000));
+  const d = Math.floor(min / 1440);
+  const h = Math.floor((min % 1440) / 60);
+  const m = min % 60;
+  if (d) return `${d} day${d > 1 ? "s" : ""}${h ? ` ${h} hour${h > 1 ? "s" : ""}` : ""}`;
+  if (h) return `${h} hour${h > 1 ? "s" : ""}${m ? ` ${m} min` : ""}`;
+  return `${m} min`;
+}
+
 function ConfirmedCall({ at, course, meetUrl }: { at: string; course: string; meetUrl?: string | null }) {
   const { t } = useI18n();
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 30_000);
+    return () => clearInterval(id);
+  }, []);
   const start = new Date(at);
+  const toStart = start.getTime() - now;
+  // Join opens 10 minutes before the call and stays open during it.
+  const live = toStart <= 10 * 60_000 && toStart > -CALL_MINUTES * 60_000;
   const end = new Date(start.getTime() + CALL_MINUTES * 60000);
   const stamp = (d: Date) => d.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
   const title = "Free call with Outreach";
@@ -363,12 +382,22 @@ function ConfirmedCall({ at, course, meetUrl }: { at: string; course: string; me
           <p className="text-sm text-slate-600">{t("call.confirmedSub", { min: CALL_MINUTES })}</p>
         </div>
       </div>
+      {toStart > -CALL_MINUTES * 60_000 && (
+        <p className={`mt-3 text-sm font-black ${live ? "text-emerald-700" : "text-navy"}`}>
+          {live ? t("call.live") : t("call.countdown", { t: untilText(toStart) })}
+        </p>
+      )}
       {meetUrl && (
-        <div className="mt-3 space-y-1">
-          <a href={meetUrl} target="_blank" rel="noreferrer">
-            <Button>
-              <Video className="h-4 w-4" /> {t("call.join")}
-            </Button>
+        <div className="mt-2 space-y-1">
+          <a
+            href={meetUrl}
+            target="_blank"
+            rel="noreferrer"
+            className={`inline-flex min-h-11 items-center gap-2 rounded-full px-6 text-sm font-extrabold transition ${
+              live ? "animate-pulse bg-emerald-600 text-white shadow-lg hover:bg-emerald-700" : "bg-white text-navy ring-1 ring-slate-200 hover:bg-slate-50"
+            }`}
+          >
+            <Video className="h-4 w-4" /> {t("call.join")}
           </a>
           <p className="text-xs text-slate-500">{t("call.invite")}</p>
         </div>

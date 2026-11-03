@@ -6,6 +6,7 @@ import type { Consultation } from "../../lib/types";
 import { Alert, Button } from "../../components/ui";
 import { bookingMessage, confirmWithMeet, holdTime, maltaTime, notifyCandidate, suggestTime, waitingWhatsApp } from "./calls";
 import { SlotPicker } from "./SlotPicker";
+import { useFreeTimes } from "../../lib/freeTimes";
 
 const BOOKED_VIA = { google: "Google booking page", admin: "Picked by the team", dashboard: "Candidate dashboard", "confirm-link": "Candidate's confirm link" } as const;
 
@@ -33,11 +34,15 @@ export function CallPanel({ c, onSaved }: { c: Consultation; onSaved: () => void
   // Changing the candidate's own time sends the "can we move your call?" version of the email.
   const reschedule = !!requested && !!at && Math.abs(new Date(at).getTime() - new Date(requested).getTime()) > 60_000;
 
-  const send = async () => {
-    if (!at) return setMsg({ tone: "error", text: "Pick a time first." });
+  // The 3 nearest free times, for one-click suggestions.
+  const { times: freeTimes } = useFreeTimes();
+  const quick = freeTimes.filter((t) => t.getTime() !== new Date(c.preferred_call_at ?? 0).getTime()).slice(0, 3);
+
+  const send = async (iso = at) => {
+    if (!iso) return setMsg({ tone: "error", text: "Pick a time first." });
     const waTab = c.whatsapp ? window.open("about:blank", "_blank") : null;
     setBusy("suggest");
-    const r = await suggestTime(c, at, waTab);
+    const r = await suggestTime(c, iso, waTab);
     setBusy("");
     if (r.error) return setMsg({ tone: "error", text: r.error });
     setMsg({ tone: "success", text: `Sent${r.emailed ? " by email" : ""}${waTab ? " + WhatsApp" : ""}. Waiting for ${c.full_name.split(" ")[0]} to accept — you’ll get an email when they do.` });
@@ -95,9 +100,22 @@ export function CallPanel({ c, onSaved }: { c: Consultation; onSaved: () => void
 
   const picker = (
     <div className="space-y-2">
+      {quick.length > 0 && (
+        <div className="space-y-1.5 rounded-xl bg-white px-3 py-3 ring-1 ring-slate-200">
+          <p className="text-xs font-bold text-slate-500">Quick reply · send one of the nearest free times (email + WhatsApp)</p>
+          <div className="flex flex-wrap gap-2">
+            {quick.map((t) => (
+              <Button key={t.toISOString()} variant="secondary" className="min-h-9" loading={busy === "suggest"} onClick={() => send(t.toISOString())}>
+                <Send className="h-3.5 w-3.5" /> {maltaTime(t.toISOString())}
+              </Button>
+            ))}
+          </div>
+        </div>
+      )}
+      <p className="text-xs font-bold text-slate-500">Or pick any free time</p>
       <SlotPicker value={at} onChange={setAt} preferred={requested} />
       <div className="flex flex-wrap gap-2">
-        <Button loading={busy === "suggest"} onClick={send} disabled={!at}>
+        <Button loading={busy === "suggest"} onClick={() => send()} disabled={!at}>
           <Send className="h-4 w-4" /> {reschedule ? "Send reschedule request" : "Send for confirmation"}
           {at && <span className="font-normal opacity-80">· {maltaTime(at)}</span>}
         </Button>

@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { CalendarCheck, CalendarPlus, Check, CheckCircle2, Clock, Copy, ExternalLink, FileText, MessageSquare, Play, Plus, Presentation, Search, Star, UserRound, UsersRound, Video, X } from "lucide-react";
+import { AlertTriangle, CalendarCheck, CalendarPlus, Check, CheckCircle2, ClipboardPaste, Clock, Copy, ExternalLink, FileText, MessageCircle, MessageSquare, Play, Plus, Presentation, Search, Star, UserRound, UsersRound, Video, X } from "lucide-react";
 import { supabase } from "../../lib/supabase";
 import {
   BOOKING_EMBED,
   ENGLISH_LEVELS,
   documentTypesFor,
+  waLink,
   STATUSES,
   STUDY_PATHS,
   formatSlot,
@@ -21,7 +22,7 @@ import { CountryPicker } from "../../components/CountryPicker";
 import { COUNTRIES, countryByCode, timeZonesOf } from "../../lib/countries";
 import { AREAS, ENGLISH_COURSES, ENGLISH_PROVIDERS, PROGRAMMES, programmeValue } from "../sessions/data";
 import { CallPanel } from "./CallPanel";
-import { maltaTime } from "./calls";
+import { confirmWithMeet, maltaTime, waitingWhatsApp } from "./calls";
 import { SessionPanel, sessionHref } from "./SessionPanel";
 import type { Consultation, DocumentRow, Status } from "../../lib/types";
 import { Alert, Button, Card, Spinner, StatusBadge } from "../../components/ui";
@@ -87,6 +88,14 @@ export function Requests({ mode = "all" }: { mode?: keyof typeof PAGE_TITLE }) {
 
   useEffect(() => {
     load();
+    // Live updates: new requests, and Meet links filled in by the Google booking sync.
+    const channel = supabase
+      .channel("admin-leads-list")
+      .on("postgres_changes", { event: "*", schema: "public", table: "consultations" }, () => load())
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [load]);
 
   const filtered = useMemo(() => {
@@ -164,6 +173,8 @@ export function Requests({ mode = "all" }: { mode?: keyof typeof PAGE_TITLE }) {
           { icon: CheckCircle2, label: "Interviewed", value: items.filter((c) => c.session_outcome === "interviewed").length, sub: "online sessions", tone: "text-emerald-600" },
         ]}
       />
+
+      <TodayCalls items={items} onOpen={setOpenId} />
 
       {upcoming.length > 0 && (
         <section className="space-y-3">
@@ -262,7 +273,7 @@ export function Requests({ mode = "all" }: { mode?: keyof typeof PAGE_TITLE }) {
         ) : mode === "documents" ? (
           <DocumentsTable rows={filtered} onOpen={setOpenId} onSaved={load} />
         ) : mode === "awaiting" || mode === "waiting" ? (
-          <CallQueue rows={filtered} mode={mode} onOpen={setOpenId} />
+          <CallQueue rows={filtered} all={items} mode={mode} onOpen={setOpenId} />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">
@@ -314,7 +325,17 @@ export function Requests({ mode = "all" }: { mode?: keyof typeof PAGE_TITLE }) {
         )}
       </Card>
 
-      {open && <Detail key={open.id} c={open as Row} all={items} onClose={() => setOpenId(null)} onSaved={load} />}
+      {open && (
+        <Detail
+          key={open.id}
+          c={open as Row}
+          all={items}
+          onClose={() => setOpenId(null)}
+          onSaved={load}
+          // Awaiting confirmation page: after confirming, open the next request in the queue.
+          onNext={mode === "awaiting" ? () => setOpenId(filtered.find((x) => x.id !== open.id)?.id ?? null) : undefined}
+        />
+      )}
       {adding && (
         <AddLead
           onClose={() => { setAdding(false); setParams({}); }}
@@ -715,7 +736,7 @@ function CallBadge({ c }: { c: Row }) {
 
 type DetailTab = "call" | "confirmation" | "profile" | "documents" | "comments";
 
-function Detail({ c, all, onClose, onSaved }: { c: Row; all: Row[]; onClose: () => void; onSaved: () => void }) {
+function Detail({ c, all, onClose, onSaved, onNext }: { c: Row; all: Row[]; onClose: () => void; onSaved: () => void; onNext?: () => void }) {
   // Opens on Confirmation while the call awaits it (book on the Google page first), otherwise on Call.
   const awaiting = ["requested", "reviewed"].includes(callStage(c)) && !!(c.preferred_call_at ?? c.requested_call_times[0]);
   const [tab, setTab] = useState<DetailTab>(awaiting ? "confirmation" : "call");
@@ -845,6 +866,7 @@ function Detail({ c, all, onClose, onSaved }: { c: Row; all: Row[]; onClose: () 
               <ExternalLink className="h-3.5 w-3.5" /> Candidate dashboard
             </a>
           </div>
+          <LeadProgress c={c} />
           <div role="tablist" aria-label="Lead details" className="mt-3 flex gap-1 overflow-x-auto px-4">
             {(
               [
@@ -908,7 +930,7 @@ function Detail({ c, all, onClose, onSaved }: { c: Row; all: Row[]; onClose: () 
             </>
           )}
 
-          {tab === "confirmation" && <BookingTab c={c} onDone={() => setTab("call")} />}
+          {tab === "confirmation" && <BookingTab c={c} all={all} onSaved={onSaved} onNext={onNext} />}
 
           {tab === "profile" && (
             <>
@@ -1011,33 +1033,171 @@ function NotesEditor({ c, onSave }: { c: Row; onSave: (text: string) => Promise<
   );
 }
 
+/** Other leads holding (or confirmed at) the same call time — e.g. one from the dashboard and one from the Google page. */
+const clashesOf = (c: Row, all: Row[]) => {
+  const at = c.preferred_call_at ?? c.requested_call_times[0];
+  if (!at) return [];
+  const t = new Date(at).getTime();
+  return all.filter(
+    (x) => x.id !== c.id && !x.call_declined_at && ["requested", "confirmed"].includes(x.call_status) && x.preferred_call_at && Math.abs(new Date(x.preferred_call_at).getTime() - t) < 20 * 60_000,
+  );
+};
+
+function ClashWarning({ c, all }: { c: Row; all: Row[] }) {
+  const clash = clashesOf(c, all);
+  if (!clash.length) return null;
+  return (
+    <p className="flex items-start gap-2 rounded-xl bg-brand-red/5 px-3 py-2 text-sm font-bold text-brand-red">
+      <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+      Clash: {clash.map((x) => `${x.full_name} (${x.call_status === "confirmed" ? "confirmed" : "awaiting"})`).join(", ")} at the same time.
+    </p>
+  );
+}
+
+/** Where the lead is: Requested → Booked in Google → Meet link → Confirmed → Session done. */
+function LeadProgress({ c }: { c: Row }) {
+  const stage = callStage(c);
+  const steps: [string, boolean][] = [
+    ["Requested", stage !== "none" || !!c.preferred_call_at],
+    ["Booked in Google", !!c.google_event_id || !!c.meeting_url || stage === "confirmed"],
+    ["Meet link", !!c.meeting_url],
+    ["Confirmed", stage === "confirmed" || c.session_outcome === "interviewed"],
+    ["Session done", c.session_outcome === "interviewed"],
+  ];
+  return (
+    <ol className="mt-3 flex items-center gap-1 overflow-x-auto px-6 text-[11px] font-bold" aria-label="Progress">
+      {steps.map(([label, done], i) => (
+        <li key={label} className="flex shrink-0 items-center gap-1">
+          {i > 0 && <span className={`h-px w-3 ${done ? "bg-emerald-400" : "bg-slate-200"}`} />}
+          <span className={`flex items-center gap-1 rounded-full px-2 py-0.5 ${done ? "bg-emerald-50 text-emerald-700" : "bg-slate-50 text-slate-400"}`}>
+            {done && <Check className="h-3 w-3" />} {label}
+          </span>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
 /**
- * Book the call by hand on the real Google booking page, embedded here, with the candidate's details ready to copy.
- * Google then creates the event with a Meet link and emails the candidate the invitation.
+ * Confirm a call in one place: copy the candidate's details, book them on the real Google booking page (embedded),
+ * paste the Meet link Google created, Confirm & send. On the Awaiting confirmation page, "Confirm & next" moves on.
  */
-function BookingTab({ c, onDone }: { c: Row; onDone: () => void }) {
+function BookingTab({ c, all, onSaved, onNext }: { c: Row; all: Row[]; onSaved: () => void; onNext?: () => void }) {
   const at = c.preferred_call_at ?? c.suggested_call_at ?? c.requested_call_times[0] ?? null;
+  const confirmed = callStage(c) === "confirmed";
+  const [meet, setMeet] = useState(c.meeting_url ?? "");
+  // Meet link found by the Google booking sync while this tab is open.
+  useEffect(() => {
+    if (c.meeting_url) setMeet((m) => m || c.meeting_url!);
+  }, [c.meeting_url]);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<{ tone: "error" | "success"; text: string } | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  const paste = async () => {
+    const text = (await navigator.clipboard.readText().catch(() => "")).trim();
+    const link = /https:\/\/meet\.google\.com\/[a-z0-9-]+/i.exec(text)?.[0] ?? (text.startsWith("https://") ? text : "");
+    if (link) setMeet(link);
+    else setMsg({ tone: "error", text: "No meeting link in the clipboard — copy it from the Google Calendar event first." });
+  };
+
+  const confirm = async (next: boolean) => {
+    const link = meet.trim();
+    if (!/^https:\/\/\S+$/.test(link)) return setMsg({ tone: "error", text: "Paste the Google Meet link first (step 3)." });
+    const waTab = c.whatsapp ? window.open("about:blank", "_blank") : null;
+    setBusy(true);
+    setMsg(null);
+    const r = await confirmWithMeet(c, link, waTab);
+    setBusy(false);
+    if (r.error) return setMsg({ tone: "error", text: r.error });
+    onSaved();
+    if (next && onNext) return onNext();
+    setMsg({ tone: "success", text: `Confirmed${r.emailed ? " · “We're waiting for you” sent with the Meet link" : " · email not sent (check Resend)"}${waTab ? " · WhatsApp opened" : ""}.` });
+  };
+
+  const copyWhatsApp = async () => {
+    await navigator.clipboard.writeText(waitingWhatsApp(c)).catch(() => {});
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
   return (
     <div className="space-y-4">
-      <div className="space-y-2 rounded-2xl bg-mist p-4">
-        <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Copy into the booking form</p>
+      <ClashWarning c={c} all={all} />
+
+      <Section n={1} title="Copy into the booking form">
         <CopyField label="Full name" value={c.full_name} />
         <CopyField label="Email" value={c.email} />
         {c.whatsapp && <CopyField label="Phone" value={c.whatsapp} />}
         <CopyField label="Date & time" value={at ? `${maltaTime(at)} (Malta)` : "No time requested yet"} copy={!!at} />
-      </div>
-      <p className="text-xs text-slate-500">
-        Pick the same day and time below, fill in the name and email, and book. Google adds it to the calendar with a Meet link and emails the
-        candidate the invitation. Then copy the Meet link from the event and{" "}
-        <button onClick={onDone} className="font-bold text-brand hover:underline">
-          confirm it in the Call tab →
-        </button>
-      </p>
-      <iframe title="Google booking page" src={BOOKING_EMBED} className="h-[720px] w-full rounded-2xl border border-slate-200 bg-white" />
-      <a href={BOOKING_EMBED.replace("?gv=true", "")} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs font-bold text-brand hover:underline">
-        <ExternalLink className="h-3.5 w-3.5" /> Open the booking page in a new tab
-      </a>
+      </Section>
+
+      <Section n={2} title={c.booked_via === "google" ? "Already booked on the Google page ✓" : "Book the same day and time on the Google page"}>
+        {c.booked_via !== "google" && !confirmed && (
+          <>
+            <iframe title="Google booking page" src={BOOKING_EMBED} className="h-[640px] w-full rounded-2xl border border-slate-200 bg-white" />
+            <a href={BOOKING_EMBED.replace("?gv=true", "")} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs font-bold text-brand hover:underline">
+              <ExternalLink className="h-3.5 w-3.5" /> Open the booking page in a new tab
+            </a>
+          </>
+        )}
+      </Section>
+
+      <Section n={3} title="Google Meet link">
+        <p className="text-xs text-slate-500">
+          {c.meeting_url && c.booked_via === "google"
+            ? "Found automatically from the Google booking ✓"
+            : "Open the new event in Google Calendar, copy its Meet link, then click Paste."}
+        </p>
+        <div className="flex gap-2">
+          <input className="field py-2" type="url" placeholder="https://meet.google.com/abc-defg-hij" value={meet} onChange={(e) => setMeet(e.target.value)} />
+          <Button variant="secondary" className="min-h-10 shrink-0" onClick={paste}>
+            <ClipboardPaste className="h-4 w-4" /> Paste
+          </Button>
+        </div>
+      </Section>
+
+      <Section n={4} title={confirmed ? "Confirmed ✓" : "Confirm & send"}>
+        {confirmed ? (
+          <div className="flex flex-wrap gap-2">
+            <Button variant="secondary" className="min-h-9" onClick={copyWhatsApp}>
+              {copied ? <Check className="h-4 w-4 text-emerald-600" /> : <MessageCircle className="h-4 w-4" />} {copied ? "Copied" : "Copy WhatsApp message"}
+            </Button>
+            {c.whatsapp && (
+              <a href={waLink(c.whatsapp, waitingWhatsApp(c))} target="_blank" rel="noreferrer">
+                <Button variant="secondary" className="min-h-9">Open WhatsApp</Button>
+              </a>
+            )}
+          </div>
+        ) : (
+          <>
+            <div className="flex flex-wrap gap-2">
+              <Button loading={busy} onClick={() => confirm(false)} disabled={!meet.trim() || !at}>
+                <CheckCircle2 className="h-4 w-4" /> Confirm &amp; send
+              </Button>
+              {onNext && (
+                <Button variant="secondary" loading={busy} onClick={() => confirm(true)} disabled={!meet.trim() || !at}>
+                  Confirm &amp; next →
+                </Button>
+              )}
+            </div>
+            <p className="text-xs text-slate-500">Sends “We're waiting for you” with the Meet link (CC sbarakat@) and opens WhatsApp with the same message.</p>
+          </>
+        )}
+      </Section>
+      {msg && <Alert tone={msg.tone}>{msg.text}</Alert>}
     </div>
+  );
+}
+
+function Section({ n, title, children }: { n: number; title: string; children?: React.ReactNode }) {
+  return (
+    <section className="space-y-2">
+      <h3 className="flex items-center gap-2 text-sm font-extrabold">
+        <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-brand text-xs font-black text-white">{n}</span> {title}
+      </h3>
+      {children && <div className="space-y-2 ps-8">{children}</div>}
+    </section>
   );
 }
 
@@ -1070,7 +1230,7 @@ const since = (iso: string | null | undefined) => {
 };
 
 /** Awaiting confirmation / Waiting for candidate: soonest call first, with where it came from and how long it has waited. */
-function CallQueue({ rows, mode, onOpen }: { rows: Row[]; mode: "awaiting" | "waiting"; onOpen: (id: string) => void }) {
+function CallQueue({ rows, all, mode, onOpen }: { rows: Row[]; all: Row[]; mode: "awaiting" | "waiting"; onOpen: (id: string) => void }) {
   return (
     <div className="overflow-x-auto">
       <p className="border-b border-slate-100 px-5 py-3 text-xs text-slate-500">
@@ -1099,6 +1259,11 @@ function CallQueue({ rows, mode, onOpen }: { rows: Row[]; mode: "awaiting" | "wa
                 <td className="px-3 py-3">
                   <div className="font-bold">{maltaTime(at)}</div>
                   {new Date(at).getTime() < Date.now() && <div className="text-xs font-bold text-brand-red">Time has passed</div>}
+                  {mode === "awaiting" && clashesOf(c, all).length > 0 && (
+                    <div className="flex items-center gap-1 text-xs font-bold text-brand-red">
+                      <AlertTriangle className="h-3 w-3" /> Clash with {clashesOf(c, all).map((x) => x.full_name).join(", ")}
+                    </div>
+                  )}
                 </td>
                 <td className="hidden px-3 py-3 text-xs text-slate-500 md:table-cell">
                   {mode === "awaiting" ? (
@@ -1124,5 +1289,74 @@ function CallQueue({ rows, mode, onOpen }: { rows: Row[]; mode: "awaiting" | "wa
         </tbody>
       </table>
     </div>
+  );
+}
+
+const maltaDay = (d: Date | string) => new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Malta" }).format(new Date(d));
+const maltaClock = (iso: string) => new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/Malta", hour: "2-digit", minute: "2-digit" }).format(new Date(iso));
+
+/** Reminder the team sends on WhatsApp shortly before the call. */
+const reminderWhatsApp = (c: Row) =>
+  [
+    `Hi ${c.full_name.split(" ")[0]} 👋 just a friendly reminder: your free consultation with Outreach starts today at ${maltaClock(c.preferred_call_at!)} (Malta time).`,
+    c.meeting_url ? `🎥 Join here: ${c.meeting_url}` : "",
+    "See you soon! 😊",
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+/** Confirmed calls today (Malta date): time, name, Join Meet, Start session and the WhatsApp reminder to copy. */
+function TodayCalls({ items, onOpen }: { items: Row[]; onOpen: (id: string) => void }) {
+  const [copied, setCopied] = useState<string | null>(null);
+  const today = maltaDay(new Date());
+  const calls = items
+    .filter((c) => c.call_status === "confirmed" && c.preferred_call_at && maltaDay(c.preferred_call_at) === today && c.session_outcome !== "interviewed")
+    .sort((a, b) => a.preferred_call_at!.localeCompare(b.preferred_call_at!));
+  if (!calls.length) return null;
+  const copy = async (c: Row) => {
+    await navigator.clipboard.writeText(reminderWhatsApp(c)).catch(() => {});
+    setCopied(c.id);
+    setTimeout(() => setCopied(null), 2000);
+  };
+  return (
+    <Card>
+      <div className="space-y-3 px-5 py-5 sm:px-6">
+        <h2 className="flex items-center gap-2 text-lg font-black">
+          <CalendarCheck className="h-5 w-5 text-brand" /> Today's calls · {calls.length}
+        </h2>
+        <ul className="divide-y divide-slate-100">
+          {calls.map((c) => {
+            const past = new Date(c.preferred_call_at!).getTime() + 20 * 60_000 < Date.now();
+            return (
+              <li key={c.id} className={`flex flex-wrap items-center gap-3 py-2.5 ${past ? "opacity-50" : ""}`}>
+                <span className="w-14 shrink-0 text-lg font-black text-brand">{maltaClock(c.preferred_call_at!)}</span>
+                <button onClick={() => onOpen(c.id)} className="min-w-0 flex-1 text-left">
+                  <span className="block truncate font-bold hover:text-brand">{c.full_name}</span>
+                  <span className="block truncate text-xs text-slate-500">{c.desired_course || c.email}</span>
+                </button>
+                <span className="flex flex-wrap gap-1.5">
+                  {c.meeting_url && (
+                    <a href={c.meeting_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 rounded-full bg-emerald-600 px-3 py-1 text-xs font-bold text-white hover:bg-emerald-700">
+                      <Video className="h-3.5 w-3.5" /> Join Meet
+                    </a>
+                  )}
+                  <Link to={sessionHref(c)} className="inline-flex items-center gap-1 rounded-full bg-brand px-3 py-1 text-xs font-bold text-white hover:bg-brand/90">
+                    <Play className="h-3.5 w-3.5 fill-current" /> Start session
+                  </Link>
+                  <button onClick={() => copy(c)} className="inline-flex items-center gap-1 rounded-full bg-white px-3 py-1 text-xs font-bold text-navy ring-1 ring-slate-200 hover:bg-slate-50">
+                    {copied === c.id ? <Check className="h-3.5 w-3.5 text-emerald-600" /> : <MessageCircle className="h-3.5 w-3.5" />} {copied === c.id ? "Copied" : "Reminder"}
+                  </button>
+                  {c.whatsapp && (
+                    <a href={waLink(c.whatsapp, reminderWhatsApp(c))} target="_blank" rel="noreferrer" className="inline-flex items-center rounded-full bg-white px-3 py-1 text-xs font-bold text-navy ring-1 ring-slate-200 hover:bg-slate-50">
+                      WhatsApp
+                    </a>
+                  )}
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+    </Card>
   );
 }

@@ -4,6 +4,8 @@
 //              the team confirms in admin, which sends the "We're waiting for you" email
 //   moved      hold the new time (awaiting confirmation again) and alert the admins
 //   cancelled  set the call back to "not booked" and alert the admins
+//   matched    the team booked a request awaiting confirmation on the page (same email and time): the Meet link
+//              is filled in on the lead and the admins get "✅ booking found — ready to confirm"
 // Each run also reminds the admins of requests still unconfirmed after 4 hours.
 // Events created by the app itself carry extendedProperties.private.outreach and are skipped.
 // The first run only links existing bookings (no emails), so nobody gets a late duplicate.
@@ -171,8 +173,24 @@ Deno.serve(async (req) => {
     const moved = !!known && !sameTime && known.status !== "cancelled";
     // Already confirmed by the team at this time: just link the Google event.
     const confirmedHere = c.call_status === "confirmed" && c.preferred_call_at && new Date(c.preferred_call_at).getTime() === new Date(start).getTime();
+    // The team booked this request on the Google page: keep it awaiting confirmation, just add the Meet link.
+    const matchedRequest =
+      !confirmedHere && c.call_status === "requested" && c.preferred_call_at && new Date(c.preferred_call_at).getTime() === new Date(start).getTime();
     if (confirmedHere) {
       await db.from("consultations").update({ google_event_id: ev.id, meeting_url: c.meeting_url ?? ev.hangoutLink ?? null, booked_via: "google" }).eq("id", c.id);
+    } else if (matchedRequest) {
+      await db.from("consultations").update({ google_event_id: ev.id, meeting_url: ev.hangoutLink ?? c.meeting_url ?? null }).eq("id", c.id);
+      if (!firstRun) {
+        await alert(
+          `✅ ${c.full_name}'s booking found — ready to confirm`,
+          `${c.full_name}'s booking is in Google Calendar`,
+          [
+            ["When", `${malta(start)} (Malta)`],
+            ["Google Meet", ev.hangoutLink ?? "Not on the event — add it in Google Calendar"],
+          ],
+          c.id,
+        );
+      }
     } else {
       // Awaiting confirmation; the admin alert goes out from requestCall (not on the silent first run).
       await requestCall(db, c, start, "google", { meetUrl: ev.hangoutLink ?? c.meeting_url ?? null, googleEventId: ev.id, silent: firstRun });
@@ -181,7 +199,7 @@ Deno.serve(async (req) => {
       .from("google_bookings")
       .upsert({ event_id: ev.id, consultation_id: c.id, start_at: start, status: "booked", booker_email: booker.email, updated_at: startedAt });
 
-    if (firstRun || confirmedHere) out.linkedSilently++;
+    if (firstRun || confirmedHere || matchedRequest) out.linkedSilently++;
     else moved ? out.moved++ : out.booked++;
   }
 

@@ -202,6 +202,8 @@ const en = {
   "call.confirmedTitle": "Your free call is confirmed",
   "call.confirmedSub": "{min} minutes · online on Google Meet",
   "call.join": "Join Google Meet",
+  "call.countdown": "⏳ Your call starts in {t}",
+  "call.live": "🟢 Your call is starting — join now!",
   "call.invite": "You’ll also receive a Google Calendar invitation by email — please accept it.",
   "call.google": "Add to Google Calendar",
   "call.ics": "Apple / Outlook (.ics)",
