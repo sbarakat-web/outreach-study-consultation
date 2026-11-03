@@ -70,7 +70,7 @@ export type CallStage = "none" | "requested" | "reviewed" | "suggested" | "confi
 
 export const CALL_STAGE_LABELS: Record<CallStage, string> = {
   none: "No times requested",
-  requested: "Requested — pending review",
+  requested: "Awaiting confirmation",
   reviewed: "Profile reviewed",
   suggested: "Waiting for candidate",
   confirmed: "Confirmed",

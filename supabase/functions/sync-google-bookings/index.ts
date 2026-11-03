@@ -1,9 +1,10 @@
-// Bookings made on the Google appointment page ("Study in Malta", Nikolai's calendar) → confirmed calls in the app.
+// Bookings made on the Google appointment page ("Study in Malta", Nikolai's calendar) → calls awaiting confirmation.
 // Scheduled every 5 minutes (pg_cron). For each booking event on the calendar:
-//   new        find the lead by email (or create it), confirm the call with the Google Meet link,
-//              send the "We're waiting for you" email (CC main admin) and alert the admins
-//   moved      update the time and send the "new time" email
+//   new        find the lead by email (or create it), hold the time with Google's Meet link and alert the admins;
+//              the team confirms in admin, which sends the "We're waiting for you" email
+//   moved      hold the new time (awaiting confirmation again) and alert the admins
 //   cancelled  set the call back to "not booked" and alert the admins
+// Each run also reminds the admins of requests still unconfirmed after 4 hours.
 // Events created by the app itself carry extendedProperties.private.outreach and are skipped.
 // The first run only links existing bookings (no emails), so nobody gets a late duplicate.
 // Source: the calendar's secret iCal address when saved in google_sync.ical_url (works without Workspace sharing;
@@ -15,7 +16,7 @@ import { adminRecipients } from "../_shared/admins.ts";
 import { APP_URL, sendEmail } from "../_shared/call.ts";
 import { calendarAuth, calendarIdOf } from "../_shared/google.ts";
 import { parseIcs } from "../_shared/ical.ts";
-import { sendWaitingEmail } from "../_shared/booked.ts";
+import { remindPendingRequests, requestCall } from "../_shared/booked.ts";
 
 const env = (k: string) => Deno.env.get(k) ?? "";
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
@@ -39,6 +40,7 @@ function bookerOf(ev: Event) {
 Deno.serve(async (req) => {
   const db = createClient(env("SUPABASE_URL"), env("SUPABASE_SERVICE_ROLE_KEY"));
   const debug = (await req.json().catch(() => ({})))?.debug === true;
+  await remindPendingRequests(db).catch(() => 0);
   const { data: state } = await db.from("google_sync").select("*").eq("id", 1).maybeSingle();
   const firstRun = !state?.last_sync_at;
   const startedAt = new Date().toISOString();
@@ -167,45 +169,20 @@ Deno.serve(async (req) => {
     }
 
     const moved = !!known && !sameTime && known.status !== "cancelled";
-    const { data: row } = await db
-      .from("consultations")
-      .update({
-        call_status: "confirmed",
-        preferred_call_at: start,
-        suggested_call_at: start,
-        call_declined_at: null,
-        reminder_24h_at: start && new Date(start).getTime() - Date.now() < 25 * 3_600_000 ? startedAt : null,
-        reminder_1h_at: null,
-        google_event_id: ev.id,
-        meeting_url: ev.hangoutLink ?? c.meeting_url,
-        booked_via: "google",
-        call_confirm_token: c.call_confirm_token ?? crypto.randomUUID(),
-        ...(["new", "no_show", "not_interested"].includes(c.status) ? { status: "consultation_booked" } : {}),
-      })
-      .eq("id", c.id)
-      .select("*")
-      .single();
+    // Already confirmed by the team at this time: just link the Google event.
+    const confirmedHere = c.call_status === "confirmed" && c.preferred_call_at && new Date(c.preferred_call_at).getTime() === new Date(start).getTime();
+    if (confirmedHere) {
+      await db.from("consultations").update({ google_event_id: ev.id, meeting_url: c.meeting_url ?? ev.hangoutLink ?? null, booked_via: "google" }).eq("id", c.id);
+    } else {
+      // Awaiting confirmation; the admin alert goes out from requestCall (not on the silent first run).
+      await requestCall(db, c, start, "google", { meetUrl: ev.hangoutLink ?? c.meeting_url ?? null, googleEventId: ev.id, silent: firstRun });
+    }
     await db
       .from("google_bookings")
       .upsert({ event_id: ev.id, consultation_id: c.id, start_at: start, status: "booked", booker_email: booker.email, updated_at: startedAt });
 
-    if (firstRun) {
-      out.linkedSilently++;
-      continue;
-    }
-    if (row) await sendWaitingEmail(row, { moved, via: "google" });
-    await alert(
-      moved ? `🔁 Booking moved: ${booker.name} — ${malta(start)}` : `📅 New booking via Google: ${booker.name} — ${malta(start)}`,
-      moved ? `${booker.name} moved their booking` : `${booker.name} booked a call`,
-      [
-        ["When", `${malta(start)} (Malta)`],
-        ["Email", booker.email],
-        ["Phone", booker.phone],
-        ["Google Meet", ev.hangoutLink],
-      ],
-      c.id,
-    );
-    moved ? out.moved++ : out.booked++;
+    if (firstRun || confirmedHere) out.linkedSilently++;
+    else moved ? out.moved++ : out.booked++;
   }
 
   // iCal feed: deleted events simply disappear, so an upcoming booking missing from the feed was cancelled.

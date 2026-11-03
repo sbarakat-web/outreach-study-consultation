@@ -22,7 +22,7 @@ import type { Consultation, Task } from "../../lib/types";
 import { Alert, Button, Card, Spinner } from "../../components/ui";
 import { MeetingCard, PageTitle, StatStrip } from "../../components/dash";
 import {
-  confirmAndNotify,
+  holdTime,
   fillTab,
   googleApi,
   googleWeekUrl,
@@ -150,17 +150,13 @@ export function CalendarPage() {
   const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
   // ------------------------------------------------------------ actions
-  const confirm = async (c: Consultation, iso: string) => {
-    const waTab = c.whatsapp ? window.open("about:blank", "_blank") : null;
+  // Hold the time as "awaiting confirmation"; the team then confirms it in the lead with the Meet link.
+  const hold = async (c: Consultation, iso: string) => {
     setWorking(c.id);
-    const r = await confirmAndNotify(c, iso, { google: googleReady, waTab });
+    const r = await holdTime(c, iso);
     setWorking(null);
     if (r.error) return setError(r.error);
-    setFlash(
-      `${c.full_name} confirmed for ${maltaTime(iso)} (Malta)${r.meetUrl ? " · Meet link created" : ""}${r.emailed ? " · email sent" : " · email not sent (check Resend)"}${
-        r.googleError ? ` · Google: ${r.googleError}` : ""
-      }. Now in the online-session queue.`,
-    );
+    setFlash(`${c.full_name}: ${maltaTime(iso)} (Malta) held — open the lead to add it to Google Calendar and confirm with the Meet link.`);
     load();
   };
 
@@ -181,8 +177,8 @@ export function CalendarPage() {
     const old = new Date(c.preferred_call_at);
     const next = new Date(day.getFullYear(), day.getMonth(), day.getDate(), old.getHours(), old.getMinutes());
     if (sameDay(old, next)) return;
-    if (!confirm_(`Move ${c.full_name}'s call to ${maltaTime(next.toISOString())} (Malta)? The candidate is emailed the new time.`)) return;
-    confirm(c, next.toISOString());
+    if (!confirm_(`Move ${c.full_name}'s call to ${maltaTime(next.toISOString())} (Malta)? It goes back to "Awaiting confirmation" until you confirm it with the Meet link.`)) return;
+    hold(c, next.toISOString());
   };
 
   const completeTask = async (t: Task) => {
@@ -362,7 +358,7 @@ export function CalendarPage() {
           <div>
             <h2 className="text-lg font-black">To confirm ({toConfirm.length})</h2>
             <p className="text-xs text-slate-500">
-              Send the time by email + WhatsApp; the candidate confirms with one click and you get an email. If they reply YES on WhatsApp, use “Mark confirmed”.
+              Open a request to confirm it: add it to Google Calendar (with Meet), paste the Meet link, Confirm &amp; send. If the candidate replied YES to a suggested time, use “Replied YES”.
             </p>
           </div>
           {toConfirm.length === 0 ? (
@@ -373,10 +369,9 @@ export function CalendarPage() {
                 <RequestRow
                   key={c.id}
                   c={c}
-                  google={googleReady}
                   busy={working === c.id}
                   clash={clashes(pendingAt(c)!)}
-                  onConfirm={(iso) => confirm(c, iso)}
+                  onHold={(iso) => hold(c, iso)}
                   onSuggest={(iso) => suggest(c, iso)}
                 />
               ))}
@@ -548,17 +543,15 @@ function EventChip({ e, clash }: { e: Event; clash: boolean }) {
 
 function RequestRow({
   c,
-  google,
   busy,
   clash,
-  onConfirm,
+  onHold,
   onSuggest,
 }: {
   c: Consultation;
-  google: boolean;
   busy: boolean;
   clash: boolean;
-  onConfirm: (iso: string) => void;
+  onHold: (iso: string) => void;
   onSuggest: (iso: string) => void;
 }) {
   const waiting = !!c.suggested_call_at;
@@ -580,7 +573,7 @@ function RequestRow({
       }
       status={
         <>
-          {waiting ? <span className="font-bold text-sky-700">Waiting for candidate</span> : <span className="font-bold text-amber-700">New request</span>}
+          {waiting ? <span className="font-bold text-sky-700">Waiting for candidate</span> : <span className="font-bold text-amber-700">Awaiting confirmation</span>}
           {noReply24h(c) && <span className="font-bold text-brand-red">No reply 24h+</span>}
           {c.session_outcome === "no_attendance" && <span className="font-bold text-amber-700">Rebook</span>}
           {clash && (
@@ -596,8 +589,8 @@ function RequestRow({
             <button disabled={busy} onClick={() => onSuggest(at)} title="Send the same time again" className="hover:bg-slate-50 hover:text-brand disabled:opacity-50">
               Resend
             </button>
-            <button disabled={busy} onClick={() => onConfirm(at)} className="font-bold text-brand hover:bg-brand/5 disabled:opacity-50">
-              {google ? "Mark confirmed + Meet" : "Mark confirmed"}
+            <button disabled={busy} onClick={() => onHold(at)} className="font-bold text-brand hover:bg-brand/5 disabled:opacity-50">
+              Replied YES
             </button>
           </>
         ) : clash ? (
@@ -606,9 +599,9 @@ function RequestRow({
             <CalendarCheck className="h-4 w-4" /> Pick a free time
           </Link>
         ) : (
-          <button disabled={busy} onClick={() => onSuggest(at)} className="inline-flex items-center justify-center gap-2 font-bold text-brand hover:bg-brand/5 disabled:opacity-50">
-            <Send className="h-4 w-4" /> Send for confirmation
-          </button>
+          <Link to={`/admin?lead=${c.id}`} className="inline-flex items-center justify-center gap-2 font-bold text-brand hover:bg-brand/5">
+            <CalendarCheck className="h-4 w-4" /> Confirm with Meet link
+          </Link>
         )
       }
     />

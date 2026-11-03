@@ -56,7 +56,13 @@ export function AdminLayout() {
     { to: "/admin/documents", label: "Documents received", icon: FileCheck2, badge: countBadge(withDocs) },
     { to: "/admin/new-leads", label: "New leads", icon: UsersRound, badge: countBadge(leadCounts.new ?? 0) },
     { to: "/admin/not-interested", label: "No longer interested", icon: UserRoundX, badge: countBadge(leadCounts.not_interested ?? 0) },
-    { to: "/admin/calendar", label: "Calendar", icon: CalendarDays },
+    {
+      to: "/admin/calendar",
+      label: "Calendar",
+      icon: CalendarDays,
+      // Calls awaiting confirmation (Meet link + Confirm & send).
+      badge: toConfirm ? <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-800" title="Awaiting confirmation">{toConfirm}</span> : undefined,
+    },
     { to: "/onlinesessions?present=1", label: "Online sessions", icon: Presentation },
     { to: "/admin/sessions", label: "Session stats", icon: BarChart3 },
     { to: "/admin/email-marketing", label: "Email marketing", icon: Mail },
@@ -78,7 +84,7 @@ export function AdminLayout() {
         await signOut();
         navigate("/");
       }}
-      fab={<Fab to="/admin/calendar" label={`${toConfirm} call requests to confirm`} icon={Bell} badge={toConfirm} />}
+      fab={<Fab to="/admin/calendar" label={`${toConfirm} calls awaiting confirmation`} icon={Bell} badge={toConfirm} />}
     >
       <Outlet />
     </AppShell>

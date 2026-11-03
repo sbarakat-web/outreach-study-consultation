@@ -12,27 +12,15 @@ export const toLocalInput = (iso: string | null) => {
   return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
 };
 
-/** Confirm the call at `iso`: the candidate's dashboard turns green and they join the online-session queue. */
-export async function confirmCall(c: Consultation, iso: string) {
-  return supabase
-    .from("consultations")
-    .update({
-      call_status: "confirmed",
-      preferred_call_at: iso,
-      call_reviewed_at: c.call_reviewed_at ?? new Date().toISOString(),
-      call_declined_at: null,
-      reminder_24h_at: null,
-      reminder_1h_at: null,
-      ...(["new", "no_show", "not_interested"].includes(c.status) ? { status: "consultation_booked" as const } : {}),
-    })
-    .eq("id", c.id);
-}
-
 export const googleApi = (action: string, body: Record<string, unknown> = {}) =>
   supabase.functions.invoke("google-calendar", { body: { action, ...body } });
 
-export const notifyCandidate = (type: "call-confirmed" | "rebook" | "booking-link" | "suggest-time" | "book-now", consultationId: string, at?: string) =>
-  supabase.functions.invoke("notify", { body: { type, consultationId, at } });
+export const notifyCandidate = (
+  type: "call-confirmed" | "rebook" | "booking-link" | "suggest-time" | "hold" | "confirm",
+  consultationId: string,
+  at?: string,
+  extra: Record<string, unknown> = {},
+) => supabase.functions.invoke("notify", { body: { type, consultationId, at, ...extra } });
 
 /** Send the WhatsApp link to a tab opened synchronously in the click handler (or close it). */
 export const fillTab = (tab: Window | null, url?: string | null) => {
@@ -40,38 +28,6 @@ export const fillTab = (tab: Window | null, url?: string | null) => {
   if (url) tab.location.href = url;
   else tab.close();
 };
-
-export interface ConfirmResult {
-  error?: string;
-  meetUrl?: string | null;
-  emailed: boolean;
-  googleError?: string;
-}
-
-/**
- * One click: confirm the time, create (or move) the Google event with a Meet link when
- * Google is connected, email the candidate and hand the WhatsApp message to `waTab`.
- */
-export async function confirmAndNotify(c: Consultation, iso: string, opts: { google: boolean; waTab: Window | null }): Promise<ConfirmResult> {
-  const moving = c.call_status === "confirmed" && !!c.google_event_id;
-  const { error } = moving
-    ? await supabase.from("consultations").update({ preferred_call_at: iso, reminder_24h_at: null, reminder_1h_at: null }).eq("id", c.id)
-    : await confirmCall(c, iso);
-  if (error) {
-    fillTab(opts.waTab);
-    return { error: error.message, emailed: false };
-  }
-  let meetUrl: string | null | undefined;
-  let googleError: string | undefined;
-  if (opts.google) {
-    const r = await googleApi(moving ? "move-event" : "create-event", { consultationId: c.id, at: iso });
-    if (r.error || r.data?.error) googleError = r.data?.error ?? r.error?.message;
-    meetUrl = r.data?.meetUrl;
-  }
-  const n = await notifyCandidate("call-confirmed", c.id);
-  fillTab(opts.waTab, n.data?.waUrl);
-  return { meetUrl, emailed: !!n.data?.ok, googleError };
-}
 
 /**
  * Send the candidate a suggested time (email + WhatsApp) with a one-click confirm link.
@@ -84,13 +40,19 @@ export async function suggestTime(c: Consultation, iso: string, waTab: Window | 
   return { error, emailed: !!r.data?.ok };
 }
 
+/** Time agreed with the candidate (or they replied YES): hold it as "awaiting confirmation" — no email yet. */
+export async function holdTime(c: Consultation, iso: string) {
+  const r = await notifyCandidate("hold", c.id, iso);
+  return { error: r.data?.error ?? (r.error ? r.error.message : undefined) };
+}
+
 /**
- * Time already agreed with the candidate: confirm it now, put it in the Google Calendar and send the
- * "We're waiting for you" email; the WhatsApp version opens in `waTab`.
+ * Confirm the held time with the Meet link created in Google Calendar: "We're waiting for you" email (CC main admin);
+ * the WhatsApp version opens in `waTab`.
  */
-export async function bookNow(c: Consultation, iso: string, waTab: Window | null) {
-  const r = await notifyCandidate("book-now", c.id, iso);
-  const error = r.data?.error ?? (r.error ? r.error.message : undefined);
+export async function confirmWithMeet(c: Consultation, meetUrl: string, waTab: Window | null) {
+  const r = await notifyCandidate("confirm", c.id, undefined, { meetUrl });
+  const error = r.data?.error ?? (r.error ? ((await (r.error as { context?: Response }).context?.json?.().catch(() => null))?.error ?? r.error.message) : undefined);
   fillTab(waTab, error ? null : r.data?.waUrl);
   return { error, emailed: !!r.data?.ok };
 }
@@ -106,6 +68,7 @@ export const waitingWhatsApp = (c: Consultation) =>
     "Thank you for booking your free consultation! 🎉 We're waiting for you on:",
     `📅 *${maltaLong(c.preferred_call_at!)} (Malta time)*`,
     c.meeting_url ? `🎥 Google Meet: ${c.meeting_url}` : "🎥 We'll send you the Google Meet link before the call.",
+    "📩 You'll also get a Google Calendar invitation by email — please accept it.",
     "",
     `In ${CALL_MINUTES} minutes we'll look at the best study options in Malta for you, the costs, scholarships and the visa steps — and answer all your questions.`,
     "",

@@ -1,10 +1,5 @@
-// iCalendar helpers, for when the Workspace blocks API access to the booking calendar:
-//   parseIcs    read its secret iCal feed (Google bookings → app), shaped like Calendar API events
-//   inviteIcs   the invitation emailed to the calendar owner for calls booked in the app (app → Google:
-//               Gmail adds it to the calendar, so the booking page no longer offers that time)
-
-// deno-lint-ignore no-explicit-any
-type Row = Record<string, any>;
+// Read the booking calendar's secret iCal feed (Google bookings → app) when the Workspace blocks API access,
+// shaped like Calendar API events.
 interface Prop {
   name: string;
   params: Record<string, string>;
@@ -24,7 +19,6 @@ export interface FeedEvent {
 
 const unfold = (body: string) => body.replace(/\r?\n[ \t]/g, "").split(/\r?\n/);
 const unescape = (v: string) => v.replace(/\\n/gi, "\n").replace(/\\([,;\\])/g, "$1");
-const escapeText = (v: string) => v.replace(/\\/g, "\\\\").replace(/([,;])/g, "\\$1").replace(/\r?\n/g, "\\n");
 
 function parseLine(line: string): Prop | null {
   // NAME;PARAM=a;PARAM="b:c":value — the first colon outside quotes ends the parameters.
@@ -113,36 +107,4 @@ export function parseIcs(body: string, owner: string): FeedEvent[] {
     }
   }
   return events;
-}
-
-const stamp = (d: Date) => d.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
-
-/** METHOD:REQUEST invitation for the calendar owner; same UID per candidate, so a new time updates the event. */
-export function inviteIcs(c: Row, o: { at: string; minutes: number; organizer: string; attendee: string; hold?: boolean; appUrl: string }) {
-  const start = new Date(o.at);
-  const end = new Date(start.getTime() + o.minutes * 60_000);
-  const summary = `${o.hold ? "HOLD (waiting for confirmation) — " : ""}Outreach call — ${c.full_name}`;
-  const description = [`Candidate: ${c.full_name} (${c.email})`, c.whatsapp ? `WhatsApp: ${c.whatsapp}` : "", `Course: ${c.desired_course ?? "-"}`, `Lead: ${o.appUrl}/admin?lead=${c.id}`]
-    .filter(Boolean)
-    .join("\n");
-  return [
-    "BEGIN:VCALENDAR",
-    "VERSION:2.0",
-    "PRODID:-//Outreach//Consultation//EN",
-    "METHOD:REQUEST",
-    "BEGIN:VEVENT",
-    `UID:call-${c.id}@consultation.outreachstudy.eu`,
-    `SEQUENCE:${Math.floor(Date.now() / 1000)}`,
-    `DTSTAMP:${stamp(new Date())}`,
-    `DTSTART:${stamp(start)}`,
-    `DTEND:${stamp(end)}`,
-    `SUMMARY:${escapeText(summary)}`,
-    `DESCRIPTION:${escapeText(description)}`,
-    `ORGANIZER;CN=Outreach Consultation:mailto:${o.organizer}`,
-    `ATTENDEE;ROLE=REQ-PARTICIPANT;PARTSTAT=NEEDS-ACTION;RSVP=TRUE:mailto:${o.attendee}`,
-    `STATUS:${o.hold ? "TENTATIVE" : "CONFIRMED"}`,
-    "TRANSP:OPAQUE",
-    "END:VEVENT",
-    "END:VCALENDAR",
-  ].join("\r\n");
 }

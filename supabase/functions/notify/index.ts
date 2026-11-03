@@ -2,16 +2,16 @@
 //   { type: "call-confirmed", consultationId }    time in the candidate's time zone, Meet link, .ics, prepare documents
 //   { type: "rebook", consultationId }            missed session → pick a new time
 //   { type: "booking-link", consultationId }      send the real Google booking page for the call
-//   { type: "suggest-time", consultationId, at }  propose a time; the candidate confirms with one click
-//                                                  (the slot is held as a tentative event in the Google Calendar)
-//   { type: "book-now", consultationId, at }      time already agreed: confirm now, calendar event, "we're waiting" email
+//   { type: "suggest-time", consultationId, at }  propose a time; the candidate accepts with one click
+//   { type: "hold", consultationId, at }          time agreed with the candidate: hold it as awaiting confirmation
+//   { type: "confirm", consultationId, meetUrl }  confirm the held time with the Meet link created in Google Calendar:
+//                                                  "We're waiting for you" email (CC main admin) + WhatsApp text
 // Returns waUrl (WhatsApp Web link with the same short message). Staff only.
 // Secrets: RESEND_API_KEY; optional MAIL_FROM, APP_URL, BOOKING_LINK
 import { createClient } from "npm:@supabase/supabase-js@2.45.4";
 import { actions, button, eyebrow, highlight, layout, para, title, escape } from "../_shared/email.ts";
 import { APP_URL, BOOKING_LINK, confirmByFor, firstName, loadAdvisor, sendEmail, suggestEmail, tzOf, whenIn } from "../_shared/call.ts";
-import { bookCall, inviteOwner, waitingEmail, waitingWhatsApp, BOOKED_CC } from "../_shared/booked.ts";
-import { createCallEvent, googleConfigured, moveCallEvent } from "../_shared/google.ts";
+import { confirmCall, requestCall, waitingEmail, waitingWhatsApp, BOOKED_CC } from "../_shared/booked.ts";
 import { isSlotFree } from "../_shared/slots.ts";
 
 const cors = {
@@ -38,7 +38,7 @@ Deno.serve(async (req) => {
   ]);
   if (!a && !p) return json({ error: "Staff only" }, 403);
 
-  const { type, consultationId, at } = await req.json().catch(() => ({}));
+  const { type, consultationId, at, meetUrl } = await req.json().catch(() => ({}));
   const { data: c } = await db.from("consultations").select("*").eq("id", consultationId).maybeSingle();
   if (!c) return json({ error: "Candidate not found" }, 404);
   const first = firstName(c);
@@ -51,16 +51,23 @@ Deno.serve(async (req) => {
   let cc: string | undefined;
   const waUrl = (text: string) => (digits ? `https://web.whatsapp.com/send?phone=${digits}&text=${encodeURIComponent(text)}` : null);
 
-  if (type === "book-now") {
+  if (type === "hold") {
     const when = new Date(at);
     if (isNaN(when.getTime()) || when.getTime() < Date.now()) return json({ error: "Pick a future time" }, 400);
-    // The candidate's own hold / event at that time doesn't count as busy.
-    const own = c.google_event_id ? { preferred_call_at: c.call_status === "confirmed" ? c.preferred_call_at : c.suggested_call_at } : undefined;
-    if (!(await isSlotFree(db, when.toISOString(), c.id, own))) return json({ error: "This time is no longer free in the calendar — pick another." }, 409);
-    const r = await bookCall(db, c, when.toISOString(), "admin", email);
-    if ("error" in r && r.error) return json({ error: r.error }, 500);
+    if (!(await isSlotFree(db, when.toISOString(), c.id))) return json({ error: "This time is no longer free in the calendar — pick another." }, 409);
+    const r = await requestCall(db, c, when.toISOString(), c.booked_via === "google" ? "google" : "admin", { silent: true });
+    return "error" in r && r.error ? json({ error: r.error }, 500) : json({ ok: true });
+  }
+
+  if (type === "confirm") {
+    const link = typeof meetUrl === "string" ? meetUrl.trim() : "";
+    if (link && !/^https:\/\/\S+$/.test(link)) return json({ error: "The meeting link must start with https://" }, 400);
+    if (!link && !c.meeting_url) return json({ error: "Paste the Google Meet link first." }, 400);
+    const r = await confirmCall(db, c, link || null, email);
+    if ("error" in r && r.error) return json({ error: r.error }, 400);
     const row = (r as { row: Record<string, unknown> }).row;
-    return json({ ok: (r as { emailed: boolean }).emailed, email: (r as { emailed: boolean }).emailed ? "sent" : "failed", waUrl: waUrl(waitingWhatsApp(row)), waText: waitingWhatsApp(row) });
+    const emailed = (r as { emailed: boolean }).emailed;
+    return json({ ok: emailed, email: emailed ? "sent" : "failed", waUrl: waUrl(waitingWhatsApp(row)), waText: waitingWhatsApp(row) });
   }
 
   if (type === "call-confirmed") {
@@ -106,6 +113,8 @@ Deno.serve(async (req) => {
       .from("consultations")
       .update({
         suggested_call_at: when.toISOString(),
+        // The candidate's own requested time is released; they now answer the suggestion.
+        preferred_call_at: null,
         call_suggested_at: new Date().toISOString(),
         call_suggested_by: email,
         call_confirm_by: confirmBy,
@@ -115,15 +124,6 @@ Deno.serve(async (req) => {
       })
       .eq("id", c.id);
     if (error) return json({ error: error.message }, 500);
-    // Hold the slot in the Google Calendar (tentative) so nobody books it on the booking page meanwhile;
-    // without write access, hold it with an invitation to the calendar owner.
-    const held = { ...c, suggested_call_at: when.toISOString() };
-    const r = googleConfigured()
-      ? ((await (c.google_event_id ? moveCallEvent(db, held, when.toISOString(), email, "tentative") : createCallEvent(db, held, when.toISOString(), email, { tentative: true })).catch(
-          () => null,
-        )) as { eventId?: string; ok?: boolean; skipped?: string } | null)
-      : null;
-    if (!(r?.eventId || (r?.ok && !r.skipped))) await inviteOwner(held, when.toISOString(), { hold: true }).catch(() => null);
     ({ subject, html, wa } = suggestEmail(c, { at: when.toISOString(), token, advisor: await loadAdvisor(db, email), confirmBy }));
   } else {
     return json({ error: "Unknown type" }, 400);

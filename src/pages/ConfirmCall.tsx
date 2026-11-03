@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { CalendarCheck, CheckCircle2, Clock } from "lucide-react";
+import { CalendarCheck, CheckCircle2, Clock, Video } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { CALL_MINUTES, formatSlot, waLink, whatsappNumber } from "../lib/options";
 import { useFreeTimes } from "../lib/freeTimes";
@@ -12,6 +12,8 @@ interface Suggestion {
   firstName: string;
   at: string | null;
   confirmed: boolean;
+  pending: boolean;
+  meetingUrl: string | null;
   canReschedule: boolean;
 }
 
@@ -19,8 +21,8 @@ const longWhen = (iso: string) => formatSlot(iso, { weekday: "long", month: "lon
 
 /**
  * Public page from the "please confirm your call" email / WhatsApp (no sign-in needed).
- * "Yes, confirm" books the suggested time; "Choose another time" shows the free slots from
- * the adviser's Google Calendar and confirms the picked one straight away.
+ * "Yes" accepts the suggested time; "Choose another time" shows the free slots from the adviser's
+ * Google Calendar. Either way the time awaits confirmation by the team, who then email the Meet link.
  */
 export function ConfirmCall() {
   const { t } = useI18n();
@@ -78,11 +80,33 @@ export function ConfirmCall() {
               }}
               onPick={(at) => call({ action: "reschedule", at }, s.confirmed ? "moved" : "confirmed")}
             />
+          ) : s.pending ? (
+            <div className="space-y-5 text-center">
+              <Clock className="mx-auto h-12 w-12 text-amber-500" />
+              <h1 className="text-2xl font-black">{done ? t("confirm.pendingTitle") : t("confirm.pendingAlready")}</h1>
+              {when && <TimeBox when={when} tone="brand" />}
+              <p className="text-sm text-slate-600">{t("confirm.pendingText")}</p>
+              <Link to="/dashboard/documents" className="block">
+                <Button className="w-full">{t("confirm.uploadDocs")}</Button>
+              </Link>
+              {s.canReschedule && (
+                <button onClick={() => setPicking(true)} className="text-sm font-bold text-brand hover:underline">
+                  {t("confirm.change")}
+                </button>
+              )}
+            </div>
           ) : s.confirmed ? (
             <div className="space-y-5 text-center">
               <CheckCircle2 className="mx-auto h-12 w-12 text-emerald-500" />
               <h1 className="text-2xl font-black">{done === "moved" ? t("confirm.movedTitle") : done ? t("confirm.doneTitle") : t("confirm.alreadyTitle")}</h1>
               {when && <TimeBox when={when} tone="emerald" />}
+              {s.meetingUrl && (
+                <a href={s.meetingUrl} target="_blank" rel="noreferrer" className="block">
+                  <Button className="w-full">
+                    <Video className="h-4 w-4" /> {t("call.join")}
+                  </Button>
+                </a>
+              )}
               <p className="text-sm text-slate-600">{t("confirm.doneText")}</p>
               <Link to="/dashboard/documents" className="block">
                 <Button className="w-full">{t("confirm.uploadDocs")}</Button>

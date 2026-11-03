@@ -1,6 +1,6 @@
 // Server-side check of a call time picked by a candidate: must be a real call slot
 // (Mon–Fri, on the hour 09:00–16:00 Malta like the Google appointment schedule, ≥ 12h ahead, within the next week) and still free
-// (no other confirmed call, nothing busy in the Google Calendar).
+// (no other confirmed call or request awaiting confirmation, nothing busy in the Google Calendar).
 import { CALL_MINUTES, freeBusy, googleConfigured } from "./google.ts";
 
 const H = 3_600_000;
@@ -26,7 +26,8 @@ export async function isSlotFree(db: any, iso: string, excludeId: string, ignore
   const { data: clash } = await db
     .from("consultations")
     .select("id")
-    .eq("call_status", "confirmed")
+    .in("call_status", ["confirmed", "requested"])
+    .is("call_declined_at", null)
     .neq("id", excludeId)
     .gt("preferred_call_at", new Date(start - CALL_MINUTES * 60_000).toISOString())
     .lt("preferred_call_at", new Date(end).toISOString())

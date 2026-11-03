@@ -1,24 +1,33 @@
 import { useState } from "react";
-import { CalendarCheck, CalendarPlus, Check, Clock, Copy, Mail, MessageCircle, Send, Video, Zap } from "lucide-react";
+import { CalendarCheck, CalendarPlus, Check, CheckCircle2, Clock, Copy, Hand, Mail, MessageCircle, Send, Video } from "lucide-react";
 import { supabase } from "../../lib/supabase";
 import { BOOKING_LINK, CALL_STAGE_LABELS, callStage, noReply24h, waLink } from "../../lib/options";
 import type { Consultation } from "../../lib/types";
 import { Alert, Button } from "../../components/ui";
-import { bookNow, bookingMessage, googleEventUrl, maltaTime, notifyCandidate, suggestTime, waitingWhatsApp } from "./calls";
+import { bookingMessage, confirmWithMeet, googleEventUrl, holdTime, maltaTime, notifyCandidate, suggestTime, waitingWhatsApp } from "./calls";
 import { SlotPicker } from "./SlotPicker";
 
-const BOOKED_VIA = { google: "Booked via Google ✓", admin: "Booked by the team", dashboard: "Booked from the dashboard", "confirm-link": "Confirmed by the candidate" } as const;
+const BOOKED_VIA = { google: "Google booking page", admin: "Picked by the team", dashboard: "Candidate dashboard", "confirm-link": "Candidate's confirm link" } as const;
+
+const waitedFor = (iso: string) => {
+  const h = Math.floor((Date.now() - new Date(iso).getTime()) / 3_600_000);
+  return h < 1 ? "just now" : h < 24 ? `waiting ${h}h` : `waiting ${Math.floor(h / 24)}d`;
+};
 
 /**
- * Admin call workflow: pick a free time from the Google Calendar, then either send it for confirmation
- * (email + WhatsApp, slot held as tentative) or book it straight away when the time is already agreed.
+ * Admin call workflow. Every booking arrives as "Awaiting confirmation"; the team confirms it in three steps:
+ * add it to Google Calendar (with Meet, invite sent), paste the Meet link, Confirm & send (the "We're waiting for you"
+ * email). Or suggest another time for the candidate to accept.
  */
 export function CallPanel({ c, onSaved }: { c: Consultation; onSaved: () => void }) {
   const stage = callStage(c);
   const [msg, setMsg] = useState<{ tone: "error" | "success"; text: string } | null>(null);
-  const [busy, setBusy] = useState<"" | "suggest" | "confirm" | "booking" | "book">("");
+  const [busy, setBusy] = useState<"" | "suggest" | "hold" | "confirm" | "booking">("");
   const [copied, setCopied] = useState(false);
   const requested = c.requested_call_times[0];
+  // The time awaiting confirmation (held on the candidate's request, or picked by the team).
+  const pendingAt = stage === "requested" || stage === "reviewed" ? c.preferred_call_at ?? requested : null;
+  const [meet, setMeet] = useState(c.meeting_url ?? "");
   // ISO time; the slot picker fills it with the best free time from Google Calendar.
   const [at, setAt] = useState("");
   const [editing, setEditing] = useState(false);
@@ -32,21 +41,36 @@ export function CallPanel({ c, onSaved }: { c: Consultation; onSaved: () => void
     const r = await suggestTime(c, at, waTab);
     setBusy("");
     if (r.error) return setMsg({ tone: "error", text: r.error });
-    setMsg({ tone: "success", text: `Sent${r.emailed ? " by email" : ""}${waTab ? " + WhatsApp" : ""}. Waiting for ${c.full_name.split(" ")[0]} to confirm — you’ll get an email when they do.` });
+    setMsg({ tone: "success", text: `Sent${r.emailed ? " by email" : ""}${waTab ? " + WhatsApp" : ""}. Waiting for ${c.full_name.split(" ")[0]} to accept — you’ll get an email when they do.` });
     setEditing(false);
     onSaved();
   };
 
-  // Confirm now (time agreed, or the candidate replied YES): calendar event + "We're waiting for you" email.
-  const book = async (iso: string, kind: "book" | "confirm") => {
+  // Time agreed (or the candidate replied YES): hold it, then confirm with the Meet link below.
+  const hold = async (iso: string) => {
     if (!iso) return setMsg({ tone: "error", text: "Pick a time first." });
-    const waTab = c.whatsapp ? window.open("about:blank", "_blank") : null;
-    setBusy(kind);
-    const r = await bookNow(c, iso, waTab);
+    setBusy("hold");
+    const r = await holdTime(c, iso);
     setBusy("");
     if (r.error) return setMsg({ tone: "error", text: r.error });
-    setMsg({ tone: "success", text: `Booked for ${maltaTime(iso)} (Malta)${r.emailed ? " · “We're waiting for you” email sent" : ""}. Now in the online-session queue.` });
+    setMsg({ tone: "success", text: `${maltaTime(iso)} (Malta) held. Now add it to Google Calendar, paste the Meet link and confirm.` });
     setEditing(false);
+    onSaved();
+  };
+
+  const confirm = async () => {
+    const link = meet.trim();
+    if (!link) return setMsg({ tone: "error", text: "Paste the Google Meet link first (step 2)." });
+    if (!/^https:\/\/\S+$/.test(link)) return setMsg({ tone: "error", text: "The meeting link must start with https://" });
+    const waTab = c.whatsapp ? window.open("about:blank", "_blank") : null;
+    setBusy("confirm");
+    const r = await confirmWithMeet(c, link, waTab);
+    setBusy("");
+    if (r.error) return setMsg({ tone: "error", text: r.error });
+    setMsg({
+      tone: "success",
+      text: `Confirmed for ${maltaTime(pendingAt!)} (Malta)${r.emailed ? " · “We're waiting for you” email sent with the Meet link" : " · email not sent (check Resend)"}${waTab ? " · WhatsApp opened" : ""}.`,
+    });
     onSaved();
   };
 
@@ -78,14 +102,14 @@ export function CallPanel({ c, onSaved }: { c: Consultation; onSaved: () => void
           <Send className="h-4 w-4" /> {reschedule ? "Send reschedule request" : "Send for confirmation"}
           {at && <span className="font-normal opacity-80">· {maltaTime(at)}</span>}
         </Button>
-        <Button variant="secondary" loading={busy === "book"} onClick={() => book(at, "book")} disabled={!at}>
-          <Zap className="h-4 w-4" /> Book now (already agreed)
+        <Button variant="secondary" loading={busy === "hold"} onClick={() => hold(at)} disabled={!at}>
+          <Hand className="h-4 w-4" /> Agreed — hold this time
         </Button>
       </div>
       <p className="text-xs text-slate-500">
         <strong>Send for confirmation:</strong>{" "}
-        {reschedule ? "“Can we move your call?” with their time crossed out" : "“Good news, your time is available” with a “Yes, confirm” button"}; the slot is held in the
-        calendar meanwhile. <strong>Book now:</strong> confirmed immediately with the “We're waiting for you” email.
+        {reschedule ? "“Can we move your call?” with their time crossed out" : "“Good news, your time is available” with a “Yes” button"}.{" "}
+        <strong>Agreed — hold this time:</strong> no email yet; you then confirm it with the Meet link.
       </p>
     </div>
   );
@@ -135,14 +159,6 @@ export function CallPanel({ c, onSaved }: { c: Consultation; onSaved: () => void
                 </Button>
               </a>
             )}
-            {/* Booked in the app: put it in the real Google Calendar by hand (Google bookings are already there). */}
-            {c.booked_via !== "google" && c.preferred_call_at && (
-              <a href={googleEventUrl(c, c.preferred_call_at)} target="_blank" rel="noreferrer" title="Opens Google Calendar with the call filled in — add Meet and click Save">
-                <Button variant="secondary" className="min-h-9">
-                  <CalendarPlus className="h-4 w-4" /> Add to Google Calendar
-                </Button>
-              </a>
-            )}
             <Button variant="ghost" className="min-h-9" onClick={() => setEditing((v) => !v)}>
               Change time
             </Button>
@@ -153,12 +169,69 @@ export function CallPanel({ c, onSaved }: { c: Consultation; onSaved: () => void
           {editing && (
             <div className="space-y-2">
               <SlotPicker value={at} onChange={setAt} />
-              <Button loading={busy === "book"} onClick={() => book(at, "book")} disabled={!at}>
-                <Zap className="h-4 w-4" /> Move the call{at && <span className="font-normal opacity-80">· {maltaTime(at)}</span>}
+              <Button loading={busy === "hold"} onClick={() => hold(at)} disabled={!at}>
+                <Hand className="h-4 w-4" /> Hold the new time{at && <span className="font-normal opacity-80">· {maltaTime(at)}</span>}
               </Button>
-              <p className="text-xs text-slate-500">Moves the calendar event and sends the “new time” email.</p>
+              <p className="text-xs text-slate-500">The call goes back to “Awaiting confirmation”. Move the event in Google Calendar, then confirm — the candidate gets the email then.</p>
             </div>
           )}
+        </>
+      ) : pendingAt ? (
+        <>
+          <div className="space-y-3 rounded-xl bg-white px-3 py-3 ring-1 ring-amber-200">
+            <div className="flex flex-wrap items-start justify-between gap-2">
+              <p>
+                <Clock className="mr-1 inline h-4 w-4 text-amber-600" />
+                Requested: <strong>{maltaTime(pendingAt)}</strong> (Malta)
+              </p>
+              <span className="text-xs text-slate-500">
+                {c.booked_via ? BOOKED_VIA[c.booked_via] : "Requested"}
+                {c.call_requested_at && <> · <span className="font-bold text-amber-700">{waitedFor(c.call_requested_at)}</span></>}
+              </span>
+            </div>
+
+            <ol className="space-y-3">
+              <li className="flex gap-2.5">
+                <Step n={1} />
+                <div className="min-w-0 flex-1 space-y-1">
+                  {c.booked_via === "google" ? (
+                    <p className="font-bold text-emerald-700">
+                      <CheckCircle2 className="mr-1 inline h-4 w-4" /> Already in Google Calendar (booked on the Google page)
+                    </p>
+                  ) : (
+                    <>
+                      <a href={googleEventUrl(c, pendingAt)} target="_blank" rel="noreferrer">
+                        <Button variant="secondary" className="min-h-9">
+                          <CalendarPlus className="h-4 w-4" /> Add to Google Calendar
+                        </Button>
+                      </a>
+                      <p className="text-xs text-slate-500">Opens the event filled in · add <strong>Google Meet</strong>, click <strong>Save</strong>, then <strong>Send</strong> the invite.</p>
+                    </>
+                  )}
+                </div>
+              </li>
+              <li className="flex gap-2.5">
+                <Step n={2} />
+                <label className="min-w-0 flex-1 space-y-1">
+                  <span className="block text-xs font-bold">Google Meet link</span>
+                  <input className="field py-2" type="url" placeholder="https://meet.google.com/abc-defg-hij" value={meet} onChange={(e) => setMeet(e.target.value)} />
+                </label>
+              </li>
+              <li className="flex gap-2.5">
+                <Step n={3} />
+                <div className="min-w-0 flex-1 space-y-1">
+                  <Button loading={busy === "confirm"} onClick={confirm} disabled={!meet.trim()}>
+                    <CheckCircle2 className="h-4 w-4" /> Confirm &amp; send
+                  </Button>
+                  <p className="text-xs text-slate-500">Sends “We're waiting for you” with the Meet link (CC sbarakat@) and opens WhatsApp with the same message.</p>
+                </div>
+              </li>
+            </ol>
+          </div>
+          <button onClick={() => setEditing((v) => !v)} className="text-xs font-bold text-brand hover:underline">
+            {editing ? "Hide" : "Not possible? Suggest another time"}
+          </button>
+          {editing && picker}
         </>
       ) : stage === "suggested" && c.suggested_call_at ? (
         <>
@@ -168,7 +241,7 @@ export function CallPanel({ c, onSaved }: { c: Consultation; onSaved: () => void
               Sent <strong>{maltaTime(c.suggested_call_at)}</strong> (Malta)
               {c.call_suggested_at && <span className="text-slate-500"> · {new Date(c.call_suggested_at).toLocaleString([], { dateStyle: "medium", timeStyle: "short" })}</span>}
               <br />
-              <span className="text-slate-500">Waiting for the candidate to confirm.</span>
+              <span className="text-slate-500">Waiting for the candidate to accept.</span>
               {noReply24h(c) && (
                 <span className="mt-1 block text-xs font-bold text-brand-red">
                   No reply for 24h+{c.suggest_reminder_at ? " · reminder email sent" : ""} — maybe message them on WhatsApp.
@@ -177,8 +250,8 @@ export function CallPanel({ c, onSaved }: { c: Consultation; onSaved: () => void
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Button variant="secondary" loading={busy === "confirm"} onClick={() => book(c.suggested_call_at!, "confirm")}>
-              Mark confirmed (replied YES)
+            <Button variant="secondary" loading={busy === "hold"} onClick={() => hold(c.suggested_call_at!)}>
+              They replied YES — hold it
             </Button>
             <Button variant="ghost" onClick={() => setEditing((v) => !v)}>
               Change time / resend
@@ -188,13 +261,7 @@ export function CallPanel({ c, onSaved }: { c: Consultation; onSaved: () => void
         </>
       ) : (
         <>
-          {requested ? (
-            <p>
-              Candidate asked for <strong>{maltaTime(requested)}</strong> (Malta)
-            </p>
-          ) : (
-            <p className="text-slate-500">The candidate hasn’t picked a time yet — you can still suggest one.</p>
-          )}
+          <p className="text-slate-500">The candidate hasn’t picked a time yet — you can suggest one or hold an agreed time.</p>
           {picker}
           <details className="text-xs text-slate-500">
             <summary className="cursor-pointer font-bold">Or send the Google booking page</summary>
@@ -221,3 +288,7 @@ export function CallPanel({ c, onSaved }: { c: Consultation; onSaved: () => void
     </div>
   );
 }
+
+const Step = ({ n }: { n: number }) => (
+  <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-brand text-xs font-black text-white">{n}</span>
+);

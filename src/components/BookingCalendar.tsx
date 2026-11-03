@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { CalendarCheck, CalendarPlus, Check, ChevronLeft, ChevronRight, Download, Info } from "lucide-react";
+import { CalendarCheck, CalendarPlus, Check, ChevronLeft, ChevronRight, Download, Info, Video } from "lucide-react";
 import { Link } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { CALL_MINUTES, callStage, formatSlot } from "../lib/options";
@@ -19,8 +19,8 @@ const weekdays = () => Array.from({ length: 7 }, (_, i) => dayLabel(new Date(202
 const longDate = (iso: string) => formatSlot(iso, { weekday: "long", month: "long" });
 
 /**
- * Candidate picks a free call time (the adviser's Google Calendar, same slots as the booking page)
- * and it is booked instantly: confirmed call, calendar event and "We're waiting for you" email.
+ * Candidate picks a free call time (the adviser's Google Calendar, same slots as the booking page). It is held as
+ * "Awaiting confirmation"; the team confirms it and the candidate gets the Google Meet link by email.
  */
 export function BookingCalendar({ c, onRequested }: { c: Consultation; onRequested: () => void }) {
   const { t } = useI18n();
@@ -253,7 +253,7 @@ function CallStatus({ c, stage, onChange }: { c: Consultation; stage: ReturnType
     return (
       <div className="space-y-4 rounded-2xl bg-emerald-50 px-4 py-4 ring-1 ring-emerald-200 sm:px-5">
         <Timeline reached={2} />
-        <ConfirmedCall at={c.preferred_call_at} course={c.desired_course || "your studies"} />
+        <ConfirmedCall at={c.preferred_call_at} course={c.desired_course || "your studies"} meetUrl={c.meeting_url} />
         {c.call_confirm_token && new Date(c.preferred_call_at).getTime() > Date.now() + 12 * 3_600_000 && (
           <Link to={`/confirm-call?t=${c.call_confirm_token}&pick=1`} className="inline-block text-sm font-bold text-brand hover:underline">
             {t("confirm.change")}
@@ -315,13 +315,13 @@ function CallStatus({ c, stage, onChange }: { c: Consultation; stage: ReturnType
   );
 }
 
-function ConfirmedCall({ at, course }: { at: string; course: string }) {
+function ConfirmedCall({ at, course, meetUrl }: { at: string; course: string; meetUrl?: string | null }) {
   const { t } = useI18n();
   const start = new Date(at);
   const end = new Date(start.getTime() + CALL_MINUTES * 60000);
   const stamp = (d: Date) => d.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
   const title = "Free call with Outreach";
-  const details = `Your free consultation about ${course}. Your advisor will call you on WhatsApp.`;
+  const details = `Your free consultation about ${course}.${meetUrl ? ` Join on Google Meet: ${meetUrl}` : ""}`;
 
   const google = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(title)}&dates=${stamp(start)}/${stamp(end)}&details=${encodeURIComponent(details)}`;
 
@@ -363,6 +363,16 @@ function ConfirmedCall({ at, course }: { at: string; course: string }) {
           <p className="text-sm text-slate-600">{t("call.confirmedSub", { min: CALL_MINUTES })}</p>
         </div>
       </div>
+      {meetUrl && (
+        <div className="mt-3 space-y-1">
+          <a href={meetUrl} target="_blank" rel="noreferrer">
+            <Button>
+              <Video className="h-4 w-4" /> {t("call.join")}
+            </Button>
+          </a>
+          <p className="text-xs text-slate-500">{t("call.invite")}</p>
+        </div>
+      )}
       <div className="mt-3 flex flex-wrap gap-2">
         <a
           href={google}
