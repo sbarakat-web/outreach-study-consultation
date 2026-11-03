@@ -1,10 +1,10 @@
 import { useState } from "react";
-import { CalendarCheck, Check, Clock, Copy, Mail, MessageCircle, Send, Video, Zap } from "lucide-react";
+import { CalendarCheck, CalendarPlus, Check, Clock, Copy, Mail, MessageCircle, Send, Video, Zap } from "lucide-react";
 import { supabase } from "../../lib/supabase";
 import { BOOKING_LINK, CALL_STAGE_LABELS, callStage, noReply24h, waLink } from "../../lib/options";
 import type { Consultation } from "../../lib/types";
 import { Alert, Button } from "../../components/ui";
-import { bookNow, bookingMessage, maltaTime, notifyCandidate, suggestTime, waitingWhatsApp } from "./calls";
+import { bookNow, bookingMessage, googleEventUrl, maltaTime, notifyCandidate, suggestTime, waitingWhatsApp } from "./calls";
 import { SlotPicker } from "./SlotPicker";
 
 const BOOKED_VIA = { google: "Booked via Google ✓", admin: "Booked by the team", dashboard: "Booked from the dashboard", "confirm-link": "Confirmed by the candidate" } as const;
@@ -132,6 +132,14 @@ export function CallPanel({ c, onSaved }: { c: Consultation; onSaved: () => void
               <a href={waLink(c.whatsapp, waitingWhatsApp(c))} target="_blank" rel="noreferrer">
                 <Button variant="secondary" className="min-h-9">
                   <MessageCircle className="h-4 w-4" /> Open WhatsApp
+                </Button>
+              </a>
+            )}
+            {/* Booked in the app: put it in the real Google Calendar by hand (Google bookings are already there). */}
+            {c.booked_via !== "google" && c.preferred_call_at && (
+              <a href={googleEventUrl(c, c.preferred_call_at)} target="_blank" rel="noreferrer" title="Opens Google Calendar with the call filled in — add Meet and click Save">
+                <Button variant="secondary" className="min-h-9">
+                  <CalendarPlus className="h-4 w-4" /> Add to Google Calendar
                 </Button>
               </a>
             )}

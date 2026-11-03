@@ -12,6 +12,7 @@ import { adminRecipients } from "../_shared/admins.ts";
 import { APP_URL, CALL_MINUTES, sendEmail, tzOf } from "../_shared/call.ts";
 import { googleConfigured } from "../_shared/google.ts";
 import { bookCall } from "../_shared/booked.ts";
+import { gcalLink } from "../_shared/gcal.ts";
 import { isCallSlot, isSlotFree } from "../_shared/slots.ts";
 
 const cors = {
@@ -100,7 +101,7 @@ Deno.serve(async (req) => {
           ["WhatsApp", row.whatsapp],
           ["Google Meet", row.meeting_url ?? "Not created — add it in admin"],
         ]) +
-        actions(button(`${APP_URL()}/admin?lead=${row.id}`, "Open lead"), button(`${APP_URL()}/admin/calendar`, "Open calendar", "#14123a")),
+        actions(button(`${APP_URL()}/admin?lead=${row.id}`, "Open lead"), button(gcalLink(row, at), "📅 Add to Google Calendar", "#14123a")),
       `${row.full_name} ${headline}: ${malta(at)}`,
     ),
   });

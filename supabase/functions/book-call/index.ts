@@ -8,6 +8,7 @@ import { adminRecipients } from "../_shared/admins.ts";
 import { APP_URL, sendEmail } from "../_shared/call.ts";
 import { isCallSlot, isSlotFree } from "../_shared/slots.ts";
 import { bookCall } from "../_shared/booked.ts";
+import { gcalLink } from "../_shared/gcal.ts";
 
 const cors = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type" };
 const env = (k: string) => Deno.env.get(k) ?? "";
@@ -55,7 +56,7 @@ Deno.serve(async (req) => {
           ["Course", row.desired_course],
           ["WhatsApp", row.whatsapp],
         ]) +
-        actions(button(`${APP_URL()}/admin?lead=${row.id}`, "Open lead")),
+        actions(button(`${APP_URL()}/admin?lead=${row.id}`, "Open lead"), button(gcalLink(row, row.preferred_call_at), "📅 Add to Google Calendar", "#14123a")),
       `${row.full_name}: ${malta(row.preferred_call_at)}`,
     ),
   });
