@@ -63,6 +63,9 @@ export function leadScore(c: { start_date: string | null; english_level: string 
 
 // Real booking page, shared manually after the profile is reviewed.
 export const BOOKING_LINK = "https://calendar.app.google/sdG5M6bUJAEr2Ny47";
+/** The same "Study in Malta" appointment schedule in Google's embeddable form (the short link refuses iframes). */
+export const BOOKING_EMBED =
+  "https://calendar.google.com/calendar/appointments/schedules/AcZssZ18I1LmS2G9Ej9rXir13F8RTnoqqJaMMH_8W_NKJa-2k7ctyKKChujbS285ll53lt8PuyEbE3gB?gv=true";
 
 export const CALL_MINUTES = 20;
 

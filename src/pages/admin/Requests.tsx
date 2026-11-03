@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { CalendarCheck, CheckCircle2, Clock, ExternalLink, FileText, MessageSquare, Play, Plus, Presentation, Search, Star, UserRound, UsersRound, Video, X } from "lucide-react";
+import { CalendarCheck, CalendarPlus, Check, CheckCircle2, Clock, Copy, ExternalLink, FileText, MessageSquare, Play, Plus, Presentation, Search, Star, UserRound, UsersRound, Video, X } from "lucide-react";
 import { supabase } from "../../lib/supabase";
 import {
+  BOOKING_EMBED,
   ENGLISH_LEVELS,
   documentTypesFor,
   STATUSES,
@@ -20,6 +21,7 @@ import { CountryPicker } from "../../components/CountryPicker";
 import { COUNTRIES, countryByCode, timeZonesOf } from "../../lib/countries";
 import { AREAS, ENGLISH_COURSES, ENGLISH_PROVIDERS, PROGRAMMES, programmeValue } from "../sessions/data";
 import { CallPanel } from "./CallPanel";
+import { maltaTime } from "./calls";
 import { SessionPanel, sessionHref } from "./SessionPanel";
 import type { Consultation, DocumentRow, Status } from "../../lib/types";
 import { Alert, Button, Card, Spinner, StatusBadge } from "../../components/ui";
@@ -689,7 +691,7 @@ function CallBadge({ c }: { c: Row }) {
   return <span className={`inline-flex shrink-0 rounded-full px-2 py-0.5 text-[11px] font-bold ${style}`}>{label}</span>;
 }
 
-type DetailTab = "call" | "profile" | "documents" | "comments";
+type DetailTab = "call" | "confirmation" | "profile" | "documents" | "comments";
 
 function Detail({ c, all, onClose, onSaved }: { c: Row; all: Row[]; onClose: () => void; onSaved: () => void }) {
   const [tab, setTab] = useState<DetailTab>("call");
@@ -823,6 +825,7 @@ function Detail({ c, all, onClose, onSaved }: { c: Row; all: Row[]; onClose: () 
             {(
               [
                 ["call", "Call", CalendarCheck, callStage(c) === "none" ? null : CALL_STAGE_LABELS[callStage(c)]],
+                ["confirmation", "Confirmation", CalendarPlus, null],
                 ["profile", "Profile", UserRound, null],
                 ["documents", "Documents", FileText, `${requiredDocs.filter((t) => hasDoc(t.key)).length}/${requiredDocs.length}`],
                 ["comments", "Comments", MessageSquare, c.admin_notes ? "•" : null],
@@ -880,6 +883,8 @@ function Detail({ c, all, onClose, onSaved }: { c: Row; all: Row[]; onClose: () 
               )}
             </>
           )}
+
+          {tab === "confirmation" && <BookingTab c={c} onDone={() => setTab("call")} />}
 
           {tab === "profile" && (
             <>
@@ -978,6 +983,56 @@ function NotesEditor({ c, onSave }: { c: Row; onSave: (text: string) => Promise<
         </Button>
         {saved && <span className="flex items-center gap-1 text-sm font-bold text-emerald-700"><CheckCircle2 className="h-4 w-4" /> Saved</span>}
       </div>
+    </div>
+  );
+}
+
+/**
+ * Book the call by hand on the real Google booking page, embedded here, with the candidate's details ready to copy.
+ * Google then creates the event with a Meet link and emails the candidate the invitation.
+ */
+function BookingTab({ c, onDone }: { c: Row; onDone: () => void }) {
+  const at = c.preferred_call_at ?? c.suggested_call_at ?? c.requested_call_times[0] ?? null;
+  return (
+    <div className="space-y-4">
+      <div className="space-y-2 rounded-2xl bg-mist p-4">
+        <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Copy into the booking form</p>
+        <CopyField label="Full name" value={c.full_name} />
+        <CopyField label="Email" value={c.email} />
+        {c.whatsapp && <CopyField label="Phone" value={c.whatsapp} />}
+        <CopyField label="Date & time" value={at ? `${maltaTime(at)} (Malta)` : "No time requested yet"} copy={!!at} />
+      </div>
+      <p className="text-xs text-slate-500">
+        Pick the same day and time below, fill in the name and email, and book. Google adds it to the calendar with a Meet link and emails the
+        candidate the invitation. Then copy the Meet link from the event and{" "}
+        <button onClick={onDone} className="font-bold text-brand hover:underline">
+          confirm it in the Call tab →
+        </button>
+      </p>
+      <iframe title="Google booking page" src={BOOKING_EMBED} className="h-[720px] w-full rounded-2xl border border-slate-200 bg-white" />
+      <a href={BOOKING_EMBED.replace("?gv=true", "")} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs font-bold text-brand hover:underline">
+        <ExternalLink className="h-3.5 w-3.5" /> Open the booking page in a new tab
+      </a>
+    </div>
+  );
+}
+
+function CopyField({ label, value, copy = true }: { label: string; value: string; copy?: boolean }) {
+  const [done, setDone] = useState(false);
+  const onCopy = async () => {
+    await navigator.clipboard.writeText(value).catch(() => {});
+    setDone(true);
+    setTimeout(() => setDone(false), 1500);
+  };
+  return (
+    <div className="flex items-center gap-2 rounded-xl bg-white px-3 py-2 ring-1 ring-slate-200">
+      <span className="w-24 shrink-0 text-xs text-slate-500">{label}</span>
+      <span className="min-w-0 flex-1 truncate text-sm font-bold">{value}</span>
+      {copy && (
+        <button onClick={onCopy} aria-label={`Copy ${label}`} className="flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-xs font-bold text-brand hover:bg-brand/5">
+          {done ? <Check className="h-3.5 w-3.5 text-emerald-600" /> : <Copy className="h-3.5 w-3.5" />} {done ? "Copied" : "Copy"}
+        </button>
+      )}
     </div>
   );
 }
