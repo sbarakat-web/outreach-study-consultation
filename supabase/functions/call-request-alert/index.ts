@@ -18,7 +18,7 @@ const env = (k: string) => Deno.env.get(k) ?? "";
 const DEFAULTS: Record<string, string> = {
   MAIL_FROM: "Outreach <hello@consultation.outreachstudy.eu>",
   APP_URL: "https://consultation.outreachstudy.eu",
-  BOOKING_LINK: "https://calendar.app.google/qTS8FRBH5BZdGgCx7",
+  BOOKING_LINK: "https://calendar.app.google/sdG5M6bUJAEr2Ny47",
 };
 const setting = (k: string) => env(k) || DEFAULTS[k] || "";
 

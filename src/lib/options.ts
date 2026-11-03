@@ -62,7 +62,7 @@ export function leadScore(c: { start_date: string | null; english_level: string 
 }
 
 // Real booking page, shared manually after the profile is reviewed.
-export const BOOKING_LINK = "https://calendar.app.google/qTS8FRBH5BZdGgCx7";
+export const BOOKING_LINK = "https://calendar.app.google/sdG5M6bUJAEr2Ny47";
 
 export const CALL_MINUTES = 20;
 
@@ -127,7 +127,7 @@ export const REVIEW_CHECKLIST = [
 
 // Call times (Malta), matching the Google appointment schedule "Study in Malta": Mon–Fri, 20-minute calls
 // starting on the hour from 09:00 to 16:00. Must match supabase/functions/_shared/slots.ts.
-const CALL_HOURS = { tz: "Europe/Malta", weekdays: [1, 2, 3, 4, 5], from: 9, to: 17, stepMinutes: 60, days: 21, minHoursAhead: 12 };
+const CALL_HOURS = { tz: "Europe/Malta", weekdays: [1, 2, 3, 4, 5], from: 9, to: 17, stepMinutes: 60, days: 7, minHoursAhead: 12 };
 
 // UTC instant for a wall-clock time in CALL_HOURS.tz (Date.UTC handles day overflow).
 function zonedTime(y: number, m: number, d: number, h: number, min: number) {

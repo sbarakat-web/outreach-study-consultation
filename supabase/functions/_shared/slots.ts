@@ -1,5 +1,5 @@
 // Server-side check of a call time picked by a candidate: must be a real call slot
-// (Mon–Fri, on the hour 09:00–16:00 Malta like the Google appointment schedule, ≥ 12h ahead, ≤ 30 days) and still free
+// (Mon–Fri, on the hour 09:00–16:00 Malta like the Google appointment schedule, ≥ 12h ahead, within the next week) and still free
 // (no other confirmed call, nothing busy in the Google Calendar).
 import { CALL_MINUTES, freeBusy, googleConfigured } from "./google.ts";
 
@@ -9,7 +9,7 @@ export function isCallSlot(iso: string) {
   const d = new Date(iso);
   if (isNaN(d.getTime())) return false;
   const ms = d.getTime();
-  if (ms < Date.now() + 12 * H || ms > Date.now() + 30 * 24 * H) return false;
+  if (ms < Date.now() + 12 * H || ms > Date.now() + 8 * 24 * H) return false;
   const p = Object.fromEntries(
     new Intl.DateTimeFormat("en-US", { timeZone: "Europe/Malta", weekday: "short", hour: "numeric", minute: "numeric", hourCycle: "h23" })
       .formatToParts(d)

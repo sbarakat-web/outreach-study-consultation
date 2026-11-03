@@ -23,7 +23,7 @@ import {
 } from "lucide-react";
 
 export const BRAND = "Outreach Recruitment Agency";
-export const BOOKING_URL = "https://calendar.app.google/qTS8FRBH5BZdGgCx7";
+export const BOOKING_URL = "https://calendar.app.google/sdG5M6bUJAEr2Ny47";
 export const WHATSAPP = "+356 9972 8213";
 export const DASHBOARD_URL = "https://consultation.outreachstudy.eu/dashboard";
 
