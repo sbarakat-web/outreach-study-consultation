@@ -79,6 +79,7 @@ export function App() {
               <Route path="awaiting-confirmation" element={<Requests key="awaiting" mode="awaiting" />} />
               <Route path="waiting-for-candidate" element={<Requests key="waiting" mode="waiting" />} />
               <Route path="upcoming" element={<Requests key="upcoming" mode="upcoming" />} />
+              <Route path="overdue" element={<Requests key="overdue" mode="overdue" />} />
               <Route path="calendar" element={<CalendarPage />} />
               <Route path="sessions" element={<SessionsDashboard />} />
               <Route path="team" element={<Team />} />

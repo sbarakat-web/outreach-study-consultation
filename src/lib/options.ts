@@ -206,3 +206,12 @@ export const whatsappNumber = (import.meta.env.VITE_WHATSAPP_NUMBER as string | 
 
 export const waLink = (number: string, text = "") =>
   `https://wa.me/${number.replace(/\D/g, "")}${text ? `?text=${encodeURIComponent(text)}` : ""}`;
+
+/** Overdue: a booked call that has ended, but nobody recorded what happened (interviewed / no show / not interested). */
+export const isOverdue = (c: { call_status: string; preferred_call_at: string | null; session_outcome: string | null; call_declined_at: string | null; status: string }) =>
+  c.call_status === "confirmed" &&
+  !c.call_declined_at &&
+  c.status !== "not_interested" &&
+  !!c.preferred_call_at &&
+  !c.session_outcome &&
+  new Date(c.preferred_call_at).getTime() + 20 * 60_000 <= Date.now();

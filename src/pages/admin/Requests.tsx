@@ -16,6 +16,7 @@ import {
   CALL_STAGE_LABELS,
   maltaDateTime,
   noReply24h,
+  isOverdue,
 } from "../../lib/options";
 import { parsePhoneNumberFromString, type CountryCode } from "libphonenumber-js/max";
 import { CountryPicker } from "../../components/CountryPicker";
@@ -43,6 +44,7 @@ const PAGE_TITLE = {
   awaiting: "Awaiting confirmation",
   waiting: "Waiting for candidate",
   upcoming: "Upcoming",
+  overdue: "Overdue",
 } as const;
 
 /** Upcoming: confirmed calls whose session hasn't happened yet (until the call has ended). */
@@ -116,6 +118,10 @@ export function Requests({ mode = "all" }: { mode?: keyof typeof PAGE_TITLE }) {
       [c.full_name, c.email, c.whatsapp, c.country, c.desired_course].some((v) => v?.toLowerCase().includes(q)) ||
       (qDigits.length >= 4 && (c.whatsapp ?? "").replace(/\D/g, "").includes(qDigits));
     // Call pages: every lead in that call state, soonest call first.
+    if (mode === "overdue") {
+      // Longest-waiting first.
+      return (items ?? []).filter((c) => isOverdue(c) && matches(c)).sort((a, b) => a.preferred_call_at!.localeCompare(b.preferred_call_at!));
+    }
     if (mode === "upcoming") {
       return (items ?? []).filter((c) => isUpcoming(c) && matches(c)).sort((a, b) => a.preferred_call_at!.localeCompare(b.preferred_call_at!));
     }
@@ -286,11 +292,15 @@ export function Requests({ mode = "all" }: { mode?: keyof typeof PAGE_TITLE }) {
         )}
       </div>
 
+      {mode === "overdue" && <OverdueIntro />}
+
       <Card>
         {filtered.length === 0 ? (
           <p className="px-6 py-10 text-center text-slate-500">No requests match.</p>
         ) : mode === "documents" ? (
           <DocumentsTable rows={filtered} onOpen={setOpenId} onSaved={load} />
+        ) : mode === "overdue" ? (
+          <OverdueTable rows={filtered} onOpen={setOpenId} />
         ) : mode === "upcoming" ? (
           <UpcomingTable rows={filtered} onOpen={setOpenId} />
         ) : mode === "awaiting" || mode === "waiting" ? (
@@ -1777,5 +1787,97 @@ function UpcomingCalendar({ all, onOpen }: { all: Row[]; onOpen: (id: string) =>
         </div>
       </div>
     </Card>
+  );
+}
+
+/** Top of the Overdue page: why these candidates are here and what recording the outcome does. */
+function OverdueIntro() {
+  return (
+    <div className="rounded-3xl border-2 border-brand-red/25 bg-red-50/70 p-5 sm:p-6">
+      <p className="flex items-center gap-2 text-xs font-black uppercase tracking-wider text-brand-red">
+        <AlertTriangle className="h-4 w-4" /> No update after the call
+      </p>
+      <h2 className="mt-1 text-lg font-black text-navy sm:text-xl">We don't have any information on these candidates yet</h2>
+      <p className="mt-2 max-w-3xl text-sm leading-relaxed text-slate-700">
+        Their call was booked and the time has passed, but nothing was recorded afterwards: we don't know if they attended, are interested, or
+        didn't show up. Nikki (or whoever ran the call) should click <strong>Record outcome</strong>, then <strong>Complete</strong> in the session,
+        and choose what happened:
+      </p>
+      <div className="mt-4 grid gap-2 sm:grid-cols-3">
+        {[
+          ["✅ Interviewed", "Status becomes Interviewed and the document reminders start automatically."],
+          ["🚫 No Attendance", "The time is freed and the candidate can book a new call."],
+          ["👋 No Longer Interested", "Status changes and the “our door is open” email goes out automatically."],
+        ].map(([title, text]) => (
+          <div key={title} className="rounded-2xl bg-white p-3 shadow-sm ring-1 ring-slate-100">
+            <p className="text-sm font-black text-navy">{title}</p>
+            <p className="mt-0.5 text-xs text-slate-600">{text}</p>
+          </div>
+        ))}
+      </div>
+      <p className="mt-3 text-xs font-bold text-slate-500">
+        Everything after that is automatic, and the candidate leaves this list as soon as the outcome is saved.
+      </p>
+    </div>
+  );
+}
+
+/** Booked calls that have ended without an outcome, oldest first, with how long they've been waiting. */
+function OverdueTable({ rows, onOpen }: { rows: Row[]; onOpen: (id: string) => void }) {
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-left text-sm">
+        <thead className="text-xs uppercase tracking-wider text-slate-500">
+          <tr className="border-b border-slate-100">
+            <th className="px-5 py-3 font-bold">Call was (Malta)</th>
+            <th className="px-3 py-3 font-bold">Candidate</th>
+            <th className="hidden px-3 py-3 font-bold md:table-cell">Missing</th>
+            <th className="px-5 py-3" />
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-slate-100">
+          {rows.map((c) => {
+            const at = c.preferred_call_at!;
+            const days = Math.floor((Date.now() - new Date(at).getTime()) / 86_400_000);
+            return (
+              <tr key={c.id} onClick={() => onOpen(c.id)} className="cursor-pointer hover:bg-mist">
+                <td className="px-5 py-3">
+                  <div className="font-bold">{maltaTime(at)}</div>
+                  <div className={`text-xs font-bold ${days >= 1 ? "text-brand-red" : "text-amber-700"}`}>{since(at)}</div>
+                </td>
+                <td className="px-3 py-3">
+                  <div className="font-bold">{c.full_name}</div>
+                  <div className="text-xs text-slate-500">
+                    {c.email}
+                    {c.whatsapp ? ` · ${c.whatsapp}` : ""}
+                  </div>
+                </td>
+                <td className="hidden px-3 py-3 md:table-cell">
+                  <span className="rounded-full bg-red-50 px-2 py-0.5 text-xs font-bold text-brand-red">No outcome recorded</span>
+                  {c.attendance_confirmed_at && <div className="mt-1 text-[11px] font-bold text-emerald-700">Had confirmed they'd attend</div>}
+                </td>
+                <td className="px-5 py-3 text-right" onClick={(e) => e.stopPropagation()}>
+                  <span className="inline-flex flex-wrap justify-end gap-1.5">
+                    <Link to={sessionHref(c)} className="inline-flex items-center gap-1 rounded-full bg-brand px-3 py-1 text-xs font-bold text-white hover:bg-brand/90">
+                      Record outcome →
+                    </Link>
+                    {c.whatsapp && (
+                      <a
+                        href={waLink(c.whatsapp, `Hi ${c.full_name.split(" ")[0]}, this is Outreach — Study in Malta. We had a call planned on ${maltaTime(at)} (Malta time). How did it go? If you missed it, we'd be happy to book a new time.`)}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1 rounded-full bg-white px-3 py-1 text-xs font-bold text-navy ring-1 ring-slate-200 hover:bg-slate-50"
+                      >
+                        <MessageCircle className="h-3.5 w-3.5" /> WhatsApp
+                      </a>
+                    )}
+                  </span>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
   );
 }
