@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { AlertTriangle, CalendarCheck, CalendarX2, RotateCcw, ThumbsUp, CalendarPlus, Check, CheckCircle2, ClipboardPaste, Clock, Copy, ExternalLink, FileText, MessageCircle, MessageSquare, Play, Plus, Presentation, Search, Star, UserRound, UsersRound, Video, X } from "lucide-react";
+import { AlertTriangle, CalendarCheck, ChevronLeft, ChevronRight, CalendarX2, RotateCcw, ThumbsUp, CalendarPlus, Check, CheckCircle2, ClipboardPaste, Clock, Copy, ExternalLink, FileText, MessageCircle, MessageSquare, Play, Plus, Presentation, Search, Star, UserRound, UsersRound, Video, X } from "lucide-react";
 import { supabase } from "../../lib/supabase";
 import {
   BOOKING_EMBED,
@@ -343,6 +343,8 @@ export function Requests({ mode = "all" }: { mode?: keyof typeof PAGE_TITLE }) {
           </div>
         )}
       </Card>
+
+      {mode === "upcoming" && <UpcomingCalendar rows={filtered} onOpen={setOpenId} />}
 
       {open && (
         <Detail
@@ -1581,5 +1583,241 @@ function UpcomingTable({ rows, onOpen }: { rows: Row[]; onOpen: (id: string) => 
         </tbody>
       </table>
     </div>
+  );
+}
+
+// Calendar days are Malta dates ("2026-11-04"); arithmetic in UTC so it never shifts with the admin's zone.
+const DAY_MS = 86_400_000;
+const keyToUtc = (key: string) => Date.UTC(+key.slice(0, 4), +key.slice(5, 7) - 1, +key.slice(8, 10));
+const utcToKey = (ms: number) => new Date(ms).toISOString().slice(0, 10);
+const addDays = (key: string, n: number) => utcToKey(keyToUtc(key) + n * DAY_MS);
+const mondayOf = (key: string) => addDays(key, -((new Date(keyToUtc(key)).getUTCDay() + 6) % 7));
+const dayLabel = (key: string, opts: Intl.DateTimeFormatOptions) => new Intl.DateTimeFormat("en-GB", { ...opts, timeZone: "UTC" }).format(new Date(keyToUtc(key)));
+const maltaHour = (iso: string) => Number(new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/Malta", hour: "2-digit", hourCycle: "h23" }).format(new Date(iso)));
+const CAL_HOURS = [9, 10, 11, 12, 13, 14, 15, 16];
+
+/** One call on the calendar: green when they confirmed they'll attend, amber while not yet. */
+function CallChip({ c, onOpen }: { c: Row; onOpen: (id: string) => void }) {
+  const ok = !!c.attendance_confirmed_at;
+  return (
+    <button
+      type="button"
+      onClick={() => onOpen(c.id)}
+      title={`${c.full_name} · ${maltaClock(c.preferred_call_at!)} Malta${ok ? " · will attend" : " · attendance not confirmed"}`}
+      className={`group flex w-full min-w-0 items-center gap-1.5 rounded-lg border-s-4 px-2 py-1 text-left text-xs font-bold shadow-sm transition hover:-translate-y-px hover:shadow ${
+        ok ? "border-emerald-500 bg-emerald-50 text-emerald-900" : "border-amber-400 bg-amber-50 text-amber-900"
+      }`}
+    >
+      <span className="shrink-0 tabular-nums opacity-70">{maltaClock(c.preferred_call_at!)}</span>
+      <span className="truncate">{c.full_name.split(" ")[0]}</span>
+    </button>
+  );
+}
+
+/** Calendar box under the Upcoming list: week (Malta hours) or month, with the selected day's calls on the side. */
+function UpcomingCalendar({ rows, onOpen }: { rows: Row[]; onOpen: (id: string) => void }) {
+  const today = maltaDay(new Date());
+  const [view, setView] = useState<"week" | "month">("week");
+  const [anchor, setAnchor] = useState(today);
+  const [selected, setSelected] = useState(today);
+
+  const byDay = useMemo(() => {
+    const map = new Map<string, Row[]>();
+    for (const c of rows) {
+      const k = maltaDay(c.preferred_call_at!);
+      map.set(k, [...(map.get(k) ?? []), c]);
+    }
+    return map;
+  }, [rows]);
+
+  const weekStart = mondayOf(anchor);
+  const weekDays = Array.from({ length: 5 }, (_, i) => addDays(weekStart, i));
+  const monthFirst = `${anchor.slice(0, 7)}-01`;
+  const gridStart = mondayOf(monthFirst);
+  // Whole weeks covering the month (5 or 6 rows).
+  const nextMonth = new Date(keyToUtc(monthFirst));
+  nextMonth.setUTCMonth(nextMonth.getUTCMonth() + 1);
+  const weeks = Math.ceil((nextMonth.getTime() - keyToUtc(gridStart)) / DAY_MS / 7);
+  const visibleMonthDays = Array.from({ length: weeks * 7 }, (_, i) => addDays(gridStart, i));
+
+  const move = (dir: number) =>
+    setAnchor((a) => {
+      if (view === "week") return addDays(a, dir * 7);
+      const d = new Date(keyToUtc(`${a.slice(0, 7)}-01`));
+      d.setUTCMonth(d.getUTCMonth() + dir);
+      return utcToKey(d.getTime());
+    });
+
+  const title =
+    view === "week"
+      ? `${dayLabel(weekDays[0], { day: "numeric", month: "short" })} – ${dayLabel(weekDays[4], { day: "numeric", month: "short", year: "numeric" })}`
+      : dayLabel(monthFirst, { month: "long", year: "numeric" });
+  const inView = (view === "week" ? weekDays : visibleMonthDays).reduce((n, d) => n + (byDay.get(d)?.length ?? 0), 0);
+  const dayCalls = byDay.get(selected) ?? [];
+
+  return (
+    <Card>
+      <div className="space-y-4 px-4 py-5 sm:px-6">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="flex items-center gap-2 text-lg font-black">
+              <CalendarCheck className="h-5 w-5 text-brand" /> Calendar
+            </h2>
+            <p className="text-xs text-slate-500">
+              {inView} call{inView === 1 ? "" : "s"} in view · Malta time
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="inline-flex rounded-full bg-slate-100 p-1 text-xs font-bold" role="tablist" aria-label="Calendar view">
+              {(["week", "month"] as const).map((v) => (
+                <button
+                  key={v}
+                  role="tab"
+                  aria-selected={view === v}
+                  onClick={() => setView(v)}
+                  className={`rounded-full px-3 py-1 capitalize transition ${view === v ? "bg-white text-brand shadow-sm" : "text-slate-500 hover:text-navy"}`}
+                >
+                  {v}
+                </button>
+              ))}
+            </div>
+            <div className="inline-flex items-center gap-1">
+              <button aria-label="Previous" onClick={() => move(-1)} className="grid h-8 w-8 place-items-center rounded-full ring-1 ring-slate-200 hover:bg-slate-50">
+                <ChevronLeft className="h-4 w-4" />
+              </button>
+              <button
+                onClick={() => {
+                  setAnchor(today);
+                  setSelected(today);
+                }}
+                className="rounded-full px-3 py-1 text-xs font-bold ring-1 ring-slate-200 hover:bg-slate-50"
+              >
+                Today
+              </button>
+              <button aria-label="Next" onClick={() => move(1)} className="grid h-8 w-8 place-items-center rounded-full ring-1 ring-slate-200 hover:bg-slate-50">
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+        </div>
+        <p className="text-sm font-black text-navy">{title}</p>
+
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_16rem]">
+          {view === "week" ? (
+            <div className="overflow-x-auto rounded-2xl ring-1 ring-slate-200">
+              <div className="grid min-w-[560px] grid-cols-[3.25rem_repeat(5,minmax(0,1fr))]">
+                <div className="border-b border-slate-200 bg-slate-50" />
+                {weekDays.map((d) => (
+                  <button
+                    key={d}
+                    onClick={() => setSelected(d)}
+                    className={`border-b border-s border-slate-200 px-2 py-2 text-center transition ${selected === d ? "bg-brand/[0.06]" : "bg-slate-50 hover:bg-slate-100"}`}
+                  >
+                    <span className="block text-[11px] font-bold uppercase tracking-wider text-slate-500">{dayLabel(d, { weekday: "short" })}</span>
+                    <span
+                      className={`mx-auto mt-0.5 grid h-7 w-7 place-items-center rounded-full text-sm font-black ${d === today ? "bg-brand text-white" : "text-navy"}`}
+                    >
+                      {dayLabel(d, { day: "numeric" })}
+                    </span>
+                  </button>
+                ))}
+                {CAL_HOURS.map((h) => (
+                  <div key={h} className="contents">
+                    <div className="border-b border-slate-100 px-2 pt-1.5 text-right text-[11px] font-bold tabular-nums text-slate-400">{String(h).padStart(2, "0")}:00</div>
+                    {weekDays.map((d) => {
+                      const calls = (byDay.get(d) ?? []).filter((c) => maltaHour(c.preferred_call_at!) === h);
+                      const past = d < today || (d === today && h < maltaHour(new Date().toISOString()));
+                      return (
+                        <div key={d} className={`min-h-[3rem] space-y-1 border-b border-s border-slate-100 p-1 ${past ? "bg-slate-50/70" : ""}`}>
+                          {calls.map((c) => (
+                            <CallChip key={c.id} c={c} onOpen={onOpen} />
+                          ))}
+                        </div>
+                      );
+                    })}
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div className="rounded-2xl ring-1 ring-slate-200">
+              <div className="grid grid-cols-7 border-b border-slate-200 bg-slate-50 text-center text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((d) => (
+                  <div key={d} className="py-2">{d}</div>
+                ))}
+              </div>
+              <div className="grid grid-cols-7">
+                {visibleMonthDays.map((d, i) => {
+                  const calls = byDay.get(d) ?? [];
+                  const other = d.slice(0, 7) !== anchor.slice(0, 7);
+                  return (
+                    <div
+                      key={d}
+                      role="button"
+                      tabIndex={0}
+                      aria-label={dayLabel(d, { weekday: "long", day: "numeric", month: "long" })}
+                      onClick={() => setSelected(d)}
+                      onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && setSelected(d)}
+                      className={`min-h-[5.5rem] cursor-pointer space-y-1 border-slate-100 p-1.5 text-left align-top transition ${i % 7 ? "border-s" : ""} ${i >= 7 ? "border-t" : ""} ${
+                        selected === d ? "bg-brand/[0.06] ring-2 ring-inset ring-brand/40" : "hover:bg-slate-50"
+                      } ${other ? "opacity-40" : ""}`}
+                    >
+                      <span className={`grid h-6 w-6 place-items-center rounded-full text-xs font-black ${d === today ? "bg-brand text-white" : "text-navy"}`}>
+                        {dayLabel(d, { day: "numeric" })}
+                      </span>
+                      {calls.slice(0, 3).map((c) => (
+                        <div key={c.id} onClick={(e) => e.stopPropagation()}>
+                          <CallChip c={c} onOpen={onOpen} />
+                        </div>
+                      ))}
+                      {calls.length > 3 && <span className="block px-1 text-[11px] font-bold text-brand">+{calls.length - 3} more</span>}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          <aside className="rounded-2xl bg-mist p-4">
+            <p className="text-xs font-bold uppercase tracking-wider text-slate-500">{selected === today ? "Today" : dayLabel(selected, { weekday: "long" })}</p>
+            <p className="text-lg font-black">{dayLabel(selected, { day: "numeric", month: "long" })}</p>
+            {dayCalls.length === 0 ? (
+              <p className="mt-4 text-sm text-slate-500">No calls this day.</p>
+            ) : (
+              <ul className="mt-3 space-y-2">
+                {dayCalls.map((c) => (
+                  <li key={c.id} className="rounded-xl bg-white p-3 shadow-sm">
+                    <button onClick={() => onOpen(c.id)} className="block w-full text-left">
+                      <span className="text-sm font-black text-brand">{maltaClock(c.preferred_call_at!)}</span>
+                      <span className="block truncate font-bold">{c.full_name}</span>
+                      {candidateTime(c, c.preferred_call_at!, { weekday: undefined, day: undefined, month: undefined }) && (
+                        <span className="block text-xs text-slate-500">Their time {candidateTime(c, c.preferred_call_at!, { weekday: undefined, day: undefined, month: undefined })}</span>
+                      )}
+                      <span className={`mt-1 inline-block text-[11px] font-bold ${c.attendance_confirmed_at ? "text-emerald-700" : "text-amber-700"}`}>
+                        {c.attendance_confirmed_at ? "✓ Will attend" : "Attendance not confirmed"}
+                      </span>
+                    </button>
+                    <span className="mt-2 flex gap-1.5">
+                      {c.meeting_url && (
+                        <a href={c.meeting_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 rounded-full bg-emerald-600 px-2.5 py-1 text-[11px] font-bold text-white hover:bg-emerald-700">
+                          <Video className="h-3 w-3" /> Meet
+                        </a>
+                      )}
+                      <Link to={sessionHref(c)} className="inline-flex items-center gap-1 rounded-full bg-brand px-2.5 py-1 text-[11px] font-bold text-white hover:bg-brand/90">
+                        <Play className="h-3 w-3 fill-current" /> Start
+                      </Link>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <div className="mt-4 flex flex-wrap gap-3 border-t border-slate-200 pt-3 text-[11px] font-bold text-slate-500">
+              <span className="flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-sm bg-emerald-500" /> Will attend</span>
+              <span className="flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-sm bg-amber-400" /> Not confirmed</span>
+            </div>
+          </aside>
+        </div>
+      </div>
+    </Card>
   );
 }
