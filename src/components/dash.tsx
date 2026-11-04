@@ -1,6 +1,6 @@
 // Building blocks of the dashboard look (candidate + admin), modelled on the "Boardash" template:
 // floating sidebar card, stat strip with round icons, meeting-style cards.
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import type { LucideIcon } from "lucide-react";
 import { ChevronDown, LogOut } from "lucide-react";
@@ -122,7 +122,11 @@ function SideGroup({ item }: { item: TabItem }) {
       return true;
     }
   });
-  const shown = open || inside;
+  // Opens when you go to one of its pages; the chevron can still close it while you stay there.
+  useEffect(() => {
+    if (inside) setOpen(true);
+  }, [inside, location.pathname]);
+  const shown = open;
   const toggle = () => {
     const next = !shown;
     setOpen(next);
