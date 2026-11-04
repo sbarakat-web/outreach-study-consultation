@@ -76,7 +76,6 @@ export function PresenterQueue({
   programmeFor,
   onProgramme,
   onStart,
-  onJoinAndStart,
   onHide,
 }: {
   candidates: Candidate[];
@@ -88,7 +87,6 @@ export function PresenterQueue({
   programmeFor: Record<string, string>;
   onProgramme: (id: string, programmeId: string) => void;
   onStart: (c: Candidate) => void;
-  onJoinAndStart: (c: Candidate) => void;
   onHide: (c: Candidate) => void;
 }) {
   const candidates = all;
@@ -158,13 +156,7 @@ export function PresenterQueue({
                 <span className="max-w-full truncate rounded-full bg-white/10 px-2 py-1">{PROGRAMMES.find((programme) => programme.id === (programmeFor[next.id] ?? findBestMatch(next.desired_course)?.id))?.course ?? next.desired_course ?? "Programme not selected"}</span>
               </div>
             </div>
-            <button
-              onClick={() => next.meeting_url ? onJoinAndStart(next) : onStart(next)}
-              className="inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-full bg-emerald-500 px-4 text-xs font-black text-white outline-none hover:bg-emerald-400 focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-[#5424c7]"
-            >
-              {next.meeting_url ? <Video className="h-4 w-4" /> : <Play className="h-4 w-4 fill-current" />}
-              {next.meeting_url ? "Join meeting and start" : "Start presentation"}
-            </button>
+            <MeetAndStart url={next.meeting_url} onStart={() => onStart(next)} tone="dark" />
           </section>
         )}
 
@@ -220,7 +212,6 @@ export function PresenterQueue({
                     docs={docs[c.id]}
                     onDetails={() => setSelectedId(c.id)}
                     onStart={() => onStart(c)}
-                    onJoinAndStart={() => onJoinAndStart(c)}
                   />
                 ))}
               </ul>
@@ -236,7 +227,7 @@ export function PresenterQueue({
         </span>
         <button
           disabled={!nextCandidate}
-          onClick={() => nextCandidate && (nextCandidate.meeting_url ? onJoinAndStart(nextCandidate) : onStart(nextCandidate))}
+          onClick={() => nextCandidate && onStart(nextCandidate)}
           className="inline-flex items-center gap-1 rounded-full bg-[#092553] px-3 py-1.5 font-bold text-white outline-none hover:bg-[#153d77] focus-visible:ring-2 focus-visible:ring-[#5424c7] disabled:opacity-40"
         >
           Next candidate <ChevronRight className="h-3.5 w-3.5" />
@@ -251,7 +242,6 @@ export function PresenterQueue({
           onProgramme={(programmeId) => onProgramme(selected.id, programmeId)}
           onClose={() => setSelectedId(null)}
           onStart={() => onStart(selected)}
-          onJoinAndStart={() => onJoinAndStart(selected)}
           onHide={() => {
             setSelectedId(null);
             onHide(selected);
@@ -269,7 +259,6 @@ function QueueRow({
   docs,
   onDetails,
   onStart,
-  onJoinAndStart,
 }: {
   c: Candidate;
   now: Date;
@@ -277,7 +266,6 @@ function QueueRow({
   docs?: DocProgress;
   onDetails: () => void;
   onStart: () => void;
-  onJoinAndStart: () => void;
 }) {
   const status = statusOf(c, now);
 
@@ -307,14 +295,8 @@ function QueueRow({
       </div>
       {c.message && <p className="mt-1 line-clamp-2 text-xs text-slate-500">“{c.message}”</p>}
 
-      <div className="mt-2 grid gap-1.5">
-        <button
-          onClick={c.meeting_url ? onJoinAndStart : onStart}
-          className={`inline-flex w-full items-center justify-center gap-1.5 rounded-full py-2 text-xs font-bold text-white outline-none focus-visible:ring-2 focus-visible:ring-offset-2 ${c.meeting_url ? "bg-emerald-600 hover:bg-emerald-700 focus-visible:ring-emerald-500" : "bg-[#5424c7] hover:bg-[#4319a8] focus-visible:ring-[#5424c7]"}`}
-        >
-          {c.meeting_url ? <Video className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5 fill-current" />}
-          {c.meeting_url ? "Join meeting and start" : "Start presentation"}
-        </button>
+      <div className="mt-2">
+        <MeetAndStart url={c.meeting_url} onStart={onStart} />
       </div>
     </li>
   );
@@ -328,7 +310,6 @@ function CandidateProfileDrawer({
   onProgramme,
   onClose,
   onStart,
-  onJoinAndStart,
   onHide,
 }: {
   c: Candidate;
@@ -338,7 +319,6 @@ function CandidateProfileDrawer({
   onProgramme: (programmeId: string) => void;
   onClose: () => void;
   onStart: () => void;
-  onJoinAndStart: () => void;
   onHide: () => void;
 }) {
   const digits = (c.whatsapp ?? "").replace(/\D/g, "");
@@ -430,12 +410,40 @@ function CandidateProfileDrawer({
         </div>
 
         <div className="space-y-2 border-t border-slate-200 p-4">
-          <button type="button" onClick={c.meeting_url ? onJoinAndStart : onStart} className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-emerald-600 px-5 text-sm font-black text-white hover:bg-emerald-700">
-            {c.meeting_url ? <Video className="h-4 w-4" /> : <Play className="h-4 w-4 fill-current" />}{c.meeting_url ? "Join meeting and start" : "Start presentation"}
-          </button>
+          <MeetAndStart url={c.meeting_url} onStart={onStart} size="lg" />
           <button type="button" onClick={() => confirm(`Remove ${c.full_name} from the presenter queue? Their stage does not change.`) && onHide()} className="inline-flex w-full items-center justify-center gap-1.5 rounded-full py-2 text-xs font-bold text-red-600 hover:bg-red-50"><Trash2 className="h-3.5 w-3.5" /> Remove from queue</button>
         </div>
       </aside>
+    </div>
+  );
+}
+
+/** Two separate actions: open the Google Meet link in a new tab, and start the session here. */
+function MeetAndStart({ url, onStart, tone = "light", size = "sm" }: { url: string | null; onStart: () => void; tone?: "light" | "dark"; size?: "sm" | "lg" }) {
+  const h = size === "lg" ? "min-h-12 text-sm" : "min-h-9 text-xs";
+  return (
+    <div className={`grid gap-2 ${url ? "grid-cols-2" : "grid-cols-1"}`}>
+      {url && (
+        <a
+          href={url}
+          target="_blank"
+          rel="noreferrer"
+          className={`inline-flex ${h} items-center justify-center gap-1.5 rounded-full px-3 font-black outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 ${
+            tone === "dark" ? "bg-white/15 text-white ring-1 ring-white/30 hover:bg-white/25" : "bg-white text-emerald-700 ring-1 ring-emerald-300 hover:bg-emerald-50"
+          }`}
+        >
+          <Video className="h-4 w-4" /> Join meeting
+        </a>
+      )}
+      <button
+        type="button"
+        onClick={onStart}
+        className={`inline-flex ${h} items-center justify-center gap-1.5 rounded-full px-3 font-black text-white outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 ${
+          tone === "dark" ? "bg-emerald-500 hover:bg-emerald-400" : "bg-emerald-600 hover:bg-emerald-700"
+        }`}
+      >
+        <Play className="h-4 w-4 fill-current" /> Start session
+      </button>
     </div>
   );
 }

@@ -166,15 +166,6 @@ export function OnlineSessions() {
     openPresentation(c, null, programmeFor[c.id]);
   };
 
-  // Meet on the left half of the screen, presentation here.
-  const joinAndStart = (c: Candidate) => {
-    if (c.meeting_url) {
-      const w = Math.round(window.screen.availWidth / 2);
-      window.open(c.meeting_url, "outreach-meet", `popup,width=${w},height=${window.screen.availHeight},left=0,top=0`);
-    }
-    startCandidate(c);
-  };
-
   // Live notes: saved in this browser per candidate, prefilled into the session comment.
   const saveNotes = (text: string) => {
     setNotes(text);
@@ -407,7 +398,6 @@ export function OnlineSessions() {
           programmeFor={programmeFor}
           onProgramme={(id, pid) => setProgrammeFor((m) => ({ ...m, [id]: pid }))}
           onStart={startCandidate}
-          onJoinAndStart={joinAndStart}
           onHide={hide}
         />
       )}
