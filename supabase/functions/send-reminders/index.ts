@@ -3,6 +3,7 @@
 //   24h before a confirmed call  → email
 //   1h before                    → email (+ WhatsApp via Twilio when configured)
 //   10 min before                → presenters get a one-click sign-in link to the online session
+//   30 min after, no outcome     → presenters get "what happened?" with the same one-click link (once per call time)
 //   documents due in ≤3 days / due now, required files missing → email
 //   suggested call time not confirmed after 24h → one "please confirm" email (candidate's language)
 //   lead marked No longer interested → one "thank you, our door is open" email
@@ -113,6 +114,50 @@ async function presenterEmail(db: any, c: any, presenters: string[]) {
   }
 }
 
+/** Booked call ended and nothing was recorded: ask the presenters for the outcome, with a sign-in link into the session. */
+// deno-lint-ignore no-explicit-any
+async function overdueEmail(db: any, c: any, presenters: string[]) {
+  const malta = new Intl.DateTimeFormat("en-GB", { weekday: "long", day: "numeric", month: "long", hour: "2-digit", minute: "2-digit", timeZone: "Europe/Malta" }).format(
+    new Date(c.preferred_call_at),
+  );
+  const sessionPath = `/onlinesessions?present=1&candidate=${c.id}`;
+  for (const [i, to] of presenters.entries()) {
+    if (i > 0) await pause(700);
+    const link = await db.auth.admin.generateLink({ type: "magiclink", email: to, options: { redirectTo: `${APP_URL()}${sessionPath}` } });
+    const login = `${APP_URL()}/login?next=${encodeURIComponent(sessionPath)}&email=${encodeURIComponent(to)}`;
+    const open = link.data?.properties?.action_link ?? login;
+    await sendEmail(
+      to,
+      `Action needed: how did the call with ${c.full_name} go?`,
+      layout(
+        eyebrow("Outcome missing") +
+          title("Hello, this email is from Soufiane 👋") +
+          para(
+            `The call with <strong>${escape(c.full_name)}</strong> was on <strong>${malta} (Malta time)</strong>, but no outcome has been recorded yet, so we don't know if they attended or are interested.`,
+            true,
+          ) +
+          actions(button(open, "▶ Open the session and record the outcome")) +
+          `<p style="margin:0 0 16px;padding:12px 16px;border-radius:12px;background:#ecfdf5;color:#065f46;text-align:center;font-size:14px">Click <strong>Complete</strong> and choose <strong>Interviewed</strong>, <strong>No Attendance</strong> or <strong>No Longer Interested</strong>. The status updates automatically.</p>` +
+          facts([
+            ["Candidate", c.full_name],
+            ["Email", c.email],
+            ["WhatsApp", c.whatsapp],
+            ["Course", c.desired_course],
+            ["Country", c.country],
+            ["Attendance", c.attendance_confirmed_at ? "Had confirmed they'd attend" : "Had not confirmed"],
+          ]) +
+          para("The button works once and for 1 hour. If it has expired, sign in with:", true) +
+          highlight(`Email: <strong>${escape(to)}</strong><br>Password: <strong>${escape(to)}</strong>`) +
+          actions(button(login, "Sign in with password", "#14123a")),
+        `${c.full_name}: record the outcome of the call`,
+        "en",
+        { url: "https://outreachrecruitment.net", label: "outreachrecruitment.net", brand: "Outreach Recruitment — Study in Malta" },
+      ),
+      presenters.includes(PRESENTER_CC()) ? undefined : PRESENTER_CC(),
+    );
+  }
+}
+
 async function sendWhatsApp(to: string, text: string) {
   const sid = env("TWILIO_ACCOUNT_SID");
   if (!sid || !env("TWILIO_AUTH_TOKEN") || !env("TWILIO_WHATSAPP_FROM")) return;
@@ -128,7 +173,7 @@ Deno.serve(async () => {
   const db = createClient(env("SUPABASE_URL"), env("SUPABASE_SERVICE_ROLE_KEY"));
   const now = Date.now();
   const iso = (ms: number) => new Date(ms).toISOString();
-  const sent = { h24: 0, h1: 0, docs: 0, confirm: 0, presenter: 0, goodbye: 0 };
+  const sent = { h24: 0, h1: 0, docs: 0, confirm: 0, presenter: 0, overdue: 0, goodbye: 0 };
 
   // Claim a reminder column atomically; returns the row only if this call won it.
   const claim = async (id: string, column: string) => {
@@ -209,6 +254,27 @@ Deno.serve(async () => {
     });
     await sendCallEmail({ to: c.email, subject: mail.subject, html: mail.html });
     sent.confirm++;
+  }
+
+  // Overdue: booked call ended 30+ min ago (within the last 14 days) and no outcome recorded → ask the presenters, once.
+  if (presenters.length) {
+    const { data: overdue, error: overdueError } = await db
+      .from("consultations")
+      .select("*")
+      .eq("call_status", "confirmed")
+      .is("call_declined_at", null)
+      .is("session_outcome", null)
+      .is("overdue_alert_at", null)
+      .neq("status", "not_interested")
+      .lt("preferred_call_at", iso(now - 30 * 60_000))
+      .gt("preferred_call_at", iso(now - 14 * 24 * H))
+      .limit(10);
+    if (overdueError) console.error(`send-reminders: overdue check failed: ${overdueError.message}`);
+    for (const c of overdue ?? []) {
+      if (!(await claim(c.id, "overdue_alert_at"))) continue;
+      await overdueEmail(db, c, presenters);
+      sent.overdue++;
+    }
   }
 
   // Document deadline reminders (after an interviewed session)

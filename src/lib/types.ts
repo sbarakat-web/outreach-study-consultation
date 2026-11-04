@@ -53,6 +53,7 @@ export interface Consultation {
   attendance_deadline?: string | null;
   not_interested_reason?: string | null;
   not_interested_at?: string | null;
+  overdue_alert_at?: string | null;
   documents_due_at: string | null;
   session_by: string | null;
   session_rating: number | null;

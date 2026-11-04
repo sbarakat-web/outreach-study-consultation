@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { AlertTriangle, CalendarCheck, ChevronLeft, ChevronRight, CalendarX2, RotateCcw, ThumbsUp, CalendarPlus, Check, CheckCircle2, ClipboardPaste, Clock, Copy, ExternalLink, FileText, MessageCircle, MessageSquare, Play, Plus, Presentation, Search, Star, UserRound, UsersRound, Video, X } from "lucide-react";
+import { AlertTriangle, CalendarCheck, ChevronLeft, ChevronRight, CalendarX2, RotateCcw, ThumbsUp, CalendarPlus, Check, CheckCircle2, ClipboardPaste, Clock, Copy, ExternalLink, FileText, Mail, MessageCircle, MessageSquare, Play, Plus, Presentation, Search, Star, UserRound, UsersRound, Video, X } from "lucide-react";
 import { supabase } from "../../lib/supabase";
 import {
   BOOKING_EMBED,
@@ -1800,7 +1800,7 @@ function OverdueIntro() {
       <h2 className="mt-1 text-lg font-black text-navy sm:text-xl">We don't have any information on these candidates yet</h2>
       <p className="mt-2 max-w-3xl text-sm leading-relaxed text-slate-700">
         Their call was booked and the time has passed, but nothing was recorded afterwards: we don't know if they attended, are interested, or
-        didn't show up. Nikki (or whoever ran the call) should click <strong>Record outcome</strong>, then <strong>Complete</strong> in the session,
+        didn't show up. Nikki should click <strong>Record outcome</strong>, then <strong>Complete</strong> in the session,
         and choose what happened:
       </p>
       <div className="mt-4 grid gap-2 sm:grid-cols-3">
@@ -1815,9 +1815,14 @@ function OverdueIntro() {
           </div>
         ))}
       </div>
-      <p className="mt-3 text-xs font-bold text-slate-500">
-        Everything after that is automatic, and the candidate leaves this list as soon as the outcome is saved.
-      </p>
+      <div className="mt-4 flex items-start gap-3 rounded-2xl bg-emerald-50 p-4 ring-1 ring-emerald-200">
+        <Mail className="mt-0.5 h-5 w-5 shrink-0 text-emerald-700" />
+        <p className="text-sm text-emerald-900">
+          <strong>Solution, automatic:</strong> 30 minutes after each booked call with no outcome, Nikki receives an email with the candidate's details
+          and a one-click button that signs her in directly to that session. She clicks <strong>Complete</strong>, chooses the outcome, and the status
+          updates automatically. The candidate then leaves this list.
+        </p>
+      </div>
     </div>
   );
 }
@@ -1854,6 +1859,7 @@ function OverdueTable({ rows, onOpen }: { rows: Row[]; onOpen: (id: string) => v
                 </td>
                 <td className="hidden px-3 py-3 md:table-cell">
                   <span className="rounded-full bg-red-50 px-2 py-0.5 text-xs font-bold text-brand-red">No outcome recorded</span>
+                  <div className="mt-1 text-[11px] font-bold text-slate-500">{c.overdue_alert_at ? `Nikki emailed ${since(c.overdue_alert_at)}` : "Nikki will be emailed automatically"}</div>
                   {c.attendance_confirmed_at && <div className="mt-1 text-[11px] font-bold text-emerald-700">Had confirmed they'd attend</div>}
                 </td>
                 <td className="px-5 py-3 text-right" onClick={(e) => e.stopPropagation()}>
