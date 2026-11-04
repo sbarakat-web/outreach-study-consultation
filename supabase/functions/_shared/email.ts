@@ -85,3 +85,13 @@ export const steps = (heading: string, items: string[]) =>
       .map((s, i) => `<span style="display:inline-block;margin:3px 6px;white-space:nowrap"><span style="display:inline-block;width:22px;height:22px;border-radius:50%;background:${BRAND};color:#fff;font-size:12px;font-weight:bold;line-height:22px;text-align:center">${i + 1}</span> ${escape(s)}</span>`)
       .join(`<span style="color:#c7c9d9">→</span>`)}</p>
   </div>`;
+
+/**
+ * Reply-To on every email to candidates: replies go to the study inbox, with both advisers included.
+ * Override with the CANDIDATE_REPLY_TO secret (comma-separated).
+ */
+export const CANDIDATE_REPLY_TO = () =>
+  (Deno.env.get("CANDIDATE_REPLY_TO") || "study@outreachrecruitment.net,sbarakat@outreachrecruitment.net,jsalinas@outreachrecruitment.net")
+    .split(",")
+    .map((e) => e.trim())
+    .filter(Boolean);

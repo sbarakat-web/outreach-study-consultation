@@ -9,7 +9,7 @@
 //   lead marked No longer interested → one "thank you, our door is open" email
 // Secrets: RESEND_API_KEY; optional MAIL_FROM, APP_URL, TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_WHATSAPP_FROM
 import { createClient } from "npm:@supabase/supabase-js@2.45.4";
-import { actions, button, eyebrow, facts, highlight, layout, para, title, escape } from "../_shared/email.ts";
+import { actions, button, eyebrow, facts, highlight, layout, para, title, escape, CANDIDATE_REPLY_TO } from "../_shared/email.ts";
 import { loadAdvisor, sendEmail as sendCallEmail, suggestEmail } from "../_shared/call.ts";
 
 const env = (k: string) => Deno.env.get(k) ?? "";
@@ -47,7 +47,7 @@ async function sendEmail(to: string, subject: string, html: string, cc?: string)
     const res = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: { Authorization: `Bearer ${env("RESEND_API_KEY")}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ from: MAIL_FROM(), to, subject, html, ...(cc ? { cc } : {}) }),
+      body: JSON.stringify({ from: MAIL_FROM(), to, reply_to: CANDIDATE_REPLY_TO(), subject, html, ...(cc ? { cc } : {}) }),
     });
     if (res.ok) return true;
     const detail = await res.text().catch(() => "");

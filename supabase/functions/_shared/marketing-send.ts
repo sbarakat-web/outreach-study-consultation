@@ -1,6 +1,7 @@
 // Campaign sending for the marketing builder: audiences, personalisation values, local-morning
 // timing, preferences and the actual send (Resend, with List-Unsubscribe headers).
 import { renderEmail, type Block, type MarketingSettings } from "./marketing-render.ts";
+import { CANDIDATE_REPLY_TO } from "./email.ts";
 
 const env = (k: string) => Deno.env.get(k) ?? "";
 export const APP_URL = () => env("APP_URL") || "https://consultation.outreachstudy.eu";
@@ -118,7 +119,7 @@ export async function sendMail(to: string, subject: string, html: string, text: 
     body: JSON.stringify({
       from: MAIL_FROM(),
       to,
-      reply_to: "study@outreachrecruitment.net",
+      reply_to: CANDIDATE_REPLY_TO(),
       subject,
       html,
       text,

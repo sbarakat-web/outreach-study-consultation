@@ -2,7 +2,7 @@
 // campaign emails (scheduled / local-morning sends). Every row is claimed before sending, so
 // overlapping runs never double-send.
 import { createClient } from "npm:@supabase/supabase-js@2.45.4";
-import { actions, button, escape, eyebrow, highlight, layout, para, title } from "../_shared/email.ts";
+import { actions, button, escape, eyebrow, highlight, layout, para, title, CANDIDATE_REPLY_TO } from "../_shared/email.ts";
 import { processDueSends } from "../_shared/marketing-send.ts";
 import { processInviteQueue } from "../_shared/invite.ts";
 
@@ -12,7 +12,7 @@ async function sendEmail(to: string, subject: string, html: string, unsubscribeU
   const response = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: { Authorization: `Bearer ${env("RESEND_API_KEY")}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ from: env("MAIL_FROM") || "Outreach Study <hello@consultation.outreachstudy.eu>", to, reply_to: "study@outreachrecruitment.net", subject, html, headers: { "List-Unsubscribe": `<${unsubscribeUrl}>`, "List-Unsubscribe-Post": "List-Unsubscribe=One-Click" } }),
+    body: JSON.stringify({ from: env("MAIL_FROM") || "Outreach Study <hello@consultation.outreachstudy.eu>", to, reply_to: CANDIDATE_REPLY_TO(), subject, html, headers: { "List-Unsubscribe": `<${unsubscribeUrl}>`, "List-Unsubscribe-Post": "List-Unsubscribe=One-Click" } }),
   });
   const result = await response.json().catch(() => ({}));
   return { ok: response.ok, id: result.id ?? null, error: result.message ?? `Email provider returned ${response.status}` };

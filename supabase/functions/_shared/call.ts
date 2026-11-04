@@ -1,6 +1,6 @@
 // Call emails shared by notify (staff actions), confirm-call (candidate one-click confirm) and
 // send-reminders (24h "please confirm"). Candidate emails follow the candidate's app language.
-import { actions, advisorCard, button, eyebrow, highlight, layout, para, steps, title, escape } from "./email.ts";
+import { actions, advisorCard, button, eyebrow, highlight, layout, para, steps, title, escape, CANDIDATE_REPLY_TO } from "./email.ts";
 import { LOCALES, langOf, mailT, type MailLang } from "./mail-i18n.ts";
 
 export const CALL_MINUTES = 20;
@@ -175,13 +175,20 @@ export function confirmedEmail(c: Row, advisor: Advisor | null = null) {
   };
 }
 
-export async function sendEmail(msg: { to: string | string[]; cc?: string | string[]; subject: string; html: string; attachments?: { filename: string; content: string; content_type?: string }[] }) {
+export async function sendEmail(msg: {
+  to: string | string[];
+  cc?: string | string[];
+  reply_to?: string | string[];
+  subject: string;
+  html: string;
+  attachments?: { filename: string; content: string; content_type?: string }[];
+}) {
   const key = Deno.env.get("RESEND_API_KEY");
   if (!key) return "not-configured";
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ from: MAIL_FROM(), ...msg }),
+    body: JSON.stringify({ from: MAIL_FROM(), reply_to: CANDIDATE_REPLY_TO(), ...msg }),
   });
   return res.ok ? "sent" : await res.text();
 }

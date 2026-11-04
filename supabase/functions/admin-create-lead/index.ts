@@ -1,5 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2.45.4";
-import { actions, button, eyebrow, highlight, layout, para, title, escape } from "../_shared/email.ts";
+import { actions, button, eyebrow, highlight, layout, para, title, escape, CANDIDATE_REPLY_TO } from "../_shared/email.ts";
 import { CALL_MINUTES, confirmedEmail, whenIn } from "../_shared/call.ts";
 
 const cors = {
@@ -224,6 +224,7 @@ Deno.serve(async (req) => {
       body: JSON.stringify({
         from: env("MAIL_FROM") || "Outreach <hello@consultation.outreachstudy.eu>",
         to: email,
+        reply_to: CANDIDATE_REPLY_TO(),
         ...(meeting ? { cc: BOOKED_CC(), attachments: confirmedEmail(consultation).attachments } : {}),
         subject: meeting?.subject ?? detail.subject,
         html: meeting?.html ?? layout(

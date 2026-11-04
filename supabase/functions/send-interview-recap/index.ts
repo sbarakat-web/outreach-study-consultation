@@ -5,7 +5,7 @@
 //
 // Secrets: RESEND_API_KEY; optional overrides MAIL_FROM, APP_URL
 import { createClient } from "npm:@supabase/supabase-js@2.45.4";
-import { actions, button, eyebrow, facts, layout, list, para, title, escape } from "../_shared/email.ts";
+import { actions, button, eyebrow, facts, layout, list, para, title, escape, CANDIDATE_REPLY_TO } from "../_shared/email.ts";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -75,6 +75,7 @@ Deno.serve(async (req) => {
       body: JSON.stringify({
         from: setting("MAIL_FROM"),
         to: c.email,
+        reply_to: CANDIDATE_REPLY_TO(),
         subject: `${first}, your Malta study dashboard is ready`,
         html: layout(
           eyebrow("Your study path") +

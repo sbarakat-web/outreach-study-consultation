@@ -17,3 +17,11 @@ The owner has given standing permission: every completed change must reach GitHu
 4. Database changes: add a new file in `supabase/migrations/`, apply it to the Supabase project, run the security advisor, then commit it along with the code that uses it.
 5. Edge function changes: redeploy `send-confirmation` (verify_jwt off) after committing.
 6. After pushing, tell the user it's live on Vercel within about a minute.
+
+## Emails to candidates
+
+Every email sent to a candidate (transactional, reminders, marketing, and any future email) must set
+Reply-To to study@outreachrecruitment.net, sbarakat@outreachrecruitment.net and
+jsalinas@outreachrecruitment.net, so a reply reaches the study inbox with both advisers included.
+Use `CANDIDATE_REPLY_TO()` from `supabase/functions/_shared/email.ts` (the shared `sendEmail` in
+`_shared/call.ts` and `sendMail` in `_shared/marketing-send.ts` already apply it).
