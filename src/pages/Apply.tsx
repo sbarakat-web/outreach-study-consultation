@@ -8,7 +8,7 @@ import { getTracking } from "../lib/tracking";
 import { CountryPicker } from "../components/CountryPicker";
 import { countriesFor, countryByCode, detectCountry, fetchGeoCountry } from "../lib/countries";
 import { parseCourseParam, parsePathParam } from "../lib/options";
-import { AREAS, ENGLISH_COURSES, PARTNERS, PROGRAMMES, findBestMatch, type Level, type Programme } from "./sessions/data";
+import { AREAS, ENGLISH_COURSES, PARTNERS, PROGRAMMES, findBestMatch, type Programme } from "./sessions/data";
 import { Alert, Button, Card } from "../components/ui";
 import { EmailCode } from "../components/EmailCode";
 import { useI18n } from "../lib/i18n";
@@ -32,17 +32,12 @@ interface Draft {
 
 const DRAFT_KEY = "apply_draft_v1";
 const INELIGIBLE_COUNTRIES = new Set(["PK"]);
-// The form offers generic titles only; the adviser picks the exact school and course in the consultation.
-const ENGLISH_OPTIONS = ["General English course", "Academic English course", "Business English course", "One-to-one English lessons", "Online English course"];
-const LEVEL_NAMES: Record<Level, string> = { diploma: "Diploma", bachelor: "Bachelor's", master: "Master's" };
-const genericTitle = (p: Programme) => `${LEVEL_NAMES[p.level]} in ${AREAS.find((a) => a.key === p.area)?.name ?? p.area}`;
-const PROGRAMME_GROUPS = (Object.keys(LEVEL_NAMES) as Level[])
-  .map((level) => ({
-    level,
-    options: AREAS.filter((a) => PROGRAMMES.some((p) => p.area === a.key && p.level === level)).map((a) => `${LEVEL_NAMES[level]} in ${a.name}`),
-  }))
-  .filter((g) => g.options.length);
-const PROGRAMME_VALUES = new Set(PROGRAMME_GROUPS.flatMap((g) => g.options));
+// The form offers categories only; the adviser picks the level, school and exact course in the consultation.
+// Below B2 there is a single choice: an English course.
+const ENGLISH_OPTIONS = ["English course"];
+const genericTitle = (p: Programme) => AREAS.find((a) => a.key === p.area)?.name ?? p.area;
+const CATEGORY_OPTIONS = AREAS.filter((a) => a.key !== "english" && PROGRAMMES.some((p) => p.area === a.key)).map((a) => a.name);
+const PROGRAMME_VALUES = new Set(CATEGORY_OPTIONS);
 const ENGLISH_COURSE_VALUES = new Set(ENGLISH_OPTIONS);
 const FAQS = [
   ["What can I study in Malta?", "You can compare English-language courses and diploma, bachelor’s and master’s programmes in business, accountancy, health and social care, information technology, tourism and hospitality, and logistics."],
@@ -87,10 +82,10 @@ function initialDraft(): Draft {
     const linkedProgramme = findBestMatch(course);
     d.path = path;
     d.stage = "form";
-    d.course = path === "english" ? (ENGLISH_COURSE_VALUES.has(d.course) ? d.course : "") : linkedProgramme ? genericTitle(linkedProgramme) : d.course;
+    d.course = path === "english" ? ENGLISH_OPTIONS[0] : linkedProgramme ? genericTitle(linkedProgramme) : d.course;
   }
   if (d.path === "higher_education" && !PROGRAMME_VALUES.has(d.course)) d.course = "";
-  if (d.path === "english" && !ENGLISH_COURSE_VALUES.has(d.course)) d.course = "";
+  if (d.path === "english" && !ENGLISH_COURSE_VALUES.has(d.course)) d.course = ENGLISH_OPTIONS[0];
   return d;
 }
 
@@ -152,7 +147,7 @@ export function Apply() {
     setD((x) => ({
       ...x,
       path,
-      course: path === "english" ? (ENGLISH_COURSE_VALUES.has(x.course) ? x.course : "") : PROGRAMME_VALUES.has(x.course) ? x.course : "",
+      course: path === "english" ? ENGLISH_OPTIONS[0] : PROGRAMME_VALUES.has(x.course) ? x.course : "",
     }));
     go("form");
   };
@@ -366,14 +361,10 @@ export function Apply() {
                             {title}
                           </option>
                         ))
-                      : PROGRAMME_GROUPS.map((group) => (
-                          <optgroup key={group.level} label={`${LEVEL_NAMES[group.level]} programmes`}>
-                            {group.options.map((title) => (
-                              <option key={title} value={title}>
-                                {title}
-                              </option>
-                            ))}
-                          </optgroup>
+                      : CATEGORY_OPTIONS.map((title) => (
+                          <option key={title} value={title}>
+                            {title}
+                          </option>
                         ))}
                   </select>
                 </Field>

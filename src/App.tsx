@@ -78,6 +78,7 @@ export function App() {
               <Route path="not-interested" element={<Requests key="not_interested" mode="not_interested" />} />
               <Route path="awaiting-confirmation" element={<Requests key="awaiting" mode="awaiting" />} />
               <Route path="waiting-for-candidate" element={<Requests key="waiting" mode="waiting" />} />
+              <Route path="upcoming" element={<Requests key="upcoming" mode="upcoming" />} />
               <Route path="calendar" element={<CalendarPage />} />
               <Route path="sessions" element={<SessionsDashboard />} />
               <Route path="team" element={<Team />} />

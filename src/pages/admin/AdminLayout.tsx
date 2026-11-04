@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Outlet, useNavigate } from "react-router-dom";
-import { BarChart3, Bell, CalendarDays, Clock, FileCheck2, Mail, Presentation, Send, Settings, UserRoundX, Users, UsersRound } from "lucide-react";
+import { BarChart3, Bell, CalendarCheck, CalendarDays, Clock, FileCheck2, Mail, Presentation, Send, Settings, UserRoundX, Users, UsersRound } from "lucide-react";
 import type { TabItem } from "../../components/TabBar";
 import { AppShell, Fab } from "../../components/dash";
 import { supabase } from "../../lib/supabase";
@@ -25,6 +25,7 @@ export function AdminLayout() {
   const [leadCounts, setLeadCounts] = useState<Record<string, number>>({});
   const [withDocs, setWithDocs] = useState(0);
   const [waitingCandidate, setWaitingCandidate] = useState(0);
+  const [upcoming, setUpcoming] = useState(0);
 
   useEffect(() => {
     supabase.from("staff_profiles").select("display_name, photo_url").eq("email", email).maybeSingle().then(({ data }) => setProfile(data));
@@ -32,10 +33,11 @@ export function AdminLayout() {
     const loadCounts = async () => {
       const { data } = await supabase
         .from("consultations")
-        .select("status, call_status, preferred_call_at, suggested_call_at, requested_call_times, call_declined_at, repick_requested_at, documents(count)");
+        .select("status, call_status, preferred_call_at, suggested_call_at, requested_call_times, call_declined_at, repick_requested_at, session_outcome, documents(count)");
       const open = (data ?? []).filter((row) => row.status !== "not_interested" && !row.call_declined_at && row.call_status !== "confirmed");
       setToConfirm(open.filter((row) => !row.suggested_call_at && (row.preferred_call_at || row.requested_call_times?.[0])).length);
       setWaitingCandidate(open.filter((row) => row.suggested_call_at || (row.call_status === "none" && row.repick_requested_at)).length);
+      setUpcoming((data ?? []).filter((row) => row.call_status === "confirmed" && row.preferred_call_at && !row.session_outcome && new Date(row.preferred_call_at).getTime() + 20 * 60_000 > Date.now()).length);
       setWithDocs((data ?? []).filter((row) => row.status !== "not_interested" && (row.documents as { count: number }[] | null)?.[0]?.count).length);
       setLeadCounts((data ?? []).reduce<Record<string, number>>((out, row) => {
         out[row.status] = (out[row.status] ?? 0) + 1;
@@ -66,6 +68,7 @@ export function AdminLayout() {
       badge: toConfirm ? <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-800">{toConfirm}</span> : undefined,
     },
     { to: "/admin/waiting-for-candidate", label: "Waiting for candidate", icon: Send, badge: countBadge(waitingCandidate) },
+    { to: "/admin/upcoming", label: "Upcoming", icon: CalendarCheck, badge: countBadge(upcoming) },
     { to: "/admin/calendar", label: "Calendar", icon: CalendarDays },
     { to: "/onlinesessions?present=1", label: "Online sessions", icon: Presentation },
     { to: "/admin/sessions", label: "Session stats", icon: BarChart3 },

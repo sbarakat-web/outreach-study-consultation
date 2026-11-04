@@ -42,7 +42,12 @@ const PAGE_TITLE = {
   not_interested: "No longer interested",
   awaiting: "Awaiting confirmation",
   waiting: "Waiting for candidate",
+  upcoming: "Upcoming",
 } as const;
+
+/** Upcoming: confirmed calls whose session hasn't happened yet (until the call has ended). */
+const isUpcoming = (c: Row) =>
+  c.call_status === "confirmed" && !!c.preferred_call_at && !c.session_outcome && new Date(c.preferred_call_at).getTime() + 20 * 60_000 > Date.now();
 
 /** The call time a lead is waiting on: their requested time, or the time we suggested. */
 const pendingCallAt = (c: Row) => (callStage(c) === "suggested" ? c.suggested_call_at : c.preferred_call_at ?? c.requested_call_times[0]) ?? "";
@@ -106,6 +111,9 @@ export function Requests({ mode = "all" }: { mode?: keyof typeof PAGE_TITLE }) {
     const q = query.trim().toLowerCase();
     const matches = (c: Row) => !q || [c.full_name, c.email, c.whatsapp, c.country, c.desired_course].some((v) => v?.toLowerCase().includes(q));
     // Call pages: every lead in that call state, soonest call first.
+    if (mode === "upcoming") {
+      return (items ?? []).filter((c) => isUpcoming(c) && matches(c)).sort((a, b) => a.preferred_call_at!.localeCompare(b.preferred_call_at!));
+    }
     if (mode === "awaiting" || mode === "waiting") {
       return (items ?? [])
         .filter((c) => inCallPage(mode, c) && matches(c))
@@ -278,6 +286,8 @@ export function Requests({ mode = "all" }: { mode?: keyof typeof PAGE_TITLE }) {
           <p className="px-6 py-10 text-center text-slate-500">No requests match.</p>
         ) : mode === "documents" ? (
           <DocumentsTable rows={filtered} onOpen={setOpenId} onSaved={load} />
+        ) : mode === "upcoming" ? (
+          <UpcomingTable rows={filtered} onOpen={setOpenId} />
         ) : mode === "awaiting" || mode === "waiting" ? (
           <CallQueue rows={filtered} all={items} mode={mode} onOpen={setOpenId} />
         ) : (
@@ -823,9 +833,6 @@ function Detail({ c, all, onClose, onSaved, onNext }: { c: Row; all: Row[]; onCl
     ["Path", labelFor(STUDY_PATHS, c.study_path)],
     ["English level", labelFor(ENGLISH_LEVELS, c.english_level)],
     ["Course", c.desired_course],
-    ["Start", c.start_date],
-    ["Budget", c.budget],
-    ["Visa support", c.visa_support],
     ["Contact time", c.preferred_contact_time],
     ["Message", c.message],
     ["Source", [c.tracking.utm_source, c.tracking.utm_medium, c.tracking.utm_campaign].filter(Boolean).join(" / ") || c.tracking.referrer],
@@ -1516,6 +1523,63 @@ function AttendanceBox({ c, onSave }: { c: Row; onSave: (fields: Partial<Row>) =
       <Button onClick={() => onSave({ attendance_confirmed_at: new Date().toISOString() })}>
         <Check className="h-4 w-4" /> Mark confirmed (replied YES on WhatsApp)
       </Button>
+    </div>
+  );
+}
+
+/** Confirmed calls still to come, soonest first: time (Malta + candidate), attendance, Join Meet and Start session. */
+function UpcomingTable({ rows, onOpen }: { rows: Row[]; onOpen: (id: string) => void }) {
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-left text-sm">
+        <thead className="text-xs uppercase tracking-wider text-slate-500">
+          <tr className="border-b border-slate-100">
+            <th className="px-5 py-3 font-bold">Call (Malta)</th>
+            <th className="px-3 py-3 font-bold">Candidate</th>
+            <th className="hidden px-3 py-3 font-bold md:table-cell">Attendance</th>
+            <th className="px-5 py-3" />
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-slate-100">
+          {rows.map((c) => {
+            const at = c.preferred_call_at!;
+            const soon = new Date(at).getTime() - Date.now() < 60 * 60_000;
+            return (
+              <tr key={c.id} onClick={() => onOpen(c.id)} className="cursor-pointer hover:bg-mist">
+                <td className="px-5 py-3">
+                  <div className={`font-bold ${soon ? "text-brand" : ""}`}>{maltaTime(at)}</div>
+                  {candidateTime(c, at, { weekday: "short", month: "short" }) && (
+                    <div className="text-xs text-slate-500">Candidate: {candidateTime(c, at, { weekday: "short", month: "short" })}</div>
+                  )}
+                </td>
+                <td className="px-3 py-3">
+                  <div className="font-bold">{c.full_name}</div>
+                  <div className="text-xs text-slate-500">{c.desired_course || c.email}</div>
+                </td>
+                <td className="hidden px-3 py-3 md:table-cell">
+                  {c.attendance_confirmed_at ? (
+                    <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-bold text-emerald-700">✓ Will attend</span>
+                  ) : (
+                    <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-bold text-amber-800">Not confirmed yet</span>
+                  )}
+                </td>
+                <td className="px-5 py-3 text-right" onClick={(e) => e.stopPropagation()}>
+                  <span className="inline-flex flex-wrap justify-end gap-1.5">
+                    {c.meeting_url && (
+                      <a href={c.meeting_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 rounded-full bg-emerald-600 px-3 py-1 text-xs font-bold text-white hover:bg-emerald-700">
+                        <Video className="h-3.5 w-3.5" /> Meet
+                      </a>
+                    )}
+                    <Link to={sessionHref(c)} className="inline-flex items-center gap-1 rounded-full bg-brand px-3 py-1 text-xs font-bold text-white hover:bg-brand/90">
+                      <Play className="h-3.5 w-3.5 fill-current" /> Start session
+                    </Link>
+                  </span>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
     </div>
   );
 }
