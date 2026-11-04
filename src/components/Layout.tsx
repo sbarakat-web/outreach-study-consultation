@@ -1,6 +1,6 @@
 import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
-import { useState, type FormEvent } from "react";
-import { Globe, LogOut, MessageCircle, Search } from "lucide-react";
+import { Globe, LogOut, MessageCircle } from "lucide-react";
+import { AdminSearch } from "./AdminSearch";
 import { useAuth } from "../lib/auth";
 import { waLink, whatsappNumber } from "../lib/options";
 import { useI18n } from "../lib/i18n";
@@ -13,12 +13,6 @@ export function Layout() {
   const { t } = useI18n();
   // Inside the signed-in app (dashboard/admin): no footer, tab bar on phones.
   const inApp = /^\/(dashboard|admin)(\/|$)/.test(useLocation().pathname);
-
-  const [q, setQ] = useState("");
-  const search = (e: FormEvent) => {
-    e.preventDefault();
-    navigate(`/admin?q=${encodeURIComponent(q.trim())}`);
-  };
 
   const navClass = ({ isActive }: { isActive: boolean }) =>
     `rounded-full px-4 py-2 text-sm font-bold transition ${isActive ? "bg-brand text-white shadow-sm" : "text-navy hover:bg-brand/5"}`;
@@ -33,23 +27,7 @@ export function Layout() {
           <Link to={isAdmin ? "/admin" : session ? "/dashboard" : "/"} aria-label="Outreach — home" className="shrink-0">
             <img src="/logo.png" alt="Outreach — Study in Malta" width={1102} height={180} className="h-7 w-auto max-w-[52vw] sm:h-10 sm:max-w-none" />
           </Link>
-          {inApp && isAdmin && (
-            <form onSubmit={search} role="search" className="hidden max-w-md flex-1 md:flex">
-              <label className="relative flex-1">
-                <span className="sr-only">Search leads</span>
-                <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                <input
-                  value={q}
-                  onChange={(e) => setQ(e.target.value)}
-                  placeholder="Search leads"
-                  className="h-10 w-full rounded-l-md bg-slate-100 pl-11 pr-3 text-sm text-navy outline-none placeholder:text-slate-400 focus:bg-white focus:ring-2 focus:ring-brand/20"
-                />
-              </label>
-              <button type="submit" className="h-10 rounded-r-md bg-brand px-5 text-sm font-bold text-white hover:bg-brand/90">
-                Search
-              </button>
-            </form>
-          )}
+          {inApp && isAdmin && <AdminSearch />}
           <nav className="flex items-center gap-1">
             {session ? (
               <>

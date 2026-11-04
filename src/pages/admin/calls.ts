@@ -73,8 +73,16 @@ export async function holdTime(c: Consultation, iso: string) {
  * Confirm the held time with the Meet link created in Google Calendar: "We're waiting for you" email (CC main admin);
  * the WhatsApp version opens in `waTab`.
  */
+/** A Google Meet link as candidates should get it: "https://meet.google.com/meet/abc-defg-hij?hs=224" → ".../abc-defg-hij". */
+export function cleanMeetLink(text: string) {
+  const code = /meet\.google\.com\/(?:meet\/)?([a-z]{3,4}-[a-z]{4}-[a-z]{3,4})/i.exec(text)?.[1];
+  if (code) return `https://meet.google.com/${code.toLowerCase()}`;
+  const url = text.trim();
+  return url.startsWith("https://") ? url : "";
+}
+
 export async function confirmWithMeet(c: Consultation, meetUrl: string, waTab: Window | null) {
-  const r = await notifyCandidate("confirm", c.id, undefined, { meetUrl });
+  const r = await notifyCandidate("confirm", c.id, undefined, { meetUrl: cleanMeetLink(meetUrl) || meetUrl });
   const error = r.data?.error ?? (r.error ? ((await (r.error as { context?: Response }).context?.json?.().catch(() => null))?.error ?? r.error.message) : undefined);
   fillTab(waTab, error ? null : r.data?.waUrl);
   return { error, emailed: !!r.data?.ok };

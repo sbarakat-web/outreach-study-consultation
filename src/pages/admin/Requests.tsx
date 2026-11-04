@@ -22,7 +22,7 @@ import { CountryPicker } from "../../components/CountryPicker";
 import { COUNTRIES, countryByCode, timeZonesOf } from "../../lib/countries";
 import { AREAS, ENGLISH_COURSES, ENGLISH_PROVIDERS, PROGRAMMES, programmeValue } from "../sessions/data";
 import { CallPanel, PickAnotherButton } from "./CallPanel";
-import { candidateTime, confirmWithMeet, googleApi, maltaTime, notifyCandidate, waitingWhatsApp } from "./calls";
+import { candidateTime, cleanMeetLink, confirmWithMeet, googleApi, maltaTime, notifyCandidate, waitingWhatsApp } from "./calls";
 import { SessionPanel, sessionHref } from "./SessionPanel";
 import type { Consultation, DocumentRow, Status } from "../../lib/types";
 import { Alert, Button, Card, Spinner, StatusBadge } from "../../components/ui";
@@ -79,6 +79,7 @@ export function Requests({ mode = "all" }: { mode?: keyof typeof PAGE_TITLE }) {
     setStatus(STATUSES.some((s) => s.value === next) ? next as Status : "");
     setAdding(params.get("new") === "1");
     setView(params.get("view"));
+    if (params.get("lead")) setOpenId(params.get("lead"));
   }, [params]);
   const [openId, setOpenId] = useState<string | null>(params.get("lead"));
   const [view, setView] = useState(params.get("view"));
@@ -109,7 +110,11 @@ export function Requests({ mode = "all" }: { mode?: keyof typeof PAGE_TITLE }) {
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    const matches = (c: Row) => !q || [c.full_name, c.email, c.whatsapp, c.country, c.desired_course].some((v) => v?.toLowerCase().includes(q));
+    const qDigits = q.replace(/\D/g, "");
+    const matches = (c: Row) =>
+      !q ||
+      [c.full_name, c.email, c.whatsapp, c.country, c.desired_course].some((v) => v?.toLowerCase().includes(q)) ||
+      (qDigits.length >= 4 && (c.whatsapp ?? "").replace(/\D/g, "").includes(qDigits));
     // Call pages: every lead in that call state, soonest call first.
     if (mode === "upcoming") {
       return (items ?? []).filter((c) => isUpcoming(c) && matches(c)).sort((a, b) => a.preferred_call_at!.localeCompare(b.preferred_call_at!));
@@ -351,7 +356,15 @@ export function Requests({ mode = "all" }: { mode?: keyof typeof PAGE_TITLE }) {
           key={open.id}
           c={open as Row}
           all={items}
-          onClose={() => setOpenId(null)}
+          onClose={() => {
+            setOpenId(null);
+            // Drop ?lead= so searching the same candidate again reopens them.
+            if (params.has("lead")) {
+              const next = new URLSearchParams(params);
+              next.delete("lead");
+              setParams(next, { replace: true });
+            }
+          }}
           onSaved={load}
           // Awaiting confirmation page: after confirming, open the next request in the queue.
           onNext={mode === "awaiting" ? () => setOpenId(filtered.find((x) => x.id !== open.id)?.id ?? null) : undefined}
@@ -1130,7 +1143,7 @@ function BookingTab({ c, all, onSaved, onNext }: { c: Row; all: Row[]; onSaved: 
 
   const paste = async () => {
     const text = (await navigator.clipboard.readText().catch(() => "")).trim();
-    const link = /https:\/\/meet\.google\.com\/[a-z0-9-]+/i.exec(text)?.[0] ?? (text.startsWith("https://") ? text : "");
+    const link = cleanMeetLink(text);
     if (link) setMeet(link);
     else setMsg({ tone: "error", text: "No meeting link in the clipboard — copy it from the Google Calendar event first." });
   };
@@ -1653,11 +1666,11 @@ function CalCard({ e, clash, onOpen }: { e: CalEvent; clash: boolean; onOpen: (i
   );
 }
 
-/** Week calendar under the Upcoming list (Malta time): booked, requested and done calls with Google busy blocks. */
+/** Week calendar (Mon–Fri) under the Upcoming list (Malta time): booked, requested and done calls with Google busy blocks. */
 function UpcomingCalendar({ all, onOpen }: { all: Row[]; onOpen: (id: string) => void }) {
   const today = maltaDay(new Date());
   const [weekStart, setWeekStart] = useState(() => mondayOf(today));
-  const days = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
+  const days = Array.from({ length: 5 }, (_, i) => addDays(weekStart, i));
   const [busy, setBusy] = useState<{ start: string; end: string }[]>([]);
 
   // Google busy blocks for the visible week (empty when Google isn't connected).
@@ -1695,7 +1708,7 @@ function UpcomingCalendar({ all, onOpen }: { all: Row[]; onOpen: (id: string) =>
               <ChevronLeft className="h-5 w-5" />
             </button>
             <h2 className="px-2 text-xl font-black sm:text-2xl">
-              {dayLabel(days[0], { day: "numeric", month: "short" })} – {dayLabel(days[6], { day: "numeric", month: "short", year: "numeric" })}
+              {dayLabel(days[0], { day: "numeric", month: "short" })} – {dayLabel(days[4], { day: "numeric", month: "short", year: "numeric" })}
             </h2>
             <button aria-label="Next week" onClick={() => setWeekStart((w) => addDays(w, 7))} className="grid h-10 w-10 place-items-center rounded-full ring-1 ring-slate-200 hover:bg-mist">
               <ChevronRight className="h-5 w-5" />
@@ -1714,10 +1727,9 @@ function UpcomingCalendar({ all, onOpen }: { all: Row[]; onOpen: (id: string) =>
         <p className="text-xs text-slate-400">Times in Malta time. Click a call to open the lead.</p>
 
         <div className="-mx-4 overflow-x-auto px-4 pb-1 sm:mx-0 sm:px-0">
-          <div className="grid min-w-[1050px] grid-cols-7 gap-3">
-            {days.map((d, i) => {
+          <div className="grid min-w-[860px] grid-cols-5 gap-3">
+            {days.map((d) => {
               const isToday = d === today;
-              const weekend = i >= 5;
               const list = weekEvents.filter((e) => maltaDay(e.at) === d);
               const dayBusy = busy.filter((b) => maltaDay(b.start) === d);
               // Busy blocks and calls in one timeline, by start time.
@@ -1729,7 +1741,7 @@ function UpcomingCalendar({ all, onOpen }: { all: Row[]; onOpen: (id: string) =>
                 <div
                   key={d}
                   className={`flex min-h-[26rem] flex-col rounded-3xl p-3 ${
-                    isToday ? "bg-brand/5 ring-2 ring-brand/40" : weekend ? "bg-slate-50" : "bg-mist"
+                    isToday ? "bg-brand/5 ring-2 ring-brand/40" : "bg-mist"
                   } ${d < today ? "opacity-60" : ""}`}
                 >
                   <div className="mb-3 flex items-baseline justify-between">
@@ -1757,7 +1769,7 @@ function UpcomingCalendar({ all, onOpen }: { all: Row[]; onOpen: (id: string) =>
                       ),
                     )}
                   </ul>
-                  {timeline.length === 0 && !weekend && <p className="mt-auto text-center text-xs text-slate-400">Free day</p>}
+                  {timeline.length === 0 && <p className="mt-auto text-center text-xs text-slate-400">Free day</p>}
                 </div>
               );
             })}
