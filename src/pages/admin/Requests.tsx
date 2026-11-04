@@ -22,7 +22,7 @@ import { CountryPicker } from "../../components/CountryPicker";
 import { COUNTRIES, countryByCode, timeZonesOf } from "../../lib/countries";
 import { AREAS, ENGLISH_COURSES, ENGLISH_PROVIDERS, PROGRAMMES, programmeValue } from "../sessions/data";
 import { CallPanel, PickAnotherButton } from "./CallPanel";
-import { candidateTime, confirmWithMeet, maltaTime, notifyCandidate, waitingWhatsApp } from "./calls";
+import { candidateTime, confirmWithMeet, googleApi, maltaTime, notifyCandidate, waitingWhatsApp } from "./calls";
 import { SessionPanel, sessionHref } from "./SessionPanel";
 import type { Consultation, DocumentRow, Status } from "../../lib/types";
 import { Alert, Button, Card, Spinner, StatusBadge } from "../../components/ui";
@@ -344,7 +344,7 @@ export function Requests({ mode = "all" }: { mode?: keyof typeof PAGE_TITLE }) {
         )}
       </Card>
 
-      {mode === "upcoming" && <UpcomingCalendar rows={filtered} onOpen={setOpenId} />}
+      {mode === "upcoming" && <UpcomingCalendar all={items ?? []} onOpen={setOpenId} />}
 
       {open && (
         <Detail
@@ -1593,229 +1593,175 @@ const utcToKey = (ms: number) => new Date(ms).toISOString().slice(0, 10);
 const addDays = (key: string, n: number) => utcToKey(keyToUtc(key) + n * DAY_MS);
 const mondayOf = (key: string) => addDays(key, -((new Date(keyToUtc(key)).getUTCDay() + 6) % 7));
 const dayLabel = (key: string, opts: Intl.DateTimeFormatOptions) => new Intl.DateTimeFormat("en-GB", { ...opts, timeZone: "UTC" }).format(new Date(keyToUtc(key)));
-const maltaHour = (iso: string) => Number(new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/Malta", hour: "2-digit", hourCycle: "h23" }).format(new Date(iso)));
-const CAL_HOURS = [9, 10, 11, 12, 13, 14, 15, 16];
 
-/** One call on the calendar: green when they confirmed they'll attend, amber while not yet. */
-function CallChip({ c, onOpen }: { c: Row; onOpen: (id: string) => void }) {
-  const ok = !!c.attendance_confirmed_at;
+type CalKind = "booked" | "requested" | "done";
+interface CalEvent {
+  c: Row;
+  at: string;
+  kind: CalKind;
+}
+
+const KIND_STYLE: Record<CalKind, string> = {
+  booked: "border-emerald-500 bg-white",
+  requested: "border-amber-400 bg-amber-50",
+  done: "border-slate-300 bg-white/70 opacity-70",
+};
+
+function Legend({ dot, label }: { dot: string; label: string }) {
   return (
-    <button
-      type="button"
-      onClick={() => onOpen(c.id)}
-      title={`${c.full_name} · ${maltaClock(c.preferred_call_at!)} Malta${ok ? " · will attend" : " · attendance not confirmed"}`}
-      className={`group flex w-full min-w-0 items-center gap-1.5 rounded-lg border-s-4 px-2 py-1 text-left text-xs font-bold shadow-sm transition hover:-translate-y-px hover:shadow ${
-        ok ? "border-emerald-500 bg-emerald-50 text-emerald-900" : "border-amber-400 bg-amber-50 text-amber-900"
-      }`}
-    >
-      <span className="shrink-0 tabular-nums opacity-70">{maltaClock(c.preferred_call_at!)}</span>
-      <span className="truncate">{c.full_name.split(" ")[0]}</span>
-    </button>
+    <span className="inline-flex items-center gap-1.5 rounded-full bg-white px-2.5 py-1 ring-1 ring-slate-200">
+      <span className={`h-2.5 w-2.5 rounded-full ${dot}`} /> {label}
+    </span>
   );
 }
 
-/** Calendar box under the Upcoming list: week (Malta hours) or month, with the selected day's calls on the side. */
-function UpcomingCalendar({ rows, onOpen }: { rows: Row[]; onOpen: (id: string) => void }) {
+/** A call on the week calendar: booked (Meet + Start session), requested (to confirm, clash warning) or done. */
+function CalCard({ e, clash, onOpen }: { e: CalEvent; clash: boolean; onOpen: (id: string) => void }) {
+  const { c, at, kind } = e;
+  const local = candidateTime(c, at, { weekday: undefined, day: undefined, month: undefined });
+  const live = kind === "booked" && Math.abs(new Date(at).getTime() + 10 * 60_000 - Date.now()) < 20 * 60_000;
+  return (
+    <li className={`rounded-xl border-s-4 p-2.5 text-sm shadow-sm transition hover:shadow-md ${KIND_STYLE[kind]} ${live ? "ring-2 ring-emerald-400" : ""}`}>
+      <button type="button" onClick={() => onOpen(c.id)} className="block w-full text-left">
+        <span className="flex items-center justify-between gap-1">
+          <span className="text-base font-black tabular-nums text-navy">{maltaClock(at)}</span>
+          {clash && <AlertTriangle className="h-4 w-4 shrink-0 text-brand-red" aria-label="Clash with another call" />}
+        </span>
+        <span className="block truncate font-bold text-slate-700 hover:text-brand">{c.full_name}</span>
+        {local && <span className="block truncate text-[11px] text-slate-500">Their time {local}</span>}
+        {kind === "requested" && <span className="mt-1 block text-[11px] font-black uppercase tracking-wide text-amber-700">To confirm</span>}
+        {kind === "done" && <span className="mt-1 block text-[11px] font-bold text-slate-500">Session done</span>}
+        {kind === "booked" && (
+          <span className={`mt-1 inline-block rounded-full px-2 py-0.5 text-[10px] font-bold ${c.attendance_confirmed_at ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-800"}`}>
+            {c.attendance_confirmed_at ? "✓ Will attend" : "Not confirmed"}
+          </span>
+        )}
+      </button>
+      {kind === "booked" && (
+        <span className="mt-2 flex flex-wrap gap-1">
+          {c.meeting_url && (
+            <a href={c.meeting_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 rounded-full bg-emerald-600 px-2 py-0.5 text-[11px] font-bold text-white hover:bg-emerald-700">
+              <Video className="h-3 w-3" /> Meet
+            </a>
+          )}
+          <Link to={sessionHref(c)} className="inline-flex items-center gap-1 rounded-full bg-brand px-2 py-0.5 text-[11px] font-bold text-white hover:bg-brand/90">
+            <Play className="h-3 w-3 fill-current" /> Start
+          </Link>
+        </span>
+      )}
+    </li>
+  );
+}
+
+/** Week calendar under the Upcoming list (Malta time): booked, requested and done calls with Google busy blocks. */
+function UpcomingCalendar({ all, onOpen }: { all: Row[]; onOpen: (id: string) => void }) {
   const today = maltaDay(new Date());
-  const [view, setView] = useState<"week" | "month">("week");
-  const [anchor, setAnchor] = useState(today);
-  const [selected, setSelected] = useState(today);
+  const [weekStart, setWeekStart] = useState(() => mondayOf(today));
+  const days = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
+  const [busy, setBusy] = useState<{ start: string; end: string }[]>([]);
 
-  const byDay = useMemo(() => {
-    const map = new Map<string, Row[]>();
-    for (const c of rows) {
-      const k = maltaDay(c.preferred_call_at!);
-      map.set(k, [...(map.get(k) ?? []), c]);
+  // Google busy blocks for the visible week (empty when Google isn't connected).
+  useEffect(() => {
+    const from = new Date(keyToUtc(weekStart) - DAY_MS).toISOString();
+    const to = new Date(keyToUtc(weekStart) + 8 * DAY_MS).toISOString();
+    googleApi("busy", { from, to })
+      .then((r) => setBusy(r.data?.busy ?? []))
+      .catch(() => setBusy([]));
+  }, [weekStart]);
+
+  const events = useMemo(() => {
+    const out: CalEvent[] = [];
+    for (const c of all) {
+      if (c.status === "not_interested") continue;
+      const stage = callStage(c);
+      if (c.session_outcome === "interviewed" && c.preferred_call_at) out.push({ c, at: c.preferred_call_at, kind: "done" });
+      else if (stage === "confirmed" && c.preferred_call_at) out.push({ c, at: c.preferred_call_at, kind: "booked" });
+      else if (["requested", "reviewed"].includes(stage) && pendingCallAt(c)) out.push({ c, at: pendingCallAt(c), kind: "requested" });
     }
-    return map;
-  }, [rows]);
+    return out.sort((a, b) => a.at.localeCompare(b.at));
+  }, [all]);
 
-  const weekStart = mondayOf(anchor);
-  const weekDays = Array.from({ length: 5 }, (_, i) => addDays(weekStart, i));
-  const monthFirst = `${anchor.slice(0, 7)}-01`;
-  const gridStart = mondayOf(monthFirst);
-  // Whole weeks covering the month (5 or 6 rows).
-  const nextMonth = new Date(keyToUtc(monthFirst));
-  nextMonth.setUTCMonth(nextMonth.getUTCMonth() + 1);
-  const weeks = Math.ceil((nextMonth.getTime() - keyToUtc(gridStart)) / DAY_MS / 7);
-  const visibleMonthDays = Array.from({ length: weeks * 7 }, (_, i) => addDays(gridStart, i));
-
-  const move = (dir: number) =>
-    setAnchor((a) => {
-      if (view === "week") return addDays(a, dir * 7);
-      const d = new Date(keyToUtc(`${a.slice(0, 7)}-01`));
-      d.setUTCMonth(d.getUTCMonth() + dir);
-      return utcToKey(d.getTime());
-    });
-
-  const title =
-    view === "week"
-      ? `${dayLabel(weekDays[0], { day: "numeric", month: "short" })} – ${dayLabel(weekDays[4], { day: "numeric", month: "short", year: "numeric" })}`
-      : dayLabel(monthFirst, { month: "long", year: "numeric" });
-  const inView = (view === "week" ? weekDays : visibleMonthDays).reduce((n, d) => n + (byDay.get(d)?.length ?? 0), 0);
-  const dayCalls = byDay.get(selected) ?? [];
+  const clash = (e: CalEvent) =>
+    e.kind !== "done" && events.some((o) => o !== e && o.kind !== "done" && Math.abs(new Date(o.at).getTime() - new Date(e.at).getTime()) < 20 * 60_000);
+  const weekEvents = events.filter((e) => days.includes(maltaDay(e.at)));
+  const count = (k: CalKind) => weekEvents.filter((e) => e.kind === k).length;
 
   return (
     <Card>
-      <div className="space-y-4 px-4 py-5 sm:px-6">
+      <div className="space-y-5 px-4 py-6 sm:px-7">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h2 className="flex items-center gap-2 text-lg font-black">
-              <CalendarCheck className="h-5 w-5 text-brand" /> Calendar
+          <div className="flex items-center gap-1">
+            <button aria-label="Previous week" onClick={() => setWeekStart((w) => addDays(w, -7))} className="grid h-10 w-10 place-items-center rounded-full ring-1 ring-slate-200 hover:bg-mist">
+              <ChevronLeft className="h-5 w-5" />
+            </button>
+            <h2 className="px-2 text-xl font-black sm:text-2xl">
+              {dayLabel(days[0], { day: "numeric", month: "short" })} – {dayLabel(days[6], { day: "numeric", month: "short", year: "numeric" })}
             </h2>
-            <p className="text-xs text-slate-500">
-              {inView} call{inView === 1 ? "" : "s"} in view · Malta time
-            </p>
+            <button aria-label="Next week" onClick={() => setWeekStart((w) => addDays(w, 7))} className="grid h-10 w-10 place-items-center rounded-full ring-1 ring-slate-200 hover:bg-mist">
+              <ChevronRight className="h-5 w-5" />
+            </button>
+            <button onClick={() => setWeekStart(mondayOf(today))} className="ml-2 rounded-full bg-brand/5 px-4 py-1.5 text-sm font-bold text-brand hover:bg-brand/10">
+              Today
+            </button>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="inline-flex rounded-full bg-slate-100 p-1 text-xs font-bold" role="tablist" aria-label="Calendar view">
-              {(["week", "month"] as const).map((v) => (
-                <button
-                  key={v}
-                  role="tab"
-                  aria-selected={view === v}
-                  onClick={() => setView(v)}
-                  className={`rounded-full px-3 py-1 capitalize transition ${view === v ? "bg-white text-brand shadow-sm" : "text-slate-500 hover:text-navy"}`}
-                >
-                  {v}
-                </button>
-              ))}
-            </div>
-            <div className="inline-flex items-center gap-1">
-              <button aria-label="Previous" onClick={() => move(-1)} className="grid h-8 w-8 place-items-center rounded-full ring-1 ring-slate-200 hover:bg-slate-50">
-                <ChevronLeft className="h-4 w-4" />
-              </button>
-              <button
-                onClick={() => {
-                  setAnchor(today);
-                  setSelected(today);
-                }}
-                className="rounded-full px-3 py-1 text-xs font-bold ring-1 ring-slate-200 hover:bg-slate-50"
-              >
-                Today
-              </button>
-              <button aria-label="Next" onClick={() => move(1)} className="grid h-8 w-8 place-items-center rounded-full ring-1 ring-slate-200 hover:bg-slate-50">
-                <ChevronRight className="h-4 w-4" />
-              </button>
-            </div>
+          <div className="flex flex-wrap items-center gap-2 text-xs font-bold text-slate-600">
+            <Legend dot="bg-emerald-500" label={`Booked · ${count("booked")}`} />
+            <Legend dot="bg-amber-400" label={`Requested · ${count("requested")}`} />
+            <Legend dot="bg-slate-300" label={`Session done · ${count("done")}`} />
+            <Legend dot="bg-slate-500" label="Busy (Google)" />
           </div>
         </div>
-        <p className="text-sm font-black text-navy">{title}</p>
+        <p className="text-xs text-slate-400">Times in Malta time. Click a call to open the lead.</p>
 
-        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_16rem]">
-          {view === "week" ? (
-            <div className="overflow-x-auto rounded-2xl ring-1 ring-slate-200">
-              <div className="grid min-w-[560px] grid-cols-[3.25rem_repeat(5,minmax(0,1fr))]">
-                <div className="border-b border-slate-200 bg-slate-50" />
-                {weekDays.map((d) => (
-                  <button
-                    key={d}
-                    onClick={() => setSelected(d)}
-                    className={`border-b border-s border-slate-200 px-2 py-2 text-center transition ${selected === d ? "bg-brand/[0.06]" : "bg-slate-50 hover:bg-slate-100"}`}
-                  >
-                    <span className="block text-[11px] font-bold uppercase tracking-wider text-slate-500">{dayLabel(d, { weekday: "short" })}</span>
-                    <span
-                      className={`mx-auto mt-0.5 grid h-7 w-7 place-items-center rounded-full text-sm font-black ${d === today ? "bg-brand text-white" : "text-navy"}`}
-                    >
+        <div className="-mx-4 overflow-x-auto px-4 pb-1 sm:mx-0 sm:px-0">
+          <div className="grid min-w-[1050px] grid-cols-7 gap-3">
+            {days.map((d, i) => {
+              const isToday = d === today;
+              const weekend = i >= 5;
+              const list = weekEvents.filter((e) => maltaDay(e.at) === d);
+              const dayBusy = busy.filter((b) => maltaDay(b.start) === d);
+              // Busy blocks and calls in one timeline, by start time.
+              const timeline = [
+                ...dayBusy.map((b) => ({ at: b.start, busy: b })),
+                ...list.map((e) => ({ at: e.at, event: e })),
+              ].sort((a, b) => a.at.localeCompare(b.at));
+              return (
+                <div
+                  key={d}
+                  className={`flex min-h-[26rem] flex-col rounded-3xl p-3 ${
+                    isToday ? "bg-brand/5 ring-2 ring-brand/40" : weekend ? "bg-slate-50" : "bg-mist"
+                  } ${d < today ? "opacity-60" : ""}`}
+                >
+                  <div className="mb-3 flex items-baseline justify-between">
+                    <span className={`text-xs font-black uppercase tracking-wider ${isToday ? "text-brand" : "text-slate-500"}`}>{dayLabel(d, { weekday: "short" })}</span>
+                    <span className={`grid h-9 w-9 place-items-center rounded-full text-lg font-black ${isToday ? "bg-brand text-white shadow" : "text-navy"}`}>
                       {dayLabel(d, { day: "numeric" })}
                     </span>
-                  </button>
-                ))}
-                {CAL_HOURS.map((h) => (
-                  <div key={h} className="contents">
-                    <div className="border-b border-slate-100 px-2 pt-1.5 text-right text-[11px] font-bold tabular-nums text-slate-400">{String(h).padStart(2, "0")}:00</div>
-                    {weekDays.map((d) => {
-                      const calls = (byDay.get(d) ?? []).filter((c) => maltaHour(c.preferred_call_at!) === h);
-                      const past = d < today || (d === today && h < maltaHour(new Date().toISOString()));
-                      return (
-                        <div key={d} className={`min-h-[3rem] space-y-1 border-b border-s border-slate-100 p-1 ${past ? "bg-slate-50/70" : ""}`}>
-                          {calls.map((c) => (
-                            <CallChip key={c.id} c={c} onOpen={onOpen} />
-                          ))}
-                        </div>
-                      );
-                    })}
                   </div>
-                ))}
-              </div>
-            </div>
-          ) : (
-            <div className="rounded-2xl ring-1 ring-slate-200">
-              <div className="grid grid-cols-7 border-b border-slate-200 bg-slate-50 text-center text-[11px] font-bold uppercase tracking-wider text-slate-500">
-                {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((d) => (
-                  <div key={d} className="py-2">{d}</div>
-                ))}
-              </div>
-              <div className="grid grid-cols-7">
-                {visibleMonthDays.map((d, i) => {
-                  const calls = byDay.get(d) ?? [];
-                  const other = d.slice(0, 7) !== anchor.slice(0, 7);
-                  return (
-                    <div
-                      key={d}
-                      role="button"
-                      tabIndex={0}
-                      aria-label={dayLabel(d, { weekday: "long", day: "numeric", month: "long" })}
-                      onClick={() => setSelected(d)}
-                      onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && setSelected(d)}
-                      className={`min-h-[5.5rem] cursor-pointer space-y-1 border-slate-100 p-1.5 text-left align-top transition ${i % 7 ? "border-s" : ""} ${i >= 7 ? "border-t" : ""} ${
-                        selected === d ? "bg-brand/[0.06] ring-2 ring-inset ring-brand/40" : "hover:bg-slate-50"
-                      } ${other ? "opacity-40" : ""}`}
-                    >
-                      <span className={`grid h-6 w-6 place-items-center rounded-full text-xs font-black ${d === today ? "bg-brand text-white" : "text-navy"}`}>
-                        {dayLabel(d, { day: "numeric" })}
-                      </span>
-                      {calls.slice(0, 3).map((c) => (
-                        <div key={c.id} onClick={(e) => e.stopPropagation()}>
-                          <CallChip c={c} onOpen={onOpen} />
-                        </div>
-                      ))}
-                      {calls.length > 3 && <span className="block px-1 text-[11px] font-bold text-brand">+{calls.length - 3} more</span>}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          <aside className="rounded-2xl bg-mist p-4">
-            <p className="text-xs font-bold uppercase tracking-wider text-slate-500">{selected === today ? "Today" : dayLabel(selected, { weekday: "long" })}</p>
-            <p className="text-lg font-black">{dayLabel(selected, { day: "numeric", month: "long" })}</p>
-            {dayCalls.length === 0 ? (
-              <p className="mt-4 text-sm text-slate-500">No calls this day.</p>
-            ) : (
-              <ul className="mt-3 space-y-2">
-                {dayCalls.map((c) => (
-                  <li key={c.id} className="rounded-xl bg-white p-3 shadow-sm">
-                    <button onClick={() => onOpen(c.id)} className="block w-full text-left">
-                      <span className="text-sm font-black text-brand">{maltaClock(c.preferred_call_at!)}</span>
-                      <span className="block truncate font-bold">{c.full_name}</span>
-                      {candidateTime(c, c.preferred_call_at!, { weekday: undefined, day: undefined, month: undefined }) && (
-                        <span className="block text-xs text-slate-500">Their time {candidateTime(c, c.preferred_call_at!, { weekday: undefined, day: undefined, month: undefined })}</span>
-                      )}
-                      <span className={`mt-1 inline-block text-[11px] font-bold ${c.attendance_confirmed_at ? "text-emerald-700" : "text-amber-700"}`}>
-                        {c.attendance_confirmed_at ? "✓ Will attend" : "Attendance not confirmed"}
-                      </span>
-                    </button>
-                    <span className="mt-2 flex gap-1.5">
-                      {c.meeting_url && (
-                        <a href={c.meeting_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 rounded-full bg-emerald-600 px-2.5 py-1 text-[11px] font-bold text-white hover:bg-emerald-700">
-                          <Video className="h-3 w-3" /> Meet
-                        </a>
-                      )}
-                      <Link to={sessionHref(c)} className="inline-flex items-center gap-1 rounded-full bg-brand px-2.5 py-1 text-[11px] font-bold text-white hover:bg-brand/90">
-                        <Play className="h-3 w-3 fill-current" /> Start
-                      </Link>
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            )}
-            <div className="mt-4 flex flex-wrap gap-3 border-t border-slate-200 pt-3 text-[11px] font-bold text-slate-500">
-              <span className="flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-sm bg-emerald-500" /> Will attend</span>
-              <span className="flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-sm bg-amber-400" /> Not confirmed</span>
-            </div>
-          </aside>
+                  {list.length > 0 && (
+                    <p className="mb-2 text-[11px] font-bold text-slate-500">
+                      {list.length} call{list.length > 1 ? "s" : ""}
+                    </p>
+                  )}
+                  <ul className="flex-1 space-y-2">
+                    {timeline.map((t, k) =>
+                      "busy" in t ? (
+                        <li
+                          key={`b${k}`}
+                          className="rounded-lg bg-[repeating-linear-gradient(135deg,theme(colors.slate.200)_0_6px,theme(colors.slate.100)_6px_12px)] px-2.5 py-1.5 text-[11px] font-bold text-slate-600"
+                        >
+                          {maltaClock(t.busy.start)}–{maltaClock(t.busy.end)} · Busy
+                        </li>
+                      ) : (
+                        <CalCard key={`${t.event.c.id}-${t.event.kind}`} e={t.event} clash={clash(t.event)} onOpen={onOpen} />
+                      ),
+                    )}
+                  </ul>
+                  {timeline.length === 0 && !weekend && <p className="mt-auto text-center text-xs text-slate-400">Free day</p>}
+                </div>
+              );
+            })}
+          </div>
         </div>
       </div>
     </Card>
