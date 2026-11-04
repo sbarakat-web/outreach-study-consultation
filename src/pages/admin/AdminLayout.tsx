@@ -56,19 +56,27 @@ export function AdminLayout() {
   const name = profile?.display_name || email.split("@")[0];
   const countBadge = (value: number) => value ? <span className="rounded-full bg-brand/10 px-2 py-0.5 text-xs font-bold text-brand">{value}</span> : undefined;
   const sidebar: TabItem[] = [
-    { to: "/admin", label: "All leads", icon: UsersRound, end: true, badge: countBadge(Object.values(leadCounts).reduce((a, b) => a + b, 0) - withDocs - (leadCounts.not_interested ?? 0)) },
-    { to: "/admin/documents", label: "Documents received", icon: FileCheck2, badge: countBadge(withDocs) },
-    { to: "/admin/new-leads", label: "New leads", icon: UsersRound, badge: countBadge(leadCounts.new ?? 0) },
-    { to: "/admin/not-interested", label: "No longer interested", icon: UserRoundX, badge: countBadge(leadCounts.not_interested ?? 0) },
     {
-      to: "/admin/awaiting-confirmation",
-      label: "Awaiting confirmation",
-      icon: Clock,
-      // Calls to confirm (Meet link + Confirm & send).
-      badge: toConfirm ? <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-800">{toConfirm}</span> : undefined,
+      to: "/admin",
+      label: "All leads",
+      icon: UsersRound,
+      end: true,
+      badge: countBadge(Object.values(leadCounts).reduce((a, b) => a + b, 0) - withDocs - (leadCounts.not_interested ?? 0)),
+      children: [
+        { to: "/admin/upcoming", label: "Upcoming", icon: CalendarCheck, badge: countBadge(upcoming) },
+        {
+          to: "/admin/awaiting-confirmation",
+          label: "Awaiting confirmation",
+          icon: Clock,
+          // Calls to confirm (Meet link + Confirm & send).
+          badge: toConfirm ? <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-800">{toConfirm}</span> : undefined,
+        },
+        { to: "/admin/waiting-for-candidate", label: "Waiting for candidate", icon: Send, badge: countBadge(waitingCandidate) },
+        { to: "/admin/new-leads", label: "New leads", icon: UsersRound, badge: countBadge(leadCounts.new ?? 0) },
+        { to: "/admin/documents", label: "Documents received", icon: FileCheck2, badge: countBadge(withDocs) },
+        { to: "/admin/not-interested", label: "No longer interested", icon: UserRoundX, badge: countBadge(leadCounts.not_interested ?? 0) },
+      ],
     },
-    { to: "/admin/waiting-for-candidate", label: "Waiting for candidate", icon: Send, badge: countBadge(waitingCandidate) },
-    { to: "/admin/upcoming", label: "Upcoming", icon: CalendarCheck, badge: countBadge(upcoming) },
     { to: "/admin/calendar", label: "Calendar", icon: CalendarDays },
     { to: "/onlinesessions?present=1", label: "Online sessions", icon: Presentation },
     { to: "/admin/sessions", label: "Session stats", icon: BarChart3 },

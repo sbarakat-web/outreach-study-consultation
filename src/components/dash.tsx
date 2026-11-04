@@ -1,9 +1,9 @@
 // Building blocks of the dashboard look (candidate + admin), modelled on the "Boardash" template:
 // floating sidebar card, stat strip with round icons, meeting-style cards.
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import type { LucideIcon } from "lucide-react";
-import { LogOut } from "lucide-react";
+import { ChevronDown, LogOut } from "lucide-react";
 import { MobileTabBar, type TabItem } from "./TabBar";
 
 /** Round avatar: photo, or the first letter on brand purple. */
@@ -55,7 +55,6 @@ export function AppShell({
   fab?: ReactNode;
   children: ReactNode;
 }) {
-  const location = useLocation();
   return (
     <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-4 pb-24 pt-3 sm:gap-6 sm:pt-4 md:grid-cols-[16rem_minmax(0,1fr)] md:pb-10 md:pt-8 lg:grid-cols-[17.5rem_minmax(0,1fr)]">
       <aside className="hidden md:sticky md:top-24 md:block md:self-start">
@@ -72,26 +71,7 @@ export function AppShell({
             </svg>
           </div>
           <nav aria-label={label} className="flex flex-col">
-            {items.map((t) => (
-              <NavLink
-                key={t.to}
-                to={t.to}
-                end={t.end}
-                className={({ isActive }) =>
-                  sideItemClass({
-                    isActive: t.to.includes("?")
-                      ? `${location.pathname}${location.search}` === t.to
-                      : t.end && location.pathname === t.to && location.search
-                        ? false
-                        : isActive,
-                  })
-                }
-              >
-                <t.icon className="h-[18px] w-[18px] shrink-0 opacity-80" />
-                <span className="flex-1 truncate">{t.label}</span>
-                {t.badge}
-              </NavLink>
-            ))}
+            {items.map((t) => (t.children?.length ? <SideGroup key={t.to} item={t} /> : <SideLink key={t.to} item={t} />))}
             <button onClick={onSignOut} className="mt-6 flex items-center gap-4 px-7 py-3.5 text-left text-[15px] text-slate-500 transition hover:bg-slate-50 hover:text-navy">
               <LogOut className="h-[18px] w-[18px] opacity-80" /> {signOutLabel}
             </button>
@@ -101,6 +81,82 @@ export function AppShell({
       <div className="min-w-0">{children}</div>
       {fab && <div className="fixed bottom-20 right-4 z-40 md:bottom-6 md:right-6">{fab}</div>}
       <MobileTabBar items={mobileItems ?? items} label={label} />
+    </div>
+  );
+}
+
+function SideLink({ item: t, sub = false, extra = "" }: { item: TabItem; sub?: boolean; extra?: string }) {
+  const location = useLocation();
+  return (
+    <NavLink
+      to={t.to}
+      end={t.end}
+      className={({ isActive }) =>
+        `${sideItemClass({
+          isActive: t.to.includes("?")
+            ? `${location.pathname}${location.search}` === t.to
+            : t.end && location.pathname === t.to && location.search
+              ? false
+              : isActive,
+        })} ${sub ? "!gap-3 !py-2.5 !px-4 text-[14px]" : ""} ${extra}`
+      }
+    >
+      <t.icon className={`${sub ? "h-4 w-4" : "h-[18px] w-[18px]"} shrink-0 opacity-80`} />
+      <span className="flex-1 truncate">{t.label}</span>
+      {t.badge}
+    </NavLink>
+  );
+}
+
+const GROUP_KEY = "sidebar_open_";
+
+/** Sidebar item with a dropdown submenu: the title stays a link, the chevron opens or closes the list. */
+function SideGroup({ item }: { item: TabItem }) {
+  const location = useLocation();
+  const inside = location.pathname === item.to || item.children!.some((c) => location.pathname === c.to.split("?")[0]);
+  const [open, setOpen] = useState(() => {
+    try {
+      const saved = localStorage.getItem(GROUP_KEY + item.to);
+      return saved === null ? true : saved === "1";
+    } catch {
+      return true;
+    }
+  });
+  const shown = open || inside;
+  const toggle = () => {
+    const next = !shown;
+    setOpen(next);
+    try {
+      localStorage.setItem(GROUP_KEY + item.to, next ? "1" : "0");
+    } catch {
+      /* private mode */
+    }
+  };
+  const id = `submenu-${item.to.replace(/\W/g, "")}`;
+  return (
+    <div>
+      <div className="relative flex items-center">
+        <div className="min-w-0 flex-1">
+          <SideLink item={item} extra="pe-12" />
+        </div>
+        <button
+          type="button"
+          onClick={toggle}
+          aria-expanded={shown}
+          aria-controls={id}
+          aria-label={`${shown ? "Hide" : "Show"} ${item.label} pages`}
+          className="absolute end-2 grid h-8 w-8 place-items-center rounded-full text-slate-400 hover:bg-slate-100 hover:text-navy"
+        >
+          <ChevronDown className={`h-4 w-4 transition ${shown ? "rotate-180" : ""}`} />
+        </button>
+      </div>
+      {shown && (
+        <div id={id} className="flex flex-col border-s-2 border-slate-100 ms-9">
+          {item.children!.map((c) => (
+            <SideLink key={c.to} item={c} sub />
+          ))}
+        </div>
+      )}
     </div>
   );
 }

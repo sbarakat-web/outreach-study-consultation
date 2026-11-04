@@ -8,6 +8,8 @@ export interface TabItem {
   icon: LucideIcon;
   end?: boolean;
   badge?: ReactNode;
+  /** Sidebar submenu shown under this item (desktop only). */
+  children?: TabItem[];
 }
 
 /** Phone navigation: fixed bottom tab bar (the sidebar takes over from md up). */
