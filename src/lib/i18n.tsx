@@ -134,6 +134,7 @@ const en = {
   "prof.text": "Add your country and WhatsApp number so your advisor can reach you and show your meeting in your local time.",
   "prof.save": "Save my details",
   "status.received": "Application received",
+  "status.appointmentCancelled": "Appointment cancelled",
   "sess.doneTitle": "Your online session is complete",
   "fb.title": "How useful was your session?",
   "fb.placeholder": "Anything we could do better? (optional)",

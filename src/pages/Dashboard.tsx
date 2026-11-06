@@ -457,6 +457,7 @@ export function CallPage() {
   const rejected = docs.filter((d) => d.review_status === "rejected").length;
 
   const stage = callStage(c);
+  const cancelledAppointment = !!c.tracking?.appointment_cancelled_at && c.call_status === "none";
   const callAt = stage === "confirmed" ? c.preferred_call_at : stage === "suggested" ? c.suggested_call_at : c.requested_call_times[0];
 
   return (
@@ -545,9 +546,13 @@ export function CallPage() {
             <ol className="grid grid-cols-3 gap-2 sm:grid-cols-6" aria-label={t("dash.progress")}>
               {MILESTONES.map((m, i) => (
                 <li key={m} className="space-y-1">
-                  <span className={`block h-1.5 rounded-full ${i <= reached ? "bg-brand" : "bg-slate-200"}`} />
-                  <span className={`block text-[10px] font-medium leading-tight ${i <= reached ? "text-navy" : "text-slate-400"}`}>
-                    {m === "new" ? t("status.received") : tv(STATUSES.find((s) => s.value === m)!.label)}
+                  <span className={`block h-1.5 rounded-full ${cancelledAppointment && m === "consultation_booked" ? "bg-brand-red" : i <= reached ? "bg-brand" : "bg-slate-200"}`} />
+                  <span className={`block text-[10px] font-medium leading-tight ${cancelledAppointment && m === "consultation_booked" ? "font-bold text-brand-red" : i <= reached ? "text-navy" : "text-slate-400"}`}>
+                    {cancelledAppointment && m === "consultation_booked"
+                      ? t("status.appointmentCancelled")
+                      : m === "new"
+                        ? t("status.received")
+                        : tv(STATUSES.find((s) => s.value === m)!.label)}
                   </span>
                 </li>
               ))}
