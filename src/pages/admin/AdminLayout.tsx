@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Outlet, useNavigate } from "react-router-dom";
-import { AlertTriangle, BarChart3, Bell, CalendarCheck, CalendarDays, CalendarX2, Clock, FileCheck2, Mail, Presentation, Send, Settings, UserRoundX, Users, UsersRound } from "lucide-react";
+import { AlertTriangle, BarChart3, Bell, CalendarCheck, CalendarDays, CalendarX2, Clock, FileCheck2, Mail, Presentation, School, Send, Settings, UserRoundX, Users, UsersRound } from "lucide-react";
 import type { TabItem } from "../../components/TabBar";
 import { AppShell, Fab } from "../../components/dash";
 import { supabase } from "../../lib/supabase";
@@ -38,15 +38,16 @@ export function AdminLayout() {
       const { data } = await supabase
         .from("consultations")
         .select("status, call_status, preferred_call_at, suggested_call_at, requested_call_times, call_declined_at, repick_requested_at, session_outcome, tracking, documents(count)");
-      setOverdue((data ?? []).filter(isOverdue).length);
-      const open = (data ?? []).filter((row) => row.status !== "not_interested" && !row.call_declined_at && row.call_status !== "confirmed" && !(row.tracking?.appointment_cancelled_at && row.call_status === "none"));
+      const leads = (data ?? []).filter((row) => row.tracking?.source !== "school_visa_process");
+      setOverdue(leads.filter(isOverdue).length);
+      const open = leads.filter((row) => row.status !== "not_interested" && !row.call_declined_at && row.call_status !== "confirmed" && !(row.tracking?.appointment_cancelled_at && row.call_status === "none"));
       setToConfirm(open.filter((row) => !row.suggested_call_at && (row.preferred_call_at || row.requested_call_times?.[0])).length);
       setWaitingCandidate(open.filter((row) => row.suggested_call_at || (row.call_status === "none" && row.repick_requested_at)).length);
-      setUpcoming((data ?? []).filter((row) => row.call_status === "confirmed" && row.preferred_call_at && !row.session_outcome && new Date(row.preferred_call_at).getTime() + 20 * 60_000 > Date.now()).length);
-      setWithDocs((data ?? []).filter((row) => row.status !== "not_interested" && !(row.tracking?.appointment_cancelled_at && row.call_status === "none") && (row.documents as { count: number }[] | null)?.[0]?.count).length);
-      setCancelled((data ?? []).filter((row) => row.tracking?.appointment_cancelled_at && row.call_status === "none").length);
-      setNewLeads((data ?? []).filter((row) => row.status === "new" && !(row.tracking?.appointment_cancelled_at && row.call_status === "none")).length);
-      setLeadCounts((data ?? []).reduce<Record<string, number>>((out, row) => {
+      setUpcoming(leads.filter((row) => row.call_status === "confirmed" && row.preferred_call_at && !row.session_outcome && new Date(row.preferred_call_at).getTime() + 20 * 60_000 > Date.now()).length);
+      setWithDocs(leads.filter((row) => row.status !== "not_interested" && !(row.tracking?.appointment_cancelled_at && row.call_status === "none") && (row.documents as { count: number }[] | null)?.[0]?.count).length);
+      setCancelled(leads.filter((row) => row.tracking?.appointment_cancelled_at && row.call_status === "none").length);
+      setNewLeads(leads.filter((row) => row.status === "new" && !(row.tracking?.appointment_cancelled_at && row.call_status === "none")).length);
+      setLeadCounts(leads.reduce<Record<string, number>>((out, row) => {
         out[row.status] = (out[row.status] ?? 0) + 1;
         return out;
       }, {}));
@@ -92,6 +93,7 @@ export function AdminLayout() {
         { to: "/admin/not-interested", label: "No longer interested", icon: UserRoundX, badge: countBadge(leadCounts.not_interested ?? 0) },
       ],
     },
+    { to: "/admin/school-visa-process", label: "School / Visa Process", icon: School },
     { to: "/admin/calendar", label: "Calendar", icon: CalendarDays },
     { to: "/onlinesessions?present=1", label: "Online sessions", icon: Presentation },
     { to: "/admin/sessions", label: "Session stats", icon: BarChart3 },

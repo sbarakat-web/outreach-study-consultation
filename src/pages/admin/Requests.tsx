@@ -96,7 +96,7 @@ export function Requests({ mode = "all" }: { mode?: keyof typeof PAGE_TITLE }) {
       .order("created_at", { ascending: false })
       .limit(1000);
     if (error) setError(error.message);
-    setItems((data as Row[]) ?? []);
+    setItems(((data as Row[]) ?? []).filter((row) => row.tracking?.source !== "school_visa_process"));
   }, []);
 
   useEffect(() => {

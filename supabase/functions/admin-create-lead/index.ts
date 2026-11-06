@@ -155,13 +155,13 @@ Deno.serve(async (req) => {
     }
     if (!env("RESEND_API_KEY")) return json({ error: "Email delivery is not configured; no lead was created" }, 503);
 
-    const { data: existing, error: lookupError } = await db
+    const { data: existingRows, error: lookupError } = await db
       .from("consultations")
-      .select("id, full_name")
+      .select("id, full_name, tracking")
       .eq("email", email)
-      .limit(1)
-      .maybeSingle();
+      .limit(20);
     if (lookupError) throw new Error("Could not check whether this email already exists");
+    const existing = (existingRows ?? []).find((row) => row.tracking?.source !== "school_visa_process");
     if (existing) return json({ error: `This email already belongs to ${existing.full_name}` }, 409);
 
     let userId: string | null = null;

@@ -57,15 +57,15 @@ Deno.serve(async (req) => {
     if (protectedPresenterError) throw new Error("Could not check whether this account has a presenter role");
     if (protectedPresenter) return json({ error: "This email belongs to a session presenter and cannot be removed as a lead" }, 409);
 
-    const associatedLeads: { id: string; user_id: string | null }[] = [];
+    const associatedLeads: { id: string; user_id: string | null; tracking: Record<string, string> | null }[] = [];
     for (let start = 0; ; start += 1000) {
       const { data, error } = await db
         .from("consultations")
-        .select("id, user_id")
+        .select("id, user_id, tracking")
         .eq("email", email)
         .range(start, start + 999);
       if (error) throw new Error("Could not load all leads associated with this email");
-      associatedLeads.push(...(data ?? []));
+      associatedLeads.push(...(data ?? []).filter((row) => row.tracking?.source !== "school_visa_process"));
       if (!data || data.length < 1000) break;
     }
     const consultationIds = associatedLeads.map((item) => item.id);

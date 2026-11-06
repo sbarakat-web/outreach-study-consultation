@@ -12,6 +12,7 @@ interface Hit {
   whatsapp: string | null;
   status: Status;
   country: string | null;
+  tracking: Record<string, string>;
 }
 
 const digits = (v: string | null | undefined) => (v ?? "").replace(/\D/g, "");
@@ -30,10 +31,10 @@ export function AdminSearch() {
     if (leads) return;
     supabase
       .from("consultations")
-      .select("id, full_name, email, whatsapp, status, country")
+      .select("id, full_name, email, whatsapp, status, country, tracking")
       .order("created_at", { ascending: false })
       .limit(2000)
-      .then(({ data }) => setLeads((data as Hit[]) ?? []));
+      .then(({ data }) => setLeads(((data as Hit[]) ?? []).filter((row) => row.tracking?.source !== "school_visa_process")));
   };
 
   const hits = useMemo(() => {

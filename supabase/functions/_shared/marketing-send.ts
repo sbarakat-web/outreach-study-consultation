@@ -51,6 +51,7 @@ export async function resolveSegment(db: Db, seg: Segment, topic: "news" | "dead
   const blocked = new Set((prefs ?? []).filter((p: Row) => p.unsubscribed_at || p[topic] === false).map((p: Row) => p.email));
   const seen = new Set<string>();
   return ((data ?? []) as Row[]).filter((c) => {
+    if (c.tracking?.source === "school_visa_process") return false;
     if (!c.email || blocked.has(c.email) || seen.has(c.email)) return false;
     if (seg.preset === "no_call" && !(c.status === "new" && c.call_status !== "confirmed")) return false;
     if (seg.preset === "docs_missing") {

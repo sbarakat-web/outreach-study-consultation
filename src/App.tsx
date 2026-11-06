@@ -23,6 +23,7 @@ const SessionsDashboard = lazy(() => import("./pages/admin/SessionsDashboard").t
 const AdminAccount = lazy(() => import("./pages/admin/AdminLayout").then((m) => ({ default: m.AdminAccount })));
 const Team = lazy(() => import("./pages/admin/Team").then((m) => ({ default: m.Team })));
 const EmailMarketing = lazy(() => import("./pages/admin/EmailMarketing").then((m) => ({ default: m.EmailMarketing })));
+const SchoolVisaProcess = lazy(() => import("./pages/admin/SchoolVisaProcess").then((m) => ({ default: m.SchoolVisaProcess })));
 
 export function App() {
   if (!supabaseConfigured) {
@@ -81,6 +82,7 @@ export function App() {
               <Route path="cancelled-appointments" element={<Requests key="cancelled" mode="cancelled" />} />
               <Route path="upcoming" element={<Requests key="upcoming" mode="upcoming" />} />
               <Route path="overdue" element={<Requests key="overdue" mode="overdue" />} />
+              <Route path="school-visa-process" element={<SchoolVisaProcess />} />
               <Route path="calendar" element={<CalendarPage />} />
               <Route path="sessions" element={<SessionsDashboard />} />
               <Route path="team" element={<Team />} />

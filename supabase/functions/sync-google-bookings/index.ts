@@ -201,7 +201,8 @@ Deno.serve(async (req) => {
     }
 
     // Find the lead (latest application with this email) or create one from the booking.
-    let { data: c } = await db.from("consultations").select("*").eq("email", booker.email).order("created_at", { ascending: false }).limit(1).maybeSingle();
+    const { data: matching } = await db.from("consultations").select("*").eq("email", booker.email).order("created_at", { ascending: false }).limit(20);
+    let c = (matching ?? []).find((row: Event) => row.tracking?.source !== "school_visa_process") ?? null;
     if (!c) {
       const { data: created, error } = await db
         .from("consultations")

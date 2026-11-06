@@ -54,13 +54,15 @@ export function CandidateLayout() {
       : await consultationQuery
           .or(`user_id.eq.${userId},email.eq."${(session!.user.email ?? "").toLowerCase()}"`)
           .order("created_at", { ascending: false })
-          .limit(1)
-          .maybeSingle();
+          .limit(20);
     const d = previewId
       ? await supabase.from("documents").select("*").eq("consultation_id", previewId).order("created_at")
       : await supabase.from("documents").select("*").eq("user_id", userId).order("created_at");
     if (res.error) setError(res.error.message);
-    setC((res.data as Consultation) ?? null);
+    const candidate = previewId
+      ? (res.data as Consultation | null)
+      : ((res.data as Consultation[] | null) ?? []).find((row) => row.tracking?.source !== "school_visa_process") ?? null;
+    setC(candidate);
     setDocs(d.data ?? []);
   }, [userId, session, previewId]);
 
