@@ -71,6 +71,7 @@ export function AdminLayout() {
       end: true,
       badge: countBadge(Object.values(leadCounts).reduce((a, b) => a + b, 0) - withDocs - (leadCounts.not_interested ?? 0) - cancelled),
       children: [
+        { to: "/admin/school-visa-process", label: "School / Visa Process", icon: School },
         { to: "/admin/upcoming", label: "Upcoming", icon: CalendarCheck, badge: countBadge(upcoming) },
         {
           to: "/admin/overdue",
@@ -93,7 +94,6 @@ export function AdminLayout() {
         { to: "/admin/not-interested", label: "No longer interested", icon: UserRoundX, badge: countBadge(leadCounts.not_interested ?? 0) },
       ],
     },
-    { to: "/admin/school-visa-process", label: "School / Visa Process", icon: School },
     { to: "/admin/calendar", label: "Calendar", icon: CalendarDays },
     { to: "/onlinesessions?present=1", label: "Online sessions", icon: Presentation },
     { to: "/admin/sessions", label: "Session stats", icon: BarChart3 },
