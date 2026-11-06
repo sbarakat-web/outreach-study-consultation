@@ -28,6 +28,10 @@ const today = () => new Date().toISOString().slice(0, 10);
 const statusOf = (row: ProcessRow) => (row.tracking.school_status || "reviewing") as ProcessStatus;
 const statusMeta = (status: ProcessStatus) => STATUSES.find((s) => s.value === status) ?? STATUSES[0];
 const updatedLabel = (iso: string) => new Intl.DateTimeFormat("en-GB", { dateStyle: "short", timeStyle: "short" }).format(new Date(iso)).replace(",", "");
+const appliedLabel = (value: string) => {
+  const [year, month, day] = value.slice(0, 10).split("-");
+  return year && month && day ? `${day}/${month}/${year}` : value;
+};
 
 /** Manual-only school and visa pipeline. These records never enter lead communications. */
 export function SchoolVisaProcess() {
@@ -101,16 +105,16 @@ export function SchoolVisaProcess() {
       ) : (
         <Card>
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[1050px] text-left text-sm">
-              <thead className="border-b border-slate-100 bg-slate-50/80 text-xs uppercase tracking-wide text-slate-500">
+            <table className="w-full min-w-[860px] text-left text-xs">
+              <thead className="border-b border-slate-100 bg-slate-50/80 text-[10px] uppercase tracking-wide text-slate-500">
                 <tr>
-                  <th className="px-5 py-3">Applied Date</th>
-                  <th className="px-5 py-3">Name</th>
-                  <th className="px-5 py-3">Email</th>
-                  <th className="px-5 py-3">Number</th>
-                  <th className="px-5 py-3">Status</th>
-                  <th className="px-5 py-3">Comment</th>
-                  <th className="w-12 px-3 py-3"><span className="sr-only">Actions</span></th>
+                  <th className="whitespace-nowrap px-3 py-2.5">Applied Date</th>
+                  <th className="px-3 py-2.5">Name</th>
+                  <th className="px-3 py-2.5">Email</th>
+                  <th className="px-3 py-2.5">Number</th>
+                  <th className="px-3 py-2.5">Status</th>
+                  <th className="px-3 py-2.5">Comment</th>
+                  <th className="w-9 px-1 py-2.5"><span className="sr-only">Actions</span></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -143,29 +147,29 @@ function ProcessTableRow({ row, onUpdate, onRemove }: { row: ProcessRow; onUpdat
   };
   return (
     <tr className="align-top hover:bg-slate-50/60">
-      <td className="whitespace-nowrap px-5 py-4 font-semibold text-slate-600">{row.tracking.school_applied_date || row.created_at.slice(0, 10)}</td>
-      <td className="px-5 py-4 font-black text-navy">{row.full_name}</td>
-      <td className="px-5 py-4"><a className="text-brand hover:underline" href={`mailto:${row.email}`}>{row.email}</a></td>
-      <td className="min-w-44 px-5 py-3"><input className="field py-2 text-sm" type="tel" placeholder="+356…" value={phone} onChange={(e) => setPhone(e.target.value)} onBlur={savePhone} aria-label={`Number for ${row.full_name}`} /></td>
-      <td className="px-5 py-4">
+      <td className="whitespace-nowrap px-3 py-3 font-semibold text-slate-600">{appliedLabel(row.tracking.school_applied_date || row.created_at)}</td>
+      <td className="max-w-32 px-3 py-3 font-black leading-tight text-navy">{row.full_name}</td>
+      <td className="max-w-40 break-all px-3 py-3"><a className="text-brand hover:underline" href={`mailto:${row.email}`}>{row.email}</a></td>
+      <td className="w-32 px-3 py-2"><input className="field min-h-8 px-2 py-1.5 text-xs" type="tel" placeholder="+356…" value={phone} onChange={(e) => setPhone(e.target.value)} onBlur={savePhone} aria-label={`Number for ${row.full_name}`} /></td>
+      <td className="whitespace-nowrap px-3 py-3">
         <select
           aria-label={`Status for ${row.full_name}`}
           value={status}
           onChange={(e) => onUpdate(row, { status: e.target.value as ProcessStatus })}
-          className={`cursor-pointer rounded-full border-0 px-4 py-2 text-sm font-black outline-none ring-2 ring-transparent focus:ring-navy/20 ${meta.style}`}
+          className={`cursor-pointer rounded-full border-0 px-3 py-1.5 text-xs font-black outline-none ring-2 ring-transparent focus:ring-navy/20 ${meta.style}`}
         >
           {STATUSES.map((option) => <option key={option.value} value={option.value} className="bg-white text-navy">{option.label}</option>)}
         </select>
       </td>
-      <td className="min-w-64 px-5 py-3">
-        <div className="flex items-start gap-2">
-          <textarea rows={2} className="field min-h-16 resize-y py-2 text-sm" placeholder="Add a comment…" value={comment} onChange={(e) => setComment(e.target.value)} onBlur={saveComment} />
+      <td className="min-w-48 px-3 py-2">
+        <div className="flex items-start gap-1">
+          <textarea rows={2} className="field min-h-12 resize-y px-2 py-1.5 text-xs" placeholder="Add a comment…" value={comment} onChange={(e) => setComment(e.target.value)} onBlur={saveComment} />
           {saving && <Save className="mt-2 h-4 w-4 animate-pulse text-brand" />}
         </div>
-        <p className="mt-1 text-[11px] text-slate-400">Last updated: {updatedLabel(row.tracking.school_comment_updated_at || row.updated_at)}</p>
+        <p className="mt-1 whitespace-nowrap text-[9px] text-slate-400">Last updated: {updatedLabel(row.tracking.school_comment_updated_at || row.updated_at)}</p>
       </td>
-      <td className="px-3 py-4">
-        <button type="button" aria-label={`Remove ${row.full_name}`} onClick={() => onRemove(row)} className="rounded-full p-2 text-slate-400 hover:bg-red-50 hover:text-brand-red">
+      <td className="px-1 py-3">
+        <button type="button" aria-label={`Remove ${row.full_name}`} onClick={() => onRemove(row)} className="rounded-full p-1.5 text-slate-400 hover:bg-red-50 hover:text-brand-red">
           <Trash2 className="h-4 w-4" />
         </button>
       </td>
