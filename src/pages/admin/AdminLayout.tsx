@@ -37,15 +37,15 @@ export function AdminLayout() {
     const loadCounts = async () => {
       const { data } = await supabase
         .from("consultations")
-        .select("status, call_status, preferred_call_at, suggested_call_at, requested_call_times, call_declined_at, repick_requested_at, session_outcome, cancelled_at, documents(count)");
+        .select("status, call_status, preferred_call_at, suggested_call_at, requested_call_times, call_declined_at, repick_requested_at, session_outcome, tracking, documents(count)");
       setOverdue((data ?? []).filter(isOverdue).length);
-      const open = (data ?? []).filter((row) => row.status !== "not_interested" && !row.call_declined_at && row.call_status !== "confirmed" && !(row.cancelled_at && row.call_status === "none"));
+      const open = (data ?? []).filter((row) => row.status !== "not_interested" && !row.call_declined_at && row.call_status !== "confirmed" && !(row.tracking?.appointment_cancelled_at && row.call_status === "none"));
       setToConfirm(open.filter((row) => !row.suggested_call_at && (row.preferred_call_at || row.requested_call_times?.[0])).length);
       setWaitingCandidate(open.filter((row) => row.suggested_call_at || (row.call_status === "none" && row.repick_requested_at)).length);
       setUpcoming((data ?? []).filter((row) => row.call_status === "confirmed" && row.preferred_call_at && !row.session_outcome && new Date(row.preferred_call_at).getTime() + 20 * 60_000 > Date.now()).length);
-      setWithDocs((data ?? []).filter((row) => row.status !== "not_interested" && !(row.cancelled_at && row.call_status === "none") && (row.documents as { count: number }[] | null)?.[0]?.count).length);
-      setCancelled((data ?? []).filter((row) => row.cancelled_at && row.call_status === "none").length);
-      setNewLeads((data ?? []).filter((row) => row.status === "new" && !(row.cancelled_at && row.call_status === "none")).length);
+      setWithDocs((data ?? []).filter((row) => row.status !== "not_interested" && !(row.tracking?.appointment_cancelled_at && row.call_status === "none") && (row.documents as { count: number }[] | null)?.[0]?.count).length);
+      setCancelled((data ?? []).filter((row) => row.tracking?.appointment_cancelled_at && row.call_status === "none").length);
+      setNewLeads((data ?? []).filter((row) => row.status === "new" && !(row.tracking?.appointment_cancelled_at && row.call_status === "none")).length);
       setLeadCounts((data ?? []).reduce<Record<string, number>>((out, row) => {
         out[row.status] = (out[row.status] ?? 0) + 1;
         return out;

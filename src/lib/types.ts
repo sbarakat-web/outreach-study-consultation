@@ -54,9 +54,6 @@ export interface Consultation {
   not_interested_reason?: string | null;
   not_interested_at?: string | null;
   overdue_alert_at?: string | null;
-  cancelled_at?: string | null;
-  cancelled_call_at?: string | null;
-  cancelled_by?: string | null;
   documents_due_at: string | null;
   session_by: string | null;
   session_rating: number | null;

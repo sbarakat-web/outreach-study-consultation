@@ -128,8 +128,8 @@ export function Requests({ mode = "all" }: { mode?: keyof typeof PAGE_TITLE }) {
     }
     if (mode === "cancelled") {
       return (items ?? [])
-        .filter((c) => !!c.cancelled_at && c.call_status === "none" && matches(c))
-        .sort((a, b) => (b.cancelled_at ?? "").localeCompare(a.cancelled_at ?? ""));
+        .filter((c) => !!c.tracking?.appointment_cancelled_at && c.call_status === "none" && matches(c))
+        .sort((a, b) => (b.tracking?.appointment_cancelled_at ?? "").localeCompare(a.tracking?.appointment_cancelled_at ?? ""));
     }
     if (mode === "awaiting" || mode === "waiting") {
       return (items ?? [])
@@ -140,7 +140,7 @@ export function Requests({ mode = "all" }: { mode?: keyof typeof PAGE_TITLE }) {
       (c) =>
         (!pageStatus || c.status === pageStatus) &&
         // A cancelled appointment lives only in its dedicated view until the candidate books again.
-        !(c.cancelled_at && c.call_status === "none") &&
+        !(c.tracking?.appointment_cancelled_at && c.call_status === "none") &&
         (pageView !== "booked" || isBookedLead(c)) &&
         (pageView === "documents" ? docCount(c) > 0 : pageStatus || pageView ? true : docCount(c) === 0) &&
         // No longer interested leads live on their own page, not in All leads or Documents received.

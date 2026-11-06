@@ -126,7 +126,16 @@ Deno.serve(async (req) => {
         request_reminder_at: null,
         call_confirm_token: token,
         repick_requested_at: new Date().toISOString(),
-        ...(cancelling ? { cancelled_at: new Date().toISOString(), cancelled_call_at: old, cancelled_by: email } : {}),
+        ...(cancelling
+          ? {
+              tracking: {
+                ...(c.tracking ?? {}),
+                appointment_cancelled_at: new Date().toISOString(),
+                appointment_cancelled_call_at: old ?? "",
+                appointment_cancelled_by: email,
+              },
+            }
+          : {}),
       })
       .eq("id", c.id);
     if (error) return json({ error: error.message }, 500);
