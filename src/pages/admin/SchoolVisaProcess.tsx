@@ -17,14 +17,17 @@ interface ProcessRow {
   id: string;
   full_name: string;
   email: string;
+  whatsapp: string | null;
   admin_notes: string | null;
   tracking: Record<string, string>;
   created_at: string;
+  updated_at: string;
 }
 
 const today = () => new Date().toISOString().slice(0, 10);
 const statusOf = (row: ProcessRow) => (row.tracking.school_status || "reviewing") as ProcessStatus;
 const statusMeta = (status: ProcessStatus) => STATUSES.find((s) => s.value === status) ?? STATUSES[0];
+const updatedLabel = (iso: string) => new Intl.DateTimeFormat("en-GB", { dateStyle: "short", timeStyle: "short" }).format(new Date(iso)).replace(",", "");
 
 /** Manual-only school and visa pipeline. These records never enter lead communications. */
 export function SchoolVisaProcess() {
@@ -33,7 +36,7 @@ export function SchoolVisaProcess() {
   const [error, setError] = useState("");
 
   const load = useCallback(async () => {
-    const { data, error } = await supabase.from("consultations").select("id, full_name, email, admin_notes, tracking, created_at").order("created_at", { ascending: false }).limit(5000);
+    const { data, error } = await supabase.from("consultations").select("id, full_name, email, whatsapp, admin_notes, tracking, created_at, updated_at").order("created_at", { ascending: false }).limit(5000);
     if (error) setError(error.message);
     setRows(((data as ProcessRow[]) ?? []).filter((row) => row.tracking?.source === SOURCE));
   }, []);
@@ -44,11 +47,15 @@ export function SchoolVisaProcess() {
     return () => { supabase.removeChannel(channel); };
   }, [load]);
 
-  const update = async (row: ProcessRow, fields: { status?: ProcessStatus; comment?: string }) => {
+  const update = async (row: ProcessRow, fields: { status?: ProcessStatus; comment?: string; phone?: string }) => {
     setError("");
     const changes: Record<string, unknown> = {};
     if (fields.status) changes.tracking = { ...row.tracking, school_status: fields.status };
-    if (fields.comment !== undefined) changes.admin_notes = fields.comment.trim() || null;
+    if (fields.comment !== undefined) {
+      changes.admin_notes = fields.comment.trim() || null;
+      changes.tracking = { ...row.tracking, school_comment_updated_at: new Date().toISOString() };
+    }
+    if (fields.phone !== undefined) changes.whatsapp = fields.phone.trim() || null;
     const { error } = await supabase.from("consultations").update(changes).eq("id", row.id);
     if (error) setError(error.message);
     else load();
@@ -94,12 +101,13 @@ export function SchoolVisaProcess() {
       ) : (
         <Card>
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[850px] text-left text-sm">
+            <table className="w-full min-w-[1050px] text-left text-sm">
               <thead className="border-b border-slate-100 bg-slate-50/80 text-xs uppercase tracking-wide text-slate-500">
                 <tr>
                   <th className="px-5 py-3">Applied Date</th>
                   <th className="px-5 py-3">Name</th>
                   <th className="px-5 py-3">Email</th>
+                  <th className="px-5 py-3">Number</th>
                   <th className="px-5 py-3">Status</th>
                   <th className="px-5 py-3">Comment</th>
                   <th className="w-12 px-3 py-3"><span className="sr-only">Actions</span></th>
@@ -118,8 +126,9 @@ export function SchoolVisaProcess() {
   );
 }
 
-function ProcessTableRow({ row, onUpdate, onRemove }: { row: ProcessRow; onUpdate: (row: ProcessRow, fields: { status?: ProcessStatus; comment?: string }) => Promise<void>; onRemove: (row: ProcessRow) => void }) {
+function ProcessTableRow({ row, onUpdate, onRemove }: { row: ProcessRow; onUpdate: (row: ProcessRow, fields: { status?: ProcessStatus; comment?: string; phone?: string }) => Promise<void>; onRemove: (row: ProcessRow) => void }) {
   const [comment, setComment] = useState(row.admin_notes ?? "");
+  const [phone, setPhone] = useState(row.whatsapp ?? "");
   const [saving, setSaving] = useState(false);
   const status = statusOf(row);
   const meta = statusMeta(status);
@@ -129,11 +138,15 @@ function ProcessTableRow({ row, onUpdate, onRemove }: { row: ProcessRow; onUpdat
     await onUpdate(row, { comment });
     setSaving(false);
   };
+  const savePhone = async () => {
+    if (phone.trim() !== (row.whatsapp ?? "").trim()) await onUpdate(row, { phone });
+  };
   return (
     <tr className="align-top hover:bg-slate-50/60">
       <td className="whitespace-nowrap px-5 py-4 font-semibold text-slate-600">{row.tracking.school_applied_date || row.created_at.slice(0, 10)}</td>
       <td className="px-5 py-4 font-black text-navy">{row.full_name}</td>
       <td className="px-5 py-4"><a className="text-brand hover:underline" href={`mailto:${row.email}`}>{row.email}</a></td>
+      <td className="min-w-44 px-5 py-3"><input className="field py-2 text-sm" type="tel" placeholder="+356…" value={phone} onChange={(e) => setPhone(e.target.value)} onBlur={savePhone} aria-label={`Number for ${row.full_name}`} /></td>
       <td className="px-5 py-4">
         <select
           aria-label={`Status for ${row.full_name}`}
@@ -149,6 +162,7 @@ function ProcessTableRow({ row, onUpdate, onRemove }: { row: ProcessRow; onUpdat
           <textarea rows={2} className="field min-h-16 resize-y py-2 text-sm" placeholder="Add a comment…" value={comment} onChange={(e) => setComment(e.target.value)} onBlur={saveComment} />
           {saving && <Save className="mt-2 h-4 w-4 animate-pulse text-brand" />}
         </div>
+        <p className="mt-1 text-[11px] text-slate-400">Last updated: {updatedLabel(row.tracking.school_comment_updated_at || row.updated_at)}</p>
       </td>
       <td className="px-3 py-4">
         <button type="button" aria-label={`Remove ${row.full_name}`} onClick={() => onRemove(row)} className="rounded-full p-2 text-slate-400 hover:bg-red-50 hover:text-brand-red">
@@ -162,6 +176,7 @@ function ProcessTableRow({ row, onUpdate, onRemove }: { row: ProcessRow; onUpdat
 function AddApplication({ onClose, onAdded }: { onClose: () => void; onAdded: () => void }) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
   const [date, setDate] = useState(today());
   const [status, setStatus] = useState<ProcessStatus>("reviewing");
   const [comment, setComment] = useState("");
@@ -172,7 +187,7 @@ function AddApplication({ onClose, onAdded }: { onClose: () => void; onAdded: ()
     setSaving(true);
     setError("");
     const { data, error } = await supabase.functions.invoke("admin-school-process", {
-      body: { full_name: name.trim(), email: email.trim().toLowerCase(), applied_date: date, status, comment: comment.trim() },
+      body: { full_name: name.trim(), email: email.trim().toLowerCase(), whatsapp: phone.trim(), applied_date: date, status, comment: comment.trim() },
     });
     setSaving(false);
     if (error || data?.error) return setError(data?.error ?? error?.message ?? "The application could not be saved");
@@ -190,6 +205,7 @@ function AddApplication({ onClose, onAdded }: { onClose: () => void; onAdded: ()
           <label className="space-y-1"><span className="text-xs font-bold text-slate-500">Status *</span><select className="field" value={status} onChange={(e) => setStatus(e.target.value as ProcessStatus)}>{STATUSES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}</select></label>
           <label className="space-y-1"><span className="text-xs font-bold text-slate-500">Name *</span><input required className="field" value={name} onChange={(e) => setName(e.target.value)} placeholder="Candidate name" /></label>
           <label className="space-y-1"><span className="text-xs font-bold text-slate-500">Email *</span><input required type="email" className="field" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="candidate@email.com" /></label>
+          <label className="space-y-1"><span className="text-xs font-bold text-slate-500">Number / WhatsApp</span><input type="tel" className="field" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+356…" /></label>
         </div>
         <label className="block space-y-1"><span className="text-xs font-bold text-slate-500">Comment</span><textarea rows={3} className="field resize-y" value={comment} onChange={(e) => setComment(e.target.value)} placeholder="School, programme, visa notes…" /></label>
         {error && <Alert>{error}</Alert>}

@@ -21,6 +21,7 @@ Deno.serve(async (req) => {
   const input = await req.json().catch(() => ({}));
   const fullName = String(input.full_name ?? "").trim();
   const email = String(input.email ?? "").trim().toLowerCase();
+  const whatsapp = String(input.whatsapp ?? "").trim().slice(0, 40);
   const appliedDate = String(input.applied_date ?? "");
   const status = String(input.status ?? "reviewing");
   const comment = String(input.comment ?? "").trim();
@@ -33,6 +34,7 @@ Deno.serve(async (req) => {
     .insert({
       full_name: fullName,
       email,
+      whatsapp,
       status: "interviewed",
       admin_notes: comment || null,
       tracking: {
@@ -41,6 +43,7 @@ Deno.serve(async (req) => {
         school_status: status,
         manual_only: "true",
         created_by: adminEmail,
+        school_comment_updated_at: new Date().toISOString(),
       },
     })
     .select("id")
