@@ -1,10 +1,10 @@
 import { useState } from "react";
-import { CalendarCheck, Check, CheckCircle2, Clock, Copy, Hand, Mail, MessageCircle, RefreshCw, Send, Video } from "lucide-react";
+import { CalendarCheck, CalendarX2, Check, CheckCircle2, Clock, Copy, Hand, Mail, MessageCircle, RefreshCw, Send, Video } from "lucide-react";
 import { supabase } from "../../lib/supabase";
 import { BOOKING_LINK, CALL_STAGE_LABELS, callStage, noReply24h, waLink } from "../../lib/options";
 import type { Consultation } from "../../lib/types";
 import { Alert, Button } from "../../components/ui";
-import { askToPickAnother, bookingMessage, confirmWithMeet, holdTime, maltaTime, notifyCandidate, suggestTime, waitingWhatsApp } from "./calls";
+import { askToPickAnother, bookingMessage, cancelAppointment, confirmWithMeet, holdTime, maltaTime, notifyCandidate, suggestTime, waitingWhatsApp } from "./calls";
 import { SlotPicker } from "./SlotPicker";
 import { useFreeTimes } from "../../lib/freeTimes";
 
@@ -22,7 +22,7 @@ const waitedFor = (iso: string) => {
 export function CallPanel({ c, onSaved }: { c: Consultation; onSaved: () => void }) {
   const stage = callStage(c);
   const [msg, setMsg] = useState<{ tone: "error" | "success"; text: string } | null>(null);
-  const [busy, setBusy] = useState<"" | "suggest" | "hold" | "confirm" | "booking">("");
+  const [busy, setBusy] = useState<"" | "suggest" | "hold" | "confirm" | "booking" | "cancel">("");
   const [copied, setCopied] = useState(false);
   const requested = c.requested_call_times[0];
   // The time awaiting confirmation (held on the candidate's request, or picked by the team).
@@ -95,6 +95,17 @@ export function CallPanel({ c, onSaved }: { c: Consultation; onSaved: () => void
     const { error } = await supabase.from("consultations").update({ call_status: "requested", preferred_call_at: null, suggested_call_at: null }).eq("id", c.id);
     if (error) return setMsg({ tone: "error", text: error.message });
     setMsg({ tone: "success", text: "Confirmation undone." });
+    onSaved();
+  };
+
+  const cancel = async () => {
+    if (!window.confirm(`Cancel ${c.full_name}'s appointment and ask them to choose another time?`)) return;
+    const waTab = c.whatsapp ? window.open("about:blank", "_blank") : null;
+    setBusy("cancel");
+    const r = await cancelAppointment(c, waTab);
+    setBusy("");
+    if (r.error) return setMsg({ tone: "error", text: r.error });
+    setMsg({ tone: "success", text: `Appointment cancelled. ${c.full_name} was sent a link to choose another time.` });
     onSaved();
   };
 
@@ -181,6 +192,9 @@ export function CallPanel({ c, onSaved }: { c: Consultation; onSaved: () => void
             </Button>
             <Button variant="ghost" className="min-h-9" onClick={undo}>
               Undo confirmation
+            </Button>
+            <Button variant="danger" className="min-h-9" loading={busy === "cancel"} onClick={cancel}>
+              <CalendarX2 className="h-4 w-4" /> Cancel appointment
             </Button>
           </div>
           {editing && (

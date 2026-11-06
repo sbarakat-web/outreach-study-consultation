@@ -45,6 +45,7 @@ const PAGE_TITLE = {
   waiting: "Waiting for candidate",
   upcoming: "Upcoming",
   overdue: "Overdue",
+  cancelled: "Cancelled appointments",
 } as const;
 
 /** Upcoming: confirmed calls whose session hasn't happened yet (until the call has ended). */
@@ -125,6 +126,11 @@ export function Requests({ mode = "all" }: { mode?: keyof typeof PAGE_TITLE }) {
     if (mode === "upcoming") {
       return (items ?? []).filter((c) => isUpcoming(c) && matches(c)).sort((a, b) => a.preferred_call_at!.localeCompare(b.preferred_call_at!));
     }
+    if (mode === "cancelled") {
+      return (items ?? [])
+        .filter((c) => !!c.cancelled_at && c.call_status === "none" && matches(c))
+        .sort((a, b) => (b.cancelled_at ?? "").localeCompare(a.cancelled_at ?? ""));
+    }
     if (mode === "awaiting" || mode === "waiting") {
       return (items ?? [])
         .filter((c) => inCallPage(mode, c) && matches(c))
@@ -133,6 +139,8 @@ export function Requests({ mode = "all" }: { mode?: keyof typeof PAGE_TITLE }) {
     const rows = (items ?? []).filter(
       (c) =>
         (!pageStatus || c.status === pageStatus) &&
+        // A cancelled appointment lives only in its dedicated view until the candidate books again.
+        !(c.cancelled_at && c.call_status === "none") &&
         (pageView !== "booked" || isBookedLead(c)) &&
         (pageView === "documents" ? docCount(c) > 0 : pageStatus || pageView ? true : docCount(c) === 0) &&
         // No longer interested leads live on their own page, not in All leads or Documents received.

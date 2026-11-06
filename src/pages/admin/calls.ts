@@ -39,7 +39,7 @@ export const googleApi = (action: string, body: Record<string, unknown> = {}) =>
   supabase.functions.invoke("google-calendar", { body: { action, ...body } });
 
 export const notifyCandidate = (
-  type: "call-confirmed" | "rebook" | "booking-link" | "suggest-time" | "hold" | "confirm" | "pick-another" | "reinvite",
+  type: "call-confirmed" | "rebook" | "booking-link" | "suggest-time" | "hold" | "confirm" | "pick-another" | "cancel-appointment" | "reinvite",
   consultationId: string,
   at?: string,
   extra: Record<string, unknown> = {},
@@ -94,6 +94,14 @@ export async function confirmWithMeet(c: Consultation, meetUrl: string, waTab: W
  */
 export async function askToPickAnother(c: Consultation, waTab: Window | null) {
   const r = await notifyCandidate("pick-another", c.id);
+  const error = r.data?.error ?? (r.error ? ((await (r.error as { context?: Response }).context?.json?.().catch(() => null))?.error ?? r.error.message) : undefined);
+  fillTab(waTab, error ? null : r.data?.waUrl);
+  return { error, emailed: !!r.data?.ok };
+}
+
+/** Cancel an appointment, keep its date for the admin history, and invite the candidate to book again. */
+export async function cancelAppointment(c: Consultation, waTab: Window | null) {
+  const r = await notifyCandidate("cancel-appointment", c.id);
   const error = r.data?.error ?? (r.error ? ((await (r.error as { context?: Response }).context?.json?.().catch(() => null))?.error ?? r.error.message) : undefined);
   fillTab(waTab, error ? null : r.data?.waUrl);
   return { error, emailed: !!r.data?.ok };

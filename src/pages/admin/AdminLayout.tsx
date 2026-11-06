@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Outlet, useNavigate } from "react-router-dom";
-import { AlertTriangle, BarChart3, Bell, CalendarCheck, CalendarDays, Clock, FileCheck2, Mail, Presentation, Send, Settings, UserRoundX, Users, UsersRound } from "lucide-react";
+import { AlertTriangle, BarChart3, Bell, CalendarCheck, CalendarDays, CalendarX2, Clock, FileCheck2, Mail, Presentation, Send, Settings, UserRoundX, Users, UsersRound } from "lucide-react";
 import type { TabItem } from "../../components/TabBar";
 import { AppShell, Fab } from "../../components/dash";
 import { supabase } from "../../lib/supabase";
@@ -28,6 +28,8 @@ export function AdminLayout() {
   const [waitingCandidate, setWaitingCandidate] = useState(0);
   const [upcoming, setUpcoming] = useState(0);
   const [overdue, setOverdue] = useState(0);
+  const [cancelled, setCancelled] = useState(0);
+  const [newLeads, setNewLeads] = useState(0);
 
   useEffect(() => {
     supabase.from("staff_profiles").select("display_name, photo_url").eq("email", email).maybeSingle().then(({ data }) => setProfile(data));
@@ -35,13 +37,15 @@ export function AdminLayout() {
     const loadCounts = async () => {
       const { data } = await supabase
         .from("consultations")
-        .select("status, call_status, preferred_call_at, suggested_call_at, requested_call_times, call_declined_at, repick_requested_at, session_outcome, documents(count)");
+        .select("status, call_status, preferred_call_at, suggested_call_at, requested_call_times, call_declined_at, repick_requested_at, session_outcome, cancelled_at, documents(count)");
       setOverdue((data ?? []).filter(isOverdue).length);
-      const open = (data ?? []).filter((row) => row.status !== "not_interested" && !row.call_declined_at && row.call_status !== "confirmed");
+      const open = (data ?? []).filter((row) => row.status !== "not_interested" && !row.call_declined_at && row.call_status !== "confirmed" && !(row.cancelled_at && row.call_status === "none"));
       setToConfirm(open.filter((row) => !row.suggested_call_at && (row.preferred_call_at || row.requested_call_times?.[0])).length);
       setWaitingCandidate(open.filter((row) => row.suggested_call_at || (row.call_status === "none" && row.repick_requested_at)).length);
       setUpcoming((data ?? []).filter((row) => row.call_status === "confirmed" && row.preferred_call_at && !row.session_outcome && new Date(row.preferred_call_at).getTime() + 20 * 60_000 > Date.now()).length);
-      setWithDocs((data ?? []).filter((row) => row.status !== "not_interested" && (row.documents as { count: number }[] | null)?.[0]?.count).length);
+      setWithDocs((data ?? []).filter((row) => row.status !== "not_interested" && !(row.cancelled_at && row.call_status === "none") && (row.documents as { count: number }[] | null)?.[0]?.count).length);
+      setCancelled((data ?? []).filter((row) => row.cancelled_at && row.call_status === "none").length);
+      setNewLeads((data ?? []).filter((row) => row.status === "new" && !(row.cancelled_at && row.call_status === "none")).length);
       setLeadCounts((data ?? []).reduce<Record<string, number>>((out, row) => {
         out[row.status] = (out[row.status] ?? 0) + 1;
         return out;
@@ -64,7 +68,7 @@ export function AdminLayout() {
       label: "All leads",
       icon: UsersRound,
       end: true,
-      badge: countBadge(Object.values(leadCounts).reduce((a, b) => a + b, 0) - withDocs - (leadCounts.not_interested ?? 0)),
+      badge: countBadge(Object.values(leadCounts).reduce((a, b) => a + b, 0) - withDocs - (leadCounts.not_interested ?? 0) - cancelled),
       children: [
         { to: "/admin/upcoming", label: "Upcoming", icon: CalendarCheck, badge: countBadge(upcoming) },
         {
@@ -82,7 +86,8 @@ export function AdminLayout() {
           badge: toConfirm ? <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-800">{toConfirm}</span> : undefined,
         },
         { to: "/admin/waiting-for-candidate", label: "Waiting for candidate", icon: Send, badge: countBadge(waitingCandidate) },
-        { to: "/admin/new-leads", label: "New leads", icon: UsersRound, badge: countBadge(leadCounts.new ?? 0) },
+        { to: "/admin/cancelled-appointments", label: "Cancelled appointments", icon: CalendarX2, badge: countBadge(cancelled) },
+        { to: "/admin/new-leads", label: "New leads", icon: UsersRound, badge: countBadge(newLeads) },
         { to: "/admin/documents", label: "Documents received", icon: FileCheck2, badge: countBadge(withDocs) },
         { to: "/admin/not-interested", label: "No longer interested", icon: UserRoundX, badge: countBadge(leadCounts.not_interested ?? 0) },
       ],

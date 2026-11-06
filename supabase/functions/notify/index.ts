@@ -8,6 +8,7 @@
 //                                                  "We're waiting for you" email (CC main admin) + WhatsApp text
 //   { type: "pick-another", consultationId }      their time isn't available: release it and send a link to choose
 //                                                  another free time themselves (back to awaiting confirmation after)
+//   { type: "cancel-appointment", consultationId } cancel a booked appointment and ask the candidate to rebook
 //   { type: "reinvite", consultationId }          a "no longer interested" candidate: back to New, with a link to book
 //                                                  a new call (their account and the reason are kept)
 // Returns waUrl (WhatsApp Web link with the same short message). Staff only.
@@ -107,8 +108,10 @@ Deno.serve(async (req) => {
       "Choose your free call time",
     );
     wa = `Hi ${first}, this is Outreach. Thank you for your application for ${c.desired_course || "your studies"}! Please book your free call here: ${BOOKING_LINK()}`;
-  } else if (type === "pick-another") {
-    if (c.call_status === "confirmed") return json({ error: "This call is already confirmed — use Change time instead." }, 409);
+  } else if (type === "pick-another" || type === "cancel-appointment") {
+    const cancelling = type === "cancel-appointment";
+    if (!cancelling && c.call_status === "confirmed") return json({ error: "This call is already confirmed — use Change time instead." }, 409);
+    if (cancelling && c.call_status !== "confirmed") return json({ error: "Only a confirmed appointment can be cancelled." }, 409);
     const old = c.preferred_call_at ?? c.requested_call_times?.[0] ?? null;
     const token = c.call_confirm_token ?? crypto.randomUUID();
     const { error } = await db
@@ -123,17 +126,18 @@ Deno.serve(async (req) => {
         request_reminder_at: null,
         call_confirm_token: token,
         repick_requested_at: new Date().toISOString(),
+        ...(cancelling ? { cancelled_at: new Date().toISOString(), cancelled_call_at: old, cancelled_by: email } : {}),
       })
       .eq("id", c.id);
     if (error) return json({ error: error.message }, 500);
     const pickUrl = `${APP_URL()}/confirm-call?t=${token}&pick=1`;
     const oldText = old ? whenIn(old, tz).main : null;
-    subject = `${first}, please choose another time for your call`;
+    subject = cancelling ? `${first}, your appointment was cancelled — choose another time` : `${first}, please choose another time for your call`;
     html = layout(
       eyebrow("New time needed") +
-        title(`Hi ${escape(first)}, sorry!`) +
+        title(`Hi ${escape(first)}, ${cancelling ? "your appointment was cancelled" : "sorry!"}`) +
         para(
-          `The time you chose${oldText ? ` (<strong>${escape(oldText)}</strong>)` : ""} is no longer available. Please pick another free time — it only takes a few seconds.`,
+          `${cancelling ? "We had to cancel your appointment" : "The time you chose"}${oldText ? ` (<strong>${escape(oldText)}</strong>)` : ""}${cancelling ? "." : " is no longer available."} Please pick another free time — it only takes a few seconds.`,
           true,
         ) +
         actions(button(pickUrl, "📅 Choose another time")) +
@@ -146,7 +150,9 @@ Deno.serve(async (req) => {
     wa = [
       `Hi ${first} 👋 this is Soufiane from Outreach — Study in Malta.`,
       "",
-      `Sorry, the time you chose${old ? ` (${new Intl.DateTimeFormat("en-GB", { weekday: "long", day: "numeric", month: "long", hour: "2-digit", minute: "2-digit", timeZone: "Europe/Malta" }).format(new Date(old))}, Malta time)` : ""} is no longer available.`,
+      cancelling
+        ? `We had to cancel your appointment${old ? ` on ${new Intl.DateTimeFormat("en-GB", { weekday: "long", day: "numeric", month: "long", hour: "2-digit", minute: "2-digit", timeZone: "Europe/Malta" }).format(new Date(old))} (Malta time)` : ""}.`
+        : `Sorry, the time you chose${old ? ` (${new Intl.DateTimeFormat("en-GB", { weekday: "long", day: "numeric", month: "long", hour: "2-digit", minute: "2-digit", timeZone: "Europe/Malta" }).format(new Date(old))}, Malta time)` : ""} is no longer available.`,
       "",
       `📅 Please choose another free time here (only available times are shown): ${pickUrl}`,
       "",
