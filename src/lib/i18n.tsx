@@ -198,6 +198,8 @@ const en = {
   "call.pendingTitle": "Awaiting confirmation",
   "call.requestedTime": "Requested time:",
   "call.usually": "We’ll confirm your time shortly and email you your Google Meet link, plus a Google Calendar invitation.",
+  "call.cancelledTitle": "Your appointment was cancelled",
+  "call.cancelledText": "Please choose another available day and time below. We’ll confirm your new appointment and email you the Google Meet link.",
   "call.change": "Change time",
   "call.confirmedTitle": "Your free call is confirmed",
   "call.confirmedSub": "{min} minutes · online on Google Meet",

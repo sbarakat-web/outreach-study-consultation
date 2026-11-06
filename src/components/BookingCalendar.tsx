@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { CalendarCheck, CalendarPlus, Check, ChevronLeft, ChevronRight, Download, Info, Video } from "lucide-react";
+import { CalendarCheck, CalendarPlus, CalendarX2, Check, ChevronLeft, ChevronRight, Download, Info, Video } from "lucide-react";
 import { Link } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { CALL_MINUTES, callStage, formatSlot } from "../lib/options";
@@ -26,7 +26,9 @@ const longDate = (iso: string) => formatSlot(iso, { weekday: "long", month: "lon
 export function BookingCalendar({ c, onRequested }: { c: Consultation; onRequested: () => void }) {
   const { t } = useI18n();
   const stage = callStage(c);
-  const [editing, setEditing] = useState(stage === "none");
+  // A cancelled call may still have call_reviewed_at from its earlier workflow. Treat it as a fresh booking choice.
+  const cancelled = !!c.tracking?.appointment_cancelled_at && c.call_status === "none";
+  const [editing, setEditing] = useState(stage === "none" || cancelled);
   // Only offer free times: other candidates' confirmed calls and the adviser's Google busy times.
   const { times } = useFreeTimes();
   const [month, setMonth] = useState(() => monthStart(times[0] ?? new Date()));
@@ -34,6 +36,11 @@ export function BookingCalendar({ c, onRequested }: { c: Consultation; onRequest
   const [picked, setPicked] = useState<Date | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+
+  // Also switch an already-open dashboard to the rebooking calendar when cancellation arrives via realtime refresh.
+  useEffect(() => {
+    if (cancelled) setEditing(true);
+  }, [cancelled]);
 
   const byDay = useMemo(() => {
     const map = new Map<string, Date[]>();
@@ -83,7 +90,17 @@ export function BookingCalendar({ c, onRequested }: { c: Consultation; onRequest
   const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
   return (
-    <div className="rounded-2xl border-2 border-brand/20 bg-white">
+    <div className="space-y-4">
+      {cancelled && (
+        <div className="flex items-start gap-3 rounded-2xl bg-red-50 px-4 py-4 ring-1 ring-red-200 sm:px-5">
+          <CalendarX2 className="mt-0.5 h-6 w-6 shrink-0 text-brand-red" />
+          <div>
+            <p className="font-black text-brand-red">{t("call.cancelledTitle")}</p>
+            <p className="mt-1 text-sm text-slate-600">{t("call.cancelledText")}</p>
+          </div>
+        </div>
+      )}
+      <div className="rounded-2xl border-2 border-brand/20 bg-white">
       <div className="border-b border-slate-100 px-4 py-3 sm:px-5">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h3 className="flex items-center gap-2 font-black">
@@ -206,7 +223,7 @@ export function BookingCalendar({ c, onRequested }: { c: Consultation; onRequest
         </p>
         {error && <Alert>{error}</Alert>}
         <div className="flex flex-wrap justify-end gap-2">
-          {stage !== "none" && (
+          {stage !== "none" && !cancelled && (
             <Button variant="ghost" onClick={() => setEditing(false)}>
               {t("cal.keep")}
             </Button>
@@ -215,6 +232,7 @@ export function BookingCalendar({ c, onRequested }: { c: Consultation; onRequest
             {t("cal.request")}
           </Button>
         </div>
+      </div>
       </div>
     </div>
   );
