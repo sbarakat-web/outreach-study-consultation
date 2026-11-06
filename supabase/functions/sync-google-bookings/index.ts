@@ -13,7 +13,7 @@
 // a booking that disappears from the feed counts as cancelled), otherwise the Calendar API.
 // Secrets: GOOGLE_SERVICE_ACCOUNT (+ calendar shared with it); optional BOOKING_TITLE (default "Study in Malta")
 import { createClient } from "npm:@supabase/supabase-js@2.45.4";
-import { actions, button, eyebrow, facts, layout, title, escape } from "../_shared/email.ts";
+import { actions, button, eyebrow, facts, layout, para, title, escape } from "../_shared/email.ts";
 import { adminRecipients } from "../_shared/admins.ts";
 import { APP_URL, sendEmail } from "../_shared/call.ts";
 import { calendarAuth, calendarIdOf } from "../_shared/google.ts";
@@ -120,30 +120,77 @@ Deno.serve(async (req) => {
 
   const out = { seen: 0, booked: 0, moved: 0, cancelled: 0, linkedSilently: 0, skipped: 0 };
   // deno-lint-ignore no-explicit-any
-  const cancel = async (known: any, name: string, email: string) => {
-    await db.from("google_bookings").update({ status: "cancelled", updated_at: startedAt }).eq("event_id", known.event_id);
-    if (known.consultation_id) {
-      await db
+  const cancel = async (known: any | null, eventId: string, consultationId?: string | null, fallbackName = "Candidate", fallbackEmail = "") => {
+    if (known) await db.from("google_bookings").update({ status: "cancelled", updated_at: startedAt }).eq("event_id", eventId);
+    let c: any = null;
+    if (consultationId) ({ data: c } = await db.from("consultations").select("*").eq("id", consultationId).maybeSingle());
+    if (!c) ({ data: c } = await db.from("consultations").select("*").eq("google_event_id", eventId).maybeSingle());
+
+    // Only cancel the appointment currently linked to this event. Repeated Google tombstones are harmless.
+    if (c?.google_event_id === eventId && c.call_status !== "none") {
+      const old = c.preferred_call_at ?? known?.start_at ?? null;
+      const token = c.call_confirm_token ?? crypto.randomUUID();
+      const cancelledAt = new Date().toISOString();
+      const { error } = await db
         .from("consultations")
-        .update({ call_status: "none", preferred_call_at: null, suggested_call_at: null, google_event_id: null, meeting_url: null })
-        .eq("id", known.consultation_id)
-        .eq("google_event_id", known.event_id);
+        .update({
+          call_status: "none",
+          preferred_call_at: null,
+          requested_call_times: [],
+          suggested_call_at: null,
+          google_event_id: null,
+          meeting_url: null,
+          call_requested_at: null,
+          request_reminder_at: null,
+          repick_requested_at: cancelledAt,
+          call_confirm_token: token,
+          tracking: {
+            ...(c.tracking ?? {}),
+            appointment_cancelled_at: cancelledAt,
+            appointment_cancelled_call_at: old ?? "",
+            appointment_cancelled_by: "google_calendar",
+          },
+        })
+        .eq("id", c.id)
+        .eq("google_event_id", eventId);
+      if (error) return;
+
+      const pickUrl = `${APP_URL()}/confirm-call?t=${token}&pick=1`;
+      const first = String(c.full_name || fallbackName).trim().split(/\s+/)[0];
+      await sendEmail({
+        to: c.email,
+        subject: `${first}, your appointment was cancelled — choose another time`,
+        html: layout(
+          eyebrow("Appointment cancelled") +
+            title(`Hi ${escape(first)}, your appointment was cancelled`) +
+            para(`Your appointment${old ? ` on <strong>${escape(malta(old))} (Malta)</strong>` : ""} was cancelled in Google Calendar. Please choose another free time below.`, true) +
+            actions(button(pickUrl, "📅 Choose another time")) +
+            para("Only available times are shown. We'll confirm your new appointment and send your Google Meet link.", true),
+          "Choose another time for your free consultation",
+        ),
+      });
+
+      if (!firstRun) {
+        const name = c.full_name || fallbackName;
+        const email = c.email || fallbackEmail;
+        await alert(`❌ Appointment cancelled in Google: ${name}${old ? ` — ${malta(old)}` : ""}`, `${name}'s appointment was cancelled in Google Calendar`, [["Was", old ? malta(old) + " (Malta)" : null], ["Email", email], ["Next step", "Candidate was emailed to choose another time"]], c.id);
+      }
+      out.cancelled++;
     }
-    if (!firstRun) await alert(`❌ Booking cancelled: ${name} — ${malta(known.start_at)}`, `${name} cancelled their booking`, [["Was", malta(known.start_at) + " (Malta)"], ["Email", email]], known.consultation_id);
-    out.cancelled++;
   };
   for (const ev of events) {
-    if (ev.extendedProperties?.private?.outreach) continue; // created by the app
+    const outreachConsultationId = ev.extendedProperties?.private?.consultationId as string | undefined;
+    const { data: known } = await db.from("google_bookings").select("*").eq("event_id", ev.id).maybeSingle();
+    if (ev.status === "cancelled") {
+      const booker = bookerOf(ev);
+      await cancel(known, ev.id, outreachConsultationId ?? known?.consultation_id, booker?.name, booker?.email);
+      continue;
+    }
+    if (ev.extendedProperties?.private?.outreach) continue; // active event created by the app
     if (!String(ev.summary ?? "").toLowerCase().includes(BOOKING_TITLE())) continue;
     const booker = bookerOf(ev);
     if (!booker) continue;
     out.seen++;
-    const { data: known } = await db.from("google_bookings").select("*").eq("event_id", ev.id).maybeSingle();
-
-    if (ev.status === "cancelled") {
-      if (known && known.status !== "cancelled") await cancel(known, booker.name, booker.email);
-      continue;
-    }
 
     const start = ev.start?.dateTime ? new Date(ev.start.dateTime).toISOString() : null;
     if (!start) continue;
@@ -208,7 +255,7 @@ Deno.serve(async (req) => {
   if (feed && events.length) {
     const ids = new Set(events.map((ev) => ev.id));
     const { data: open } = await db.from("google_bookings").select("*").eq("status", "booked").gt("start_at", startedAt);
-    for (const known of open ?? []) if (!ids.has(known.event_id)) await cancel(known, known.booker_email ?? "Candidate", known.booker_email ?? "");
+    for (const known of open ?? []) if (!ids.has(known.event_id)) await cancel(known, known.event_id, known.consultation_id, known.booker_email ?? "Candidate", known.booker_email ?? "");
   }
 
   await db.from("google_sync").update({ last_sync_at: startedAt }).eq("id", 1);
