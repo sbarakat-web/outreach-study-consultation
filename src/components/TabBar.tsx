@@ -8,6 +8,8 @@ export interface TabItem {
   icon: LucideIcon;
   end?: boolean;
   badge?: ReactNode;
+  /** Small heading shown above this item when it starts a new group in a sidebar submenu. */
+  section?: string;
   /** Sidebar submenu shown under this item (desktop only). */
   children?: TabItem[];
 }

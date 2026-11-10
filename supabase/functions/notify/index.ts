@@ -185,16 +185,21 @@ Deno.serve(async (req) => {
     if (error) return json({ error: error.message }, 500);
     const pickUrl = `${APP_URL()}/confirm-call?t=${token}&pick=1`;
     const course = c.desired_course || "your studies in Malta";
+    // After a cancelled appointment the reminder asks them to rebook instead.
+    const was = c.tracking?.appointment_cancelled_call_at ? whenIn(c.tracking.appointment_cancelled_call_at, tz).main : null;
+    const rebook = !!c.tracking?.appointment_cancelled_at;
     const li = (t: string) => `<p style="margin:0 0 6px;color:#5b6080;font-size:14px">✓ ${t}</p>`;
-    subject = `${first}, your free consultation is waiting — book your time`;
+    subject = rebook ? `${first}, let's find a new time for your free consultation` : `${first}, your free consultation is waiting — book your time`;
     html = layout(
-      eyebrow("Free consultation") +
-        title(`Hi ${escape(first)}, let's talk about your plans!`) +
+      eyebrow(rebook ? "Book a new time" : "Free consultation") +
+        title(rebook ? `Hi ${escape(first)}, we'd still love to talk!` : `Hi ${escape(first)}, let's talk about your plans!`) +
         para(
-          `Thank you for applying for <strong>${escape(course)}</strong>. You haven't booked your free consultation yet — choose a time that suits you, it takes less than a minute.`,
+          rebook
+            ? `Your appointment${was ? ` on <strong>${escape(was)}</strong>` : ""} was cancelled, and you haven't chosen a new time yet. Pick the time that suits you best — it takes less than a minute.`
+            : `Thank you for applying for <strong>${escape(course)}</strong>. You haven't booked your free consultation yet — choose a time that suits you, it takes less than a minute.`,
           true,
         ) +
-        actions(button(pickUrl, "📅 Book my free call")) +
+        actions(button(pickUrl, rebook ? "📅 Choose a new time" : "📅 Book my free call")) +
         `<div style="margin:0 0 16px;padding:16px 18px;border:2px solid #f0eeff;border-radius:14px">
           <p style="margin:0 0 8px;color:#14123a;font-weight:bold">In ${CALL_MINUTES} minutes on Google Meet, we'll:</p>
           ${li("Find the best programme in Malta for your profile")}
@@ -203,16 +208,18 @@ Deno.serve(async (req) => {
         </div>` +
         para("Only free times are shown, in your own time zone. Free, no commitment.", true) +
         para(`Questions? <a href="https://wa.me/35699728213" style="color:#442DFA;font-weight:bold">WhatsApp +356 9972 8213</a>`, true),
-      "Book your free consultation with Outreach",
+      rebook ? "Choose a new time for your free consultation" : "Book your free consultation with Outreach",
       "en",
       { url: "https://outreachstudy.eu", label: "outreachstudy.eu", brand: "Outreach Recruitment — Study in Malta" },
     );
     wa = [
       `Hi ${first} 👋 this is Soufiane from Outreach — Study in Malta.`,
       "",
-      `Thank you for applying for ${course}! 🎓 You haven't booked your free consultation yet.`,
+      rebook
+        ? `Your appointment${was ? ` on ${was}` : ""} was cancelled, and we'd still love to talk with you about ${course}! 🎓`
+        : `Thank you for applying for ${course}! 🎓 You haven't booked your free consultation yet.`,
       "",
-      `📅 Choose a time that suits you here (takes less than a minute): ${pickUrl}`,
+      `📅 Choose ${rebook ? "a new" : "a"} time that suits you here (takes less than a minute): ${pickUrl}`,
       "",
       `In ${CALL_MINUTES} minutes we'll find the best programme for you and explain costs, scholarships and the visa steps. Free, no commitment 😊`,
     ].join("\n");

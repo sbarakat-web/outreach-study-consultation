@@ -157,7 +157,10 @@ function SideGroup({ item }: { item: TabItem }) {
       {shown && (
         <div id={id} className="flex flex-col border-s-2 border-slate-100 ms-9">
           {item.children!.map((c) => (
-            <SideLink key={c.to} item={c} sub />
+            <div key={c.to}>
+              {c.section && <p className="px-4 pb-1 pt-3 text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">{c.section}</p>}
+              <SideLink item={c} sub />
+            </div>
           ))}
         </div>
       )}

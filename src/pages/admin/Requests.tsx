@@ -66,7 +66,7 @@ const inCallPage = (mode: string, c: Row) =>
 /**
  * Lead list. `mode` gives "New leads", "Documents received", "No longer interested", "Awaiting confirmation" and
  * "Waiting for candidate" their own pages (/admin/new-leads, /admin/documents, /admin/not-interested,
- * /admin/awaiting-confirmation, /admin/waiting-for-candidate).
+ * /admin/awaiting-confirmation).
  */
 export function Requests({ mode = "all" }: { mode?: keyof typeof PAGE_TITLE }) {
   const [items, setItems] = useState<Row[] | null>(null);
@@ -301,7 +301,7 @@ export function Requests({ mode = "all" }: { mode?: keyof typeof PAGE_TITLE }) {
       </div>
 
       {mode === "overdue" && <OverdueIntro />}
-      {mode === "new" && <RemindAllNotBooked rows={filtered.filter(needsBooking)} onDone={load} />}
+      {(mode === "new" || mode === "cancelled") && <RemindAllNotBooked rows={filtered.filter(needsBooking)} cancelled={mode === "cancelled"} onDone={load} />}
 
       <Card>
         {filtered.length === 0 ? (
@@ -351,7 +351,7 @@ export function Requests({ mode = "all" }: { mode?: keyof typeof PAGE_TITLE }) {
                       ) : (
                         <div className="space-y-1">
                           <CallBadge c={c} />
-                          {mode === "new" && needsBooking(c) && <BookingReminderButton c={c} onSent={load} compact />}
+                          {(mode === "new" || mode === "cancelled") && needsBooking(c) && <BookingReminderButton c={c} onSent={load} compact />}
                         </div>
                       )}
                     </td>
@@ -1901,7 +1901,7 @@ function OverdueTable({ rows, onOpen }: { rows: Row[]; onOpen: (id: string) => v
 }
 
 /** New leads page: one click to email a "book your free call" reminder to every lead who hasn't booked yet. */
-function RemindAllNotBooked({ rows, onDone }: { rows: Row[]; onDone: () => void }) {
+function RemindAllNotBooked({ rows, cancelled = false, onDone }: { rows: Row[]; cancelled?: boolean; onDone: () => void }) {
   const [progress, setProgress] = useState<{ done: number; failed: number } | null>(null);
   const [busy, setBusy] = useState(false);
   // Leave out anyone reminded in the last 3 days.
@@ -1928,10 +1928,12 @@ function RemindAllNotBooked({ rows, onDone }: { rows: Row[]; onDone: () => void 
     <div className="flex flex-wrap items-center justify-between gap-3 rounded-3xl bg-amber-50 p-4 ring-1 ring-amber-200 sm:p-5">
       <div className="min-w-0">
         <p className="font-black text-amber-900">
-          {rows.length} new lead{rows.length > 1 ? "s haven't" : " hasn't"} booked a call yet
+          {cancelled
+            ? `${rows.length} cancelled appointment${rows.length > 1 ? "s" : ""} not rebooked yet`
+            : `${rows.length} new lead${rows.length > 1 ? "s haven't" : " hasn't"} booked a call yet`}
         </p>
         <p className="text-sm text-amber-800">
-          Send each one a reminder with a link to choose a free time. Use <strong>Remind to book</strong> on a row to also send it on WhatsApp.
+          Send each one a reminder with a link to choose {cancelled ? "a new" : "a free"} time. Use <strong>Remind to book</strong> on a row to also send it on WhatsApp.
           {due.length < rows.length && ` ${rows.length - due.length} already reminded in the last 3 days are skipped.`}
         </p>
         {progress && (

@@ -78,7 +78,7 @@ export function App() {
               <Route path="documents" element={<Requests key="documents" mode="documents" />} />
               <Route path="not-interested" element={<Requests key="not_interested" mode="not_interested" />} />
               <Route path="awaiting-confirmation" element={<Requests key="awaiting" mode="awaiting" />} />
-              <Route path="waiting-for-candidate" element={<Requests key="waiting" mode="waiting" />} />
+              <Route path="waiting-for-candidate" element={<Navigate to="/admin" replace />} />
               <Route path="cancelled-appointments" element={<Requests key="cancelled" mode="cancelled" />} />
               <Route path="upcoming" element={<Requests key="upcoming" mode="upcoming" />} />
               <Route path="overdue" element={<Requests key="overdue" mode="overdue" />} />

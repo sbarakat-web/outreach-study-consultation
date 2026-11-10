@@ -352,6 +352,7 @@ export function BookingReminderButton({ c, onSent, compact = false }: { c: Consu
   const [msg, setMsg] = useState<{ tone: "error" | "success"; text: string } | null>(null);
   const last = c.tracking?.booking_reminder_at;
   const count = Number(c.tracking?.booking_reminder_count ?? 0);
+  const cancelled = !!c.tracking?.appointment_cancelled_at;
   const send = async () => {
     if (last && Date.now() - new Date(last).getTime() < 24 * 3_600_000 && !window.confirm(`${c.full_name} was already reminded ${ago(last)}. Send another reminder?`)) return;
     const waTab = c.whatsapp ? window.open("about:blank", "_blank") : null;
@@ -366,7 +367,8 @@ export function BookingReminderButton({ c, onSent, compact = false }: { c: Consu
     <div className={compact ? "space-y-1" : "space-y-2 rounded-xl bg-amber-50 px-3 py-3 ring-1 ring-amber-200"}>
       {!compact && (
         <p className="text-sm text-amber-900">
-          <strong>No booking yet.</strong> Send a reminder with a link to choose a free time (email + WhatsApp).
+          <strong>{cancelled ? "Appointment cancelled, not rebooked yet." : "No booking yet."}</strong> Send a reminder with a link to choose{" "}
+          {cancelled ? "a new" : "a free"} time (email + WhatsApp).
         </p>
       )}
       <button
@@ -378,7 +380,7 @@ export function BookingReminderButton({ c, onSent, compact = false }: { c: Consu
         disabled={busy}
         className="inline-flex items-center gap-1.5 rounded-full bg-amber-500 px-3 py-1.5 text-xs font-bold text-white hover:bg-amber-600 disabled:opacity-60"
       >
-        <Send className="h-3.5 w-3.5" /> {busy ? "Sending…" : last ? "Remind again" : "Remind to book"}
+        <Send className="h-3.5 w-3.5" /> {busy ? "Sending…" : last ? "Remind again" : cancelled ? "Remind to rebook" : "Remind to book"}
       </button>
       {last && (
         <p className="text-[11px] font-bold text-amber-800">

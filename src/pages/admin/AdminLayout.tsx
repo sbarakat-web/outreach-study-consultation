@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Outlet, useNavigate } from "react-router-dom";
-import { AlertTriangle, BarChart3, Bell, CalendarCheck, CalendarDays, CalendarX2, Clock, FileCheck2, Mail, Presentation, School, Send, Settings, UserRoundX, Users, UsersRound } from "lucide-react";
+import { AlertTriangle, BarChart3, Bell, CalendarCheck, CalendarDays, CalendarX2, Clock, FileCheck2, Mail, Presentation, School, Settings, UserRoundX, Users, UsersRound } from "lucide-react";
 import type { TabItem } from "../../components/TabBar";
 import { AppShell, Fab } from "../../components/dash";
 import { supabase } from "../../lib/supabase";
@@ -25,7 +25,6 @@ export function AdminLayout() {
   const [toConfirm, setToConfirm] = useState(0);
   const [leadCounts, setLeadCounts] = useState<Record<string, number>>({});
   const [withDocs, setWithDocs] = useState(0);
-  const [waitingCandidate, setWaitingCandidate] = useState(0);
   const [upcoming, setUpcoming] = useState(0);
   const [overdue, setOverdue] = useState(0);
   const [cancelled, setCancelled] = useState(0);
@@ -42,7 +41,6 @@ export function AdminLayout() {
       setOverdue(leads.filter(isOverdue).length);
       const open = leads.filter((row) => row.status !== "not_interested" && !row.call_declined_at && row.call_status !== "confirmed" && !(row.tracking?.appointment_cancelled_at && row.call_status === "none"));
       setToConfirm(open.filter((row) => !row.suggested_call_at && (row.preferred_call_at || row.requested_call_times?.[0])).length);
-      setWaitingCandidate(open.filter((row) => row.suggested_call_at || (row.call_status === "none" && row.repick_requested_at)).length);
       setUpcoming(leads.filter((row) => row.call_status === "confirmed" && row.preferred_call_at && !row.session_outcome && new Date(row.preferred_call_at).getTime() + 20 * 60_000 > Date.now()).length);
       setWithDocs(leads.filter((row) => row.status !== "not_interested" && !(row.tracking?.appointment_cancelled_at && row.call_status === "none") && (row.documents as { count: number }[] | null)?.[0]?.count).length);
       setCancelled(leads.filter((row) => row.tracking?.appointment_cancelled_at && row.call_status === "none").length);
@@ -71,7 +69,17 @@ export function AdminLayout() {
       end: true,
       badge: countBadge(Object.values(leadCounts).reduce((a, b) => a + b, 0) - withDocs - (leadCounts.not_interested ?? 0) - cancelled),
       children: [
-        { to: "/admin/school-visa-process", label: "School / Visa Process", icon: School },
+        // Grouped by where the candidate is in the journey.
+        { section: "1 · Get them booked", to: "/admin/new-leads", label: "New leads", icon: UsersRound, badge: countBadge(newLeads) },
+        { to: "/admin/cancelled-appointments", label: "Cancelled appointments", icon: CalendarX2, badge: countBadge(cancelled) },
+        {
+          section: "2 · Calls",
+          to: "/admin/awaiting-confirmation",
+          label: "Awaiting confirmation",
+          icon: Clock,
+          // Calls to confirm (Meet link + Confirm & send).
+          badge: toConfirm ? <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-800">{toConfirm}</span> : undefined,
+        },
         { to: "/admin/upcoming", label: "Upcoming", icon: CalendarCheck, badge: countBadge(upcoming) },
         {
           to: "/admin/overdue",
@@ -80,18 +88,9 @@ export function AdminLayout() {
           // Calls that happened with nothing recorded afterwards.
           badge: overdue ? <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-bold text-brand-red">{overdue}</span> : undefined,
         },
-        {
-          to: "/admin/awaiting-confirmation",
-          label: "Awaiting confirmation",
-          icon: Clock,
-          // Calls to confirm (Meet link + Confirm & send).
-          badge: toConfirm ? <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-800">{toConfirm}</span> : undefined,
-        },
-        { to: "/admin/waiting-for-candidate", label: "Waiting for candidate", icon: Send, badge: countBadge(waitingCandidate) },
-        { to: "/admin/cancelled-appointments", label: "Cancelled appointments", icon: CalendarX2, badge: countBadge(cancelled) },
-        { to: "/admin/new-leads", label: "New leads", icon: UsersRound, badge: countBadge(newLeads) },
-        { to: "/admin/documents", label: "Documents received", icon: FileCheck2, badge: countBadge(withDocs) },
-        { to: "/admin/not-interested", label: "No longer interested", icon: UserRoundX, badge: countBadge(leadCounts.not_interested ?? 0) },
+        { section: "3 · After the call", to: "/admin/documents", label: "Documents received", icon: FileCheck2, badge: countBadge(withDocs) },
+        { to: "/admin/school-visa-process", label: "School / Visa Process", icon: School },
+        { section: "Closed", to: "/admin/not-interested", label: "No longer interested", icon: UserRoundX, badge: countBadge(leadCounts.not_interested ?? 0) },
       ],
     },
     { to: "/admin/calendar", label: "Calendar", icon: CalendarDays },
