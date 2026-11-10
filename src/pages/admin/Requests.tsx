@@ -22,8 +22,8 @@ import { parsePhoneNumberFromString, type CountryCode } from "libphonenumber-js/
 import { CountryPicker } from "../../components/CountryPicker";
 import { COUNTRIES, countryByCode, timeZonesOf } from "../../lib/countries";
 import { AREAS, ENGLISH_COURSES, ENGLISH_PROVIDERS, PROGRAMMES, programmeValue } from "../sessions/data";
-import { CallPanel, PickAnotherButton } from "./CallPanel";
-import { candidateTime, cleanMeetLink, confirmWithMeet, googleApi, maltaTime, notifyCandidate, waitingWhatsApp } from "./calls";
+import { BookingReminderButton, CallPanel, PickAnotherButton } from "./CallPanel";
+import { candidateTime, cleanMeetLink, confirmWithMeet, googleApi, maltaTime, needsBooking, notifyCandidate, waitingWhatsApp } from "./calls";
 import { SessionPanel, sessionHref } from "./SessionPanel";
 import type { Consultation, DocumentRow, Status } from "../../lib/types";
 import { Alert, Button, Card, Spinner, StatusBadge } from "../../components/ui";
@@ -301,6 +301,7 @@ export function Requests({ mode = "all" }: { mode?: keyof typeof PAGE_TITLE }) {
       </div>
 
       {mode === "overdue" && <OverdueIntro />}
+      {mode === "new" && <RemindAllNotBooked rows={filtered.filter(needsBooking)} onDone={load} />}
 
       <Card>
         {filtered.length === 0 ? (
@@ -348,7 +349,10 @@ export function Requests({ mode = "all" }: { mode?: keyof typeof PAGE_TITLE }) {
                           {isBookedLead(c) && <StartSessionLink c={c} />}
                         </div>
                       ) : (
-                        <CallBadge c={c} />
+                        <div className="space-y-1">
+                          <CallBadge c={c} />
+                          {mode === "new" && needsBooking(c) && <BookingReminderButton c={c} onSent={load} compact />}
+                        </div>
                       )}
                     </td>
                     <td className="px-3 py-3">
@@ -1892,6 +1896,54 @@ function OverdueTable({ rows, onOpen }: { rows: Row[]; onOpen: (id: string) => v
           })}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+/** New leads page: one click to email a "book your free call" reminder to every lead who hasn't booked yet. */
+function RemindAllNotBooked({ rows, onDone }: { rows: Row[]; onDone: () => void }) {
+  const [progress, setProgress] = useState<{ done: number; failed: number } | null>(null);
+  const [busy, setBusy] = useState(false);
+  // Leave out anyone reminded in the last 3 days.
+  const due = rows.filter((c) => !c.tracking?.booking_reminder_at || Date.now() - new Date(c.tracking.booking_reminder_at).getTime() > 3 * 86_400_000);
+  if (!rows.length) return null;
+
+  const run = async () => {
+    if (!confirm(`Email a booking reminder to ${due.length} lead${due.length > 1 ? "s" : ""} who haven't booked yet?`)) return;
+    setBusy(true);
+    let done = 0;
+    let failed = 0;
+    for (const c of due) {
+      const { data, error } = await notifyCandidate("booking-reminder", c.id);
+      if (error || data?.error || data?.email !== "sent") failed++;
+      else done++;
+      setProgress({ done, failed });
+      await new Promise((r) => setTimeout(r, 600)); // stay under the email provider's rate limit
+    }
+    setBusy(false);
+    onDone();
+  };
+
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3 rounded-3xl bg-amber-50 p-4 ring-1 ring-amber-200 sm:p-5">
+      <div className="min-w-0">
+        <p className="font-black text-amber-900">
+          {rows.length} new lead{rows.length > 1 ? "s haven't" : " hasn't"} booked a call yet
+        </p>
+        <p className="text-sm text-amber-800">
+          Send each one a reminder with a link to choose a free time. Use <strong>Remind to book</strong> on a row to also send it on WhatsApp.
+          {due.length < rows.length && ` ${rows.length - due.length} already reminded in the last 3 days are skipped.`}
+        </p>
+        {progress && (
+          <p className="mt-1 text-xs font-bold text-amber-900">
+            {progress.done} emailed{progress.failed ? ` · ${progress.failed} failed` : ""}
+            {busy ? "…" : " · done"}
+          </p>
+        )}
+      </div>
+      <Button onClick={run} loading={busy} disabled={busy || !due.length}>
+        <Mail className="h-4 w-4" /> Email all ({due.length})
+      </Button>
     </div>
   );
 }

@@ -4,7 +4,7 @@ import { supabase } from "../../lib/supabase";
 import { BOOKING_LINK, CALL_STAGE_LABELS, callStage, noReply24h, waLink } from "../../lib/options";
 import type { Consultation } from "../../lib/types";
 import { Alert, Button } from "../../components/ui";
-import { askToPickAnother, bookingMessage, cancelAppointment, confirmWithMeet, holdTime, maltaTime, notifyCandidate, suggestTime, waitingWhatsApp } from "./calls";
+import { askToPickAnother, bookingMessage, cancelAppointment, needsBooking, sendBookingReminder, confirmWithMeet, holdTime, maltaTime, notifyCandidate, suggestTime, waitingWhatsApp } from "./calls";
 import { SlotPicker } from "./SlotPicker";
 import { useFreeTimes } from "../../lib/freeTimes";
 
@@ -282,6 +282,7 @@ export function CallPanel({ c, onSaved }: { c: Consultation; onSaved: () => void
           ) : (
             <p className="text-slate-500">The candidate hasn’t picked a time yet — you can suggest one or hold an agreed time.</p>
           )}
+          {needsBooking(c) && <BookingReminderButton c={c} onSent={onSaved} />}
           {picker}
           <details className="text-xs text-slate-500">
             <summary className="cursor-pointer font-bold">Or send the Google booking page</summary>
@@ -336,6 +337,56 @@ export function PickAnotherButton({ c, onDone }: { c: Consultation; onDone: () =
         <RefreshCw className="h-4 w-4" /> Time not available — ask to pick another
       </Button>
       {msg && <Alert tone={msg.tone}>{msg.text}</Alert>}
+    </div>
+  );
+}
+
+const ago = (iso: string) => {
+  const h = Math.floor((Date.now() - new Date(iso).getTime()) / 3_600_000);
+  return h < 1 ? "just now" : h < 24 ? `${h}h ago` : `${Math.floor(h / 24)}d ago`;
+};
+
+/** "Remind to book": email with a link to choose a free time, and the same message on WhatsApp. */
+export function BookingReminderButton({ c, onSent, compact = false }: { c: Consultation; onSent: () => void; compact?: boolean }) {
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<{ tone: "error" | "success"; text: string } | null>(null);
+  const last = c.tracking?.booking_reminder_at;
+  const count = Number(c.tracking?.booking_reminder_count ?? 0);
+  const send = async () => {
+    if (last && Date.now() - new Date(last).getTime() < 24 * 3_600_000 && !window.confirm(`${c.full_name} was already reminded ${ago(last)}. Send another reminder?`)) return;
+    const waTab = c.whatsapp ? window.open("about:blank", "_blank") : null;
+    setBusy(true);
+    const r = await sendBookingReminder(c, waTab);
+    setBusy(false);
+    if (r.error) return setMsg({ tone: "error", text: r.error });
+    setMsg({ tone: "success", text: `${r.emailed ? "Reminder emailed" : "Email not sent"}${waTab ? " · WhatsApp opened" : ""}.` });
+    onSent();
+  };
+  return (
+    <div className={compact ? "space-y-1" : "space-y-2 rounded-xl bg-amber-50 px-3 py-3 ring-1 ring-amber-200"}>
+      {!compact && (
+        <p className="text-sm text-amber-900">
+          <strong>No booking yet.</strong> Send a reminder with a link to choose a free time (email + WhatsApp).
+        </p>
+      )}
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          send();
+        }}
+        disabled={busy}
+        className="inline-flex items-center gap-1.5 rounded-full bg-amber-500 px-3 py-1.5 text-xs font-bold text-white hover:bg-amber-600 disabled:opacity-60"
+      >
+        <Send className="h-3.5 w-3.5" /> {busy ? "Sending…" : last ? "Remind again" : "Remind to book"}
+      </button>
+      {last && (
+        <p className="text-[11px] font-bold text-amber-800">
+          Reminded {ago(last)}
+          {count > 1 ? ` · ${count} times` : ""}
+        </p>
+      )}
+      {msg && <p className={`text-[11px] font-bold ${msg.tone === "error" ? "text-brand-red" : "text-emerald-700"}`}>{msg.text}</p>}
     </div>
   );
 }

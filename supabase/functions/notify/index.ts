@@ -9,13 +9,15 @@
 //   { type: "pick-another", consultationId }      their time isn't available: release it and send a link to choose
 //                                                  another free time themselves (back to awaiting confirmation after)
 //   { type: "cancel-appointment", consultationId } cancel a booked appointment and ask the candidate to rebook
+//   { type: "booking-reminder", consultationId }  applied but never booked: reminder with a link to choose a free time
+//                                                  (when and how often is kept in tracking.booking_reminder_*)
 //   { type: "reinvite", consultationId }          a "no longer interested" candidate: back to New, with a link to book
 //                                                  a new call (their account and the reason are kept)
 // Returns waUrl (WhatsApp Web link with the same short message). Staff only.
 // Secrets: RESEND_API_KEY; optional MAIL_FROM, APP_URL, BOOKING_LINK
 import { createClient } from "npm:@supabase/supabase-js@2.45.4";
 import { actions, button, eyebrow, highlight, layout, para, title, escape } from "../_shared/email.ts";
-import { APP_URL, BOOKING_LINK, confirmByFor, firstName, loadAdvisor, sendEmail, suggestEmail, tzOf, whenIn } from "../_shared/call.ts";
+import { APP_URL, BOOKING_LINK, CALL_MINUTES, confirmByFor, firstName, loadAdvisor, sendEmail, suggestEmail, tzOf, whenIn } from "../_shared/call.ts";
 import { confirmCall, requestCall, waitingEmail, waitingWhatsApp, BOOKED_CC } from "../_shared/booked.ts";
 import { isSlotFree } from "../_shared/slots.ts";
 
@@ -166,6 +168,53 @@ Deno.serve(async (req) => {
       `📅 Please choose another free time here (only available times are shown): ${pickUrl}`,
       "",
       "We'll confirm it and send you your Google Meet link. Thank you! 😊",
+    ].join("\n");
+  } else if (type === "booking-reminder") {
+    if (c.call_status === "confirmed" || c.preferred_call_at || c.requested_call_times?.length) {
+      return json({ error: "This candidate already has a call booked or requested." }, 409);
+    }
+    const token = c.call_confirm_token ?? crypto.randomUUID();
+    const count = Number(c.tracking?.booking_reminder_count ?? 0) + 1;
+    const { error } = await db
+      .from("consultations")
+      .update({
+        call_confirm_token: token,
+        tracking: { ...(c.tracking ?? {}), booking_reminder_at: new Date().toISOString(), booking_reminder_count: String(count) },
+      })
+      .eq("id", c.id);
+    if (error) return json({ error: error.message }, 500);
+    const pickUrl = `${APP_URL()}/confirm-call?t=${token}&pick=1`;
+    const course = c.desired_course || "your studies in Malta";
+    const li = (t: string) => `<p style="margin:0 0 6px;color:#5b6080;font-size:14px">✓ ${t}</p>`;
+    subject = `${first}, your free consultation is waiting — book your time`;
+    html = layout(
+      eyebrow("Free consultation") +
+        title(`Hi ${escape(first)}, let's talk about your plans!`) +
+        para(
+          `Thank you for applying for <strong>${escape(course)}</strong>. You haven't booked your free consultation yet — choose a time that suits you, it takes less than a minute.`,
+          true,
+        ) +
+        actions(button(pickUrl, "📅 Book my free call")) +
+        `<div style="margin:0 0 16px;padding:16px 18px;border:2px solid #f0eeff;border-radius:14px">
+          <p style="margin:0 0 8px;color:#14123a;font-weight:bold">In ${CALL_MINUTES} minutes on Google Meet, we'll:</p>
+          ${li("Find the best programme in Malta for your profile")}
+          ${li("Explain costs, scholarships and payment options")}
+          ${li("Guide you through the student visa steps")}
+        </div>` +
+        para("Only free times are shown, in your own time zone. Free, no commitment.", true) +
+        para(`Questions? <a href="https://wa.me/35699728213" style="color:#442DFA;font-weight:bold">WhatsApp +356 9972 8213</a>`, true),
+      "Book your free consultation with Outreach",
+      "en",
+      { url: "https://outreachstudy.eu", label: "outreachstudy.eu", brand: "Outreach Recruitment — Study in Malta" },
+    );
+    wa = [
+      `Hi ${first} 👋 this is Soufiane from Outreach — Study in Malta.`,
+      "",
+      `Thank you for applying for ${course}! 🎓 You haven't booked your free consultation yet.`,
+      "",
+      `📅 Choose a time that suits you here (takes less than a minute): ${pickUrl}`,
+      "",
+      `In ${CALL_MINUTES} minutes we'll find the best programme for you and explain costs, scholarships and the visa steps. Free, no commitment 😊`,
     ].join("\n");
   } else if (type === "reinvite") {
     const token = c.call_confirm_token ?? crypto.randomUUID();

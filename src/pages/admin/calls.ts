@@ -39,7 +39,7 @@ export const googleApi = (action: string, body: Record<string, unknown> = {}) =>
   supabase.functions.invoke("google-calendar", { body: { action, ...body } });
 
 export const notifyCandidate = (
-  type: "call-confirmed" | "rebook" | "booking-link" | "suggest-time" | "hold" | "confirm" | "pick-another" | "cancel-appointment" | "reinvite",
+  type: "call-confirmed" | "rebook" | "booking-link" | "suggest-time" | "hold" | "confirm" | "pick-another" | "cancel-appointment" | "booking-reminder" | "reinvite",
   consultationId: string,
   at?: string,
   extra: Record<string, unknown> = {},
@@ -105,6 +105,18 @@ export async function cancelAppointment(c: Consultation, waTab: Window | null) {
   const error = r.data?.error ?? (r.error ? ((await (r.error as { context?: Response }).context?.json?.().catch(() => null))?.error ?? r.error.message) : undefined);
   fillTab(waTab, error ? null : r.data?.waUrl);
   return { error, emailed: !!r.data?.ok };
+}
+
+/** Applied but no call booked, requested or suggested yet: can get a "book your free call" reminder. */
+export const needsBooking = (c: Consultation) =>
+  c.status !== "not_interested" && c.call_status !== "confirmed" && !c.preferred_call_at && !c.requested_call_times?.length && !c.suggested_call_at;
+
+/** Remind a lead to book (email with a link to choose a free time); the same text opens on WhatsApp in `waTab`. */
+export async function sendBookingReminder(c: Consultation, waTab: Window | null) {
+  const r = await notifyCandidate("booking-reminder", c.id);
+  const error = r.data?.error ?? (r.error ? ((await (r.error as { context?: Response }).context?.json?.().catch(() => null))?.error ?? r.error.message) : undefined);
+  fillTab(waTab, error ? null : r.data?.waUrl);
+  return { error, emailed: r.data?.email === "sent" };
 }
 
 const maltaLong = (iso: string) =>
