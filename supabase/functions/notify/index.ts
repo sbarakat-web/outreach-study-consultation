@@ -17,9 +17,10 @@
 // Secrets: RESEND_API_KEY; optional MAIL_FROM, APP_URL, BOOKING_LINK
 import { createClient } from "npm:@supabase/supabase-js@2.45.4";
 import { actions, button, eyebrow, highlight, layout, para, title, escape } from "../_shared/email.ts";
-import { APP_URL, BOOKING_LINK, CALL_MINUTES, confirmByFor, firstName, loadAdvisor, sendEmail, suggestEmail, tzOf, whenIn } from "../_shared/call.ts";
+import { APP_URL, BOOKING_LINK, confirmByFor, firstName, loadAdvisor, sendEmail, suggestEmail, tzOf, whenIn } from "../_shared/call.ts";
 import { confirmCall, requestCall, waitingEmail, waitingWhatsApp, BOOKED_CC } from "../_shared/booked.ts";
 import { isSlotFree } from "../_shared/slots.ts";
+import { loadReminderText, renderReminder } from "../_shared/reminder.ts";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -184,45 +185,14 @@ Deno.serve(async (req) => {
       .eq("id", c.id);
     if (error) return json({ error: error.message }, 500);
     const pickUrl = `${APP_URL()}/confirm-call?t=${token}&pick=1`;
-    const course = c.desired_course || "your studies in Malta";
-    // After a cancelled appointment the reminder asks them to rebook instead.
-    const was = c.tracking?.appointment_cancelled_call_at ? whenIn(c.tracking.appointment_cancelled_call_at, tz).main : null;
-    const rebook = !!c.tracking?.appointment_cancelled_at;
-    const li = (t: string) => `<p style="margin:0 0 6px;color:#5b6080;font-size:14px">✓ ${t}</p>`;
-    subject = rebook ? `${first}, let's find a new time for your free consultation` : `${first}, your free consultation is waiting — book your time`;
-    html = layout(
-      eyebrow(rebook ? "Book a new time" : "Free consultation") +
-        title(rebook ? `Hi ${escape(first)}, we'd still love to talk!` : `Hi ${escape(first)}, let's talk about your plans!`) +
-        para(
-          rebook
-            ? `Your appointment${was ? ` on <strong>${escape(was)}</strong>` : ""} was cancelled, and you haven't chosen a new time yet. Pick the time that suits you best — it takes less than a minute.`
-            : `Thank you for applying for <strong>${escape(course)}</strong>. You haven't booked your free consultation yet — choose a time that suits you, it takes less than a minute.`,
-          true,
-        ) +
-        actions(button(pickUrl, rebook ? "📅 Choose a new time" : "📅 Book my free call")) +
-        `<div style="margin:0 0 16px;padding:16px 18px;border:2px solid #f0eeff;border-radius:14px">
-          <p style="margin:0 0 8px;color:#14123a;font-weight:bold">In ${CALL_MINUTES} minutes on Google Meet, we'll:</p>
-          ${li("Find the best programme in Malta for your profile")}
-          ${li("Explain costs, scholarships and payment options")}
-          ${li("Guide you through the student visa steps")}
-        </div>` +
-        para("Only free times are shown, in your own time zone. Free, no commitment.", true) +
-        para(`Questions? <a href="https://wa.me/35699728213" style="color:#442DFA;font-weight:bold">WhatsApp +356 9972 8213</a>`, true),
-      rebook ? "Choose a new time for your free consultation" : "Book your free consultation with Outreach",
-      "en",
-      { url: "https://outreachstudy.eu", label: "outreachstudy.eu", brand: "Outreach Recruitment — Study in Malta" },
-    );
-    wa = [
-      `Hi ${first} 👋 this is Soufiane from Outreach — Study in Malta.`,
-      "",
-      rebook
-        ? `Your appointment${was ? ` on ${was}` : ""} was cancelled, and we'd still love to talk with you about ${course}! 🎓`
-        : `Thank you for applying for ${course}! 🎓 You haven't booked your free consultation yet.`,
-      "",
-      `📅 Choose ${rebook ? "a new" : "a"} time that suits you here (takes less than a minute): ${pickUrl}`,
-      "",
-      `In ${CALL_MINUTES} minutes we'll find the best programme for you and explain costs, scholarships and the visa steps. Free, no commitment 😊`,
-    ].join("\n");
+    // After a cancelled appointment the reminder asks them to rebook instead; the wording is editable in admin.
+    const kind = c.tracking?.appointment_cancelled_at ? "rebook" : "book";
+    ({ subject, html, wa } = renderReminder(kind, await loadReminderText(db, kind), {
+      name: first,
+      course: c.desired_course || "your studies in Malta",
+      date: c.tracking?.appointment_cancelled_call_at ? whenIn(c.tracking.appointment_cancelled_call_at, tz).main : "your scheduled date",
+      link: pickUrl,
+    }));
   } else if (type === "reinvite") {
     const token = c.call_confirm_token ?? crypto.randomUUID();
     const { error } = await db

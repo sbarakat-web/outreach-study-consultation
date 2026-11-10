@@ -9,7 +9,7 @@ import { TAGS, loadSettings, type MarketingSettings, type Template } from "./sha
 export function useTemplates() {
   const [templates, setTemplates] = useState<Template[] | null>(null);
   const load = useCallback(async () => {
-    const { data } = await supabase.from("marketing_email_templates").select("*").order("is_system", { ascending: false }).order("created_at");
+    const { data } = await supabase.from("marketing_email_templates").select("*").not("id", "like", "reminder-%").order("is_system", { ascending: false }).order("created_at");
     setTemplates(((data ?? []) as Template[]).map((t) => ({ ...t, blocks: t.blocks ?? [] })));
   }, []);
   useEffect(() => {

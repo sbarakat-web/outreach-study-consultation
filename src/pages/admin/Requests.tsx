@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { AlertTriangle, CalendarCheck, ChevronLeft, ChevronRight, CalendarX2, RotateCcw, ThumbsUp, CalendarPlus, Check, CheckCircle2, ClipboardPaste, Clock, Copy, ExternalLink, FileText, Mail, MessageCircle, MessageSquare, Play, Plus, Presentation, Search, Star, UserRound, UsersRound, Video, X } from "lucide-react";
+import { AlertTriangle, Eye, CalendarCheck, ChevronLeft, ChevronRight, CalendarX2, RotateCcw, ThumbsUp, CalendarPlus, Check, CheckCircle2, ClipboardPaste, Clock, Copy, ExternalLink, FileText, Mail, MessageCircle, MessageSquare, Play, Plus, Presentation, Search, Star, UserRound, UsersRound, Video, X } from "lucide-react";
 import { supabase } from "../../lib/supabase";
 import {
   BOOKING_EMBED,
@@ -23,6 +23,7 @@ import { CountryPicker } from "../../components/CountryPicker";
 import { COUNTRIES, countryByCode, timeZonesOf } from "../../lib/countries";
 import { AREAS, ENGLISH_COURSES, ENGLISH_PROVIDERS, PROGRAMMES, programmeValue } from "../sessions/data";
 import { BookingReminderButton, CallPanel, PickAnotherButton } from "./CallPanel";
+import { ReminderEditor } from "./ReminderEditor";
 import { candidateTime, cleanMeetLink, confirmWithMeet, googleApi, maltaTime, needsBooking, notifyCandidate, waitingWhatsApp } from "./calls";
 import { SessionPanel, sessionHref } from "./SessionPanel";
 import type { Consultation, DocumentRow, Status } from "../../lib/types";
@@ -1904,6 +1905,7 @@ function OverdueTable({ rows, onOpen }: { rows: Row[]; onOpen: (id: string) => v
 function RemindAllNotBooked({ rows, cancelled = false, onDone }: { rows: Row[]; cancelled?: boolean; onDone: () => void }) {
   const [progress, setProgress] = useState<{ done: number; failed: number } | null>(null);
   const [busy, setBusy] = useState(false);
+  const [editing, setEditing] = useState(false);
   // Leave out anyone reminded in the last 3 days.
   const due = rows.filter((c) => !c.tracking?.booking_reminder_at || Date.now() - new Date(c.tracking.booking_reminder_at).getTime() > 3 * 86_400_000);
   if (!rows.length) return null;
@@ -1933,7 +1935,7 @@ function RemindAllNotBooked({ rows, cancelled = false, onDone }: { rows: Row[]; 
             : `${rows.length} new lead${rows.length > 1 ? "s haven't" : " hasn't"} booked a call yet`}
         </p>
         <p className="text-sm text-amber-800">
-          Send each one a reminder with a link to choose {cancelled ? "a new" : "a free"} time. Use <strong>Remind to book</strong> on a row to also send it on WhatsApp.
+          Send each one a reminder with a link to choose {cancelled ? "a new" : "a free"} time. Use <strong>{cancelled ? "Remind to rebook" : "Remind to book"}</strong> on a row to also send it on WhatsApp.
           {due.length < rows.length && ` ${rows.length - due.length} already reminded in the last 3 days are skipped.`}
         </p>
         {progress && (
@@ -1943,9 +1945,15 @@ function RemindAllNotBooked({ rows, cancelled = false, onDone }: { rows: Row[]; 
           </p>
         )}
       </div>
-      <Button onClick={run} loading={busy} disabled={busy || !due.length}>
-        <Mail className="h-4 w-4" /> Email all ({due.length})
-      </Button>
+      <span className="flex flex-wrap gap-2">
+        <Button variant="secondary" onClick={() => setEditing(true)}>
+          <Eye className="h-4 w-4" /> Preview & edit email
+        </Button>
+        <Button onClick={run} loading={busy} disabled={busy || !due.length}>
+          <Mail className="h-4 w-4" /> Email all ({due.length})
+        </Button>
+      </span>
+      {editing && <ReminderEditor kind={cancelled ? "rebook" : "book"} sample={rows[0]} onClose={() => setEditing(false)} />}
     </div>
   );
 }
