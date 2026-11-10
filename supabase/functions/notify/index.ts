@@ -289,5 +289,11 @@ Deno.serve(async (req) => {
   }
 
   const sent = await sendEmail({ to: c.email, ...(cc && cc !== c.email ? { cc } : {}), subject, html });
+  if (sent !== "sent") console.error(`notify ${type}: email to ${c.email} failed: ${sent}`);
+  // Reminders keep the email result, so the lists can show whether it really went out.
+  if (type === "booking-reminder") {
+    const { data: row } = await db.from("consultations").select("tracking").eq("id", c.id).single();
+    await db.from("consultations").update({ tracking: { ...(row?.tracking ?? {}), booking_reminder_email: sent === "sent" ? "sent" : "failed" } }).eq("id", c.id);
+  }
   return json({ ok: sent === "sent", email: sent, waUrl: waUrl(wa), waText: wa });
 });

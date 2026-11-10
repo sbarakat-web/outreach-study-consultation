@@ -386,6 +386,8 @@ export function BookingReminderButton({ c, onSent, compact = false }: { c: Consu
         <p className="text-[11px] font-bold text-amber-800">
           Reminded {ago(last)}
           {count > 1 ? ` · ${count} times` : ""}
+          {c.tracking?.booking_reminder_email === "sent" && <span className="text-emerald-700"> · ✓ Email sent</span>}
+          {c.tracking?.booking_reminder_email === "failed" && <span className="text-brand-red"> · ⚠ Email failed</span>}
         </p>
       )}
       {msg && <p className={`text-[11px] font-bold ${msg.tone === "error" ? "text-brand-red" : "text-emerald-700"}`}>{msg.text}</p>}
