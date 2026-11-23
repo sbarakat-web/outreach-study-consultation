@@ -46,6 +46,7 @@ const PAGE_TITLE = {
   waiting: "Waiting for candidate",
   upcoming: "Upcoming",
   overdue: "Overdue",
+  interviewed: "Interviewed",
   cancelled: "Cancelled appointments",
 } as const;
 
@@ -123,6 +124,12 @@ export function Requests({ mode = "all" }: { mode?: keyof typeof PAGE_TITLE }) {
     if (mode === "overdue") {
       // Longest-waiting first.
       return (items ?? []).filter((c) => isOverdue(c) && matches(c)).sort((a, b) => a.preferred_call_at!.localeCompare(b.preferred_call_at!));
+    }
+    if (mode === "interviewed") {
+      // Most recent sessions first.
+      return (items ?? [])
+        .filter((c) => c.status === "interviewed" && matches(c))
+        .sort((a, b) => (b.session_outcome_at ?? b.created_at).localeCompare(a.session_outcome_at ?? a.created_at));
     }
     if (mode === "upcoming") {
       return (items ?? []).filter((c) => isUpcoming(c) && matches(c)).sort((a, b) => a.preferred_call_at!.localeCompare(b.preferred_call_at!));

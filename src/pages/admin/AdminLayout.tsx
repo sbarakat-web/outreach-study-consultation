@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Outlet, useNavigate } from "react-router-dom";
-import { AlertTriangle, BarChart3, Bell, CalendarCheck, CalendarDays, CalendarX2, Clock, FileCheck2, Mail, Presentation, School, Settings, UserRoundX, Users, UsersRound } from "lucide-react";
+import { AlertTriangle, GraduationCap, BarChart3, Bell, CalendarCheck, CalendarDays, CalendarX2, Clock, FileCheck2, Mail, Presentation, School, Settings, UserRoundX, Users, UsersRound } from "lucide-react";
 import type { TabItem } from "../../components/TabBar";
 import { AppShell, Fab } from "../../components/dash";
 import { supabase } from "../../lib/supabase";
@@ -88,7 +88,9 @@ export function AdminLayout() {
           // Calls that happened with nothing recorded afterwards.
           badge: overdue ? <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-bold text-brand-red">{overdue}</span> : undefined,
         },
-        { section: "3 · After the call", to: "/admin/documents", label: "Documents received", icon: FileCheck2, badge: countBadge(withDocs) },
+        // Interviewed is set automatically when the session outcome is recorded.
+        { section: "3 · After the call", to: "/admin/interviewed", label: "Interviewed", icon: GraduationCap, badge: countBadge(leadCounts.interviewed ?? 0) },
+        { to: "/admin/documents", label: "Documents received", icon: FileCheck2, badge: countBadge(withDocs) },
         { to: "/admin/school-visa-process", label: "School / Visa Process", icon: School },
         { section: "Closed", to: "/admin/not-interested", label: "No longer interested", icon: UserRoundX, badge: countBadge(leadCounts.not_interested ?? 0) },
       ],

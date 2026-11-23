@@ -82,6 +82,7 @@ export function App() {
               <Route path="cancelled-appointments" element={<Requests key="cancelled" mode="cancelled" />} />
               <Route path="upcoming" element={<Requests key="upcoming" mode="upcoming" />} />
               <Route path="overdue" element={<Requests key="overdue" mode="overdue" />} />
+              <Route path="interviewed" element={<Requests key="interviewed" mode="interviewed" />} />
               <Route path="school-visa-process" element={<SchoolVisaProcess />} />
               <Route path="calendar" element={<CalendarPage />} />
               <Route path="sessions" element={<SessionsDashboard />} />
