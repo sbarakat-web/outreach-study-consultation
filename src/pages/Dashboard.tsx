@@ -15,6 +15,9 @@ import type { TabItem } from "../components/TabBar";
 import { AppShell, Fab, StatStrip } from "../components/dash";
 import { AccountSettings } from "./Settings";
 import { OnlineEnrolmentForm } from "./OnlineEnrolment";
+
+// Switched on once the book-call function that receives enrolments is deployed.
+const ONLINE_ENROLMENT_LIVE = false;
 import { AREAS, ENGLISH_PROVIDERS, LEVEL_STYLE, ONLINE_ENGLISH, ONLINE_ENGLISH_COURSE, PROGRAMMES, SCHOLARSHIPS, findBestMatch } from "./sessions/data";
 
 // Candidate-facing milestones (a subset of the CRM stages).
@@ -326,7 +329,7 @@ export function ProgrammePage() {
                 {isOnlineEnglish && (
                   <>
                     <OnlineEnglishProgrammes />
-                    <OnlineEnrolmentForm c={c} onSaved={reload} />
+                    {ONLINE_ENROLMENT_LIVE && <OnlineEnrolmentForm c={c} onSaved={reload} />}
                   </>
                 )}
 
@@ -439,20 +442,18 @@ export function ProgrammePage() {
         </form>
       </Card>
 
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Link to="/dashboard" className="group rounded-2xl bg-brand p-5 text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg">
-          <GraduationCap className="h-7 w-7" />
-          <h2 className="mt-4 text-lg font-black">Interested in another course?</h2>
-          <p className="mt-1 text-sm text-white/75">Book a free call with us and we will guide you to the programme that best fits your goals.</p>
-          <span className="mt-4 inline-block text-sm font-black">Book programme guidance →</span>
-        </Link>
-        <Link to="/dashboard" className="group rounded-2xl border border-slate-200 bg-white p-5 text-navy shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg">
-          <MessageCircle className="h-7 w-7 text-brand" />
-          <h2 className="mt-4 text-lg font-black">Need more explanation?</h2>
-          <p className="mt-1 text-sm text-slate-500">Return to your dashboard to arrange a call and ask our team about fees, requirements or your next steps.</p>
-          <span className="mt-4 inline-block text-sm font-black text-brand">Contact us from the dashboard →</span>
-        </Link>
-      </div>
+      {/* Book the free call right here: questions about the programme are answered in the call. */}
+      {c.status !== "not_interested" && c.session_outcome !== "interviewed" && (
+        <Card>
+          <div className="space-y-4 px-5 py-6 sm:px-7">
+            <p className="flex items-center gap-2 text-sm text-slate-600">
+              <MessageCircle className="h-5 w-5 shrink-0 text-brand" />
+              Want more information about this programme, fees or the next steps? Book your free call and we'll answer all your questions.
+            </p>
+            <BookingCalendar c={c} onRequested={reload} />
+          </div>
+        </Card>
+      )}
     </div>
   );
 }

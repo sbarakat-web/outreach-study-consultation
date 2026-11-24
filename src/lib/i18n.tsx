@@ -177,7 +177,7 @@ const en = {
   "docs.other": "Other documents",
   "docs.otherHint": "Anything else that helps your application",
 
-  "cal.title": "Pick a time for your free {min}-minute call",
+  "cal.title": "Book your free {min}-minute call to get more information",
   "cal.sub": "Pick a free time — we’ll confirm it shortly and email you your Google Meet link.",
   "cal.tz": "Your time zone: {tz}",
   "cal.prev": "Previous month",

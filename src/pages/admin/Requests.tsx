@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { AlertTriangle, Eye, CalendarCheck, ChevronLeft, ChevronRight, CalendarX2, RotateCcw, ThumbsUp, CalendarPlus, Check, CheckCircle2, ClipboardPaste, Clock, Copy, ExternalLink, FileText, Mail, MessageCircle, MessageSquare, Play, Plus, Presentation, Search, Star, UserRound, UsersRound, Video, X } from "lucide-react";
+import { AlertTriangle, Eye, Trash2, CalendarCheck, ChevronLeft, ChevronRight, CalendarX2, RotateCcw, ThumbsUp, CalendarPlus, Check, CheckCircle2, ClipboardPaste, Clock, Copy, ExternalLink, FileText, Mail, MessageCircle, MessageSquare, Play, Plus, Presentation, Search, Star, UserRound, UsersRound, Video, X } from "lucide-react";
 import { supabase } from "../../lib/supabase";
 import {
   BOOKING_EMBED,
@@ -88,6 +88,33 @@ export function Requests({ mode = "all" }: { mode?: keyof typeof PAGE_TITLE }) {
     if (params.get("lead")) setOpenId(params.get("lead"));
   }, [params]);
   const [openId, setOpenId] = useState<string | null>(params.get("lead"));
+  // New leads: tick rows to delete several at once.
+  const [picked, setPicked] = useState<Set<string>>(new Set());
+  const [deleting, setDeleting] = useState(false);
+  const canDelete = mode === "new";
+  const togglePick = (id: string) =>
+    setPicked((s) => {
+      const next = new Set(s);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  const removeLeads = async (rows: Row[]) => {
+    if (!rows.length) return;
+    const names = rows.length === 1 ? rows[0].full_name : `${rows.length} leads`;
+    if (!confirm(`Permanently delete ${names}? Their application, uploaded documents, email records and login account are removed. This cannot be undone.`)) return;
+    setDeleting(true);
+    setError("");
+    const failed: string[] = [];
+    for (const c of rows) {
+      const { data, error } = await supabase.functions.invoke("admin-delete-lead", { body: { consultationId: c.id } });
+      if (error || data?.error) failed.push(c.full_name);
+    }
+    setDeleting(false);
+    setPicked(new Set());
+    if (failed.length) setError(`Could not delete: ${failed.join(", ")}`);
+    load();
+  };
   const [view, setView] = useState(params.get("view"));
   const pageStatus = mode === "new" ? "new" : mode === "not_interested" ? "not_interested" : status;
   const pageView = mode === "documents" ? "documents" : view;
@@ -310,6 +337,19 @@ export function Requests({ mode = "all" }: { mode?: keyof typeof PAGE_TITLE }) {
       </div>
 
       {mode === "overdue" && <OverdueIntro />}
+      {canDelete && picked.size > 0 && (
+        <div className="sticky top-20 z-20 flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-navy px-4 py-3 text-white shadow-lg">
+          <span className="text-sm font-bold">{picked.size} selected</span>
+          <span className="flex gap-2">
+            <button type="button" onClick={() => setPicked(new Set())} className="rounded-full px-3 py-1.5 text-sm font-bold text-white/80 hover:text-white">
+              Clear
+            </button>
+            <Button variant="danger" loading={deleting} disabled={deleting} onClick={() => removeLeads(filtered.filter((c) => picked.has(c.id)))}>
+              <Trash2 className="h-4 w-4" /> Delete permanently ({picked.size})
+            </Button>
+          </span>
+        </div>
+      )}
       {(mode === "new" || mode === "cancelled") && <RemindAllNotBooked rows={filtered.filter(needsBooking)} cancelled={mode === "cancelled"} onDone={load} />}
 
       <Card>
@@ -328,6 +368,17 @@ export function Requests({ mode = "all" }: { mode?: keyof typeof PAGE_TITLE }) {
             <table className="w-full text-left text-sm">
               <thead className="text-xs uppercase tracking-wider text-slate-500">
                 <tr className="border-b border-slate-100">
+                  {canDelete && (
+                    <th className="w-10 pl-5">
+                      <input
+                        type="checkbox"
+                        aria-label="Select all"
+                        className="accent-brand"
+                        checked={filtered.length > 0 && filtered.every((c) => picked.has(c.id))}
+                        onChange={(e) => setPicked(e.target.checked ? new Set(filtered.map((c) => c.id)) : new Set())}
+                      />
+                    </th>
+                  )}
                   <th className="px-5 py-3 font-bold">Candidate</th>
                   <th className="hidden px-3 py-3 font-bold md:table-cell">Course</th>
                   <th className="hidden px-3 py-3 font-bold sm:table-cell">Call</th>
@@ -338,7 +389,12 @@ export function Requests({ mode = "all" }: { mode?: keyof typeof PAGE_TITLE }) {
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {filtered.map((c) => (
-                  <tr key={c.id} onClick={() => setOpenId(c.id)} className="cursor-pointer hover:bg-mist">
+                  <tr key={c.id} onClick={() => setOpenId(c.id)} className={`cursor-pointer hover:bg-mist ${picked.has(c.id) ? "bg-red-50/60" : ""}`}>
+                    {canDelete && (
+                      <td className="pl-5" onClick={(e) => e.stopPropagation()}>
+                        <input type="checkbox" aria-label={`Select ${c.full_name}`} className="accent-brand" checked={picked.has(c.id)} onChange={() => togglePick(c.id)} />
+                      </td>
+                    )}
                     <td className="px-5 py-3">
                       <button className="text-left font-bold hover:text-brand" onClick={() => setOpenId(c.id)}>
                         {c.full_name}
@@ -382,7 +438,24 @@ export function Requests({ mode = "all" }: { mode?: keyof typeof PAGE_TITLE }) {
                         <span className="text-xs text-slate-300">—</span>
                       )}
                     </td>
-                    <td className="hidden px-5 py-3 text-slate-500 lg:table-cell">{new Date(c.created_at).toLocaleDateString()}</td>
+                    <td className="hidden px-5 py-3 text-slate-500 lg:table-cell">
+                      {new Date(c.created_at).toLocaleDateString()}
+                      {canDelete && (
+                        <button
+                          type="button"
+                          aria-label={`Delete ${c.full_name}`}
+                          title="Delete lead permanently"
+                          disabled={deleting}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            removeLeads([c]);
+                          }}
+                          className="ml-3 inline-grid h-8 w-8 place-items-center rounded-full text-slate-400 hover:bg-red-50 hover:text-brand-red disabled:opacity-40"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>
