@@ -8,7 +8,7 @@ import { getTracking } from "../lib/tracking";
 import { CountryPicker } from "../components/CountryPicker";
 import { countriesFor, countryByCode, detectCountry, fetchGeoCountry } from "../lib/countries";
 import { parseCourseParam, parsePathParam } from "../lib/options";
-import { AREAS, ENGLISH_COURSES, ONLINE_ENGLISH_COURSE, PARTNERS, PROGRAMMES, findBestMatch, type Programme } from "./sessions/data";
+import { AREAS, ENGLISH_COURSES, ONLINE_ENGLISH, ONLINE_ENGLISH_COURSE, activeOffer, PARTNERS, PROGRAMMES, findBestMatch, type Programme } from "./sessions/data";
 import { Alert, Button, Card } from "../components/ui";
 import { EmailCode } from "../components/EmailCode";
 import { useI18n } from "../lib/i18n";
@@ -33,6 +33,8 @@ interface Draft {
 const DRAFT_KEY = "apply_draft_v1";
 const INELIGIBLE_COUNTRIES = new Set(["PK"]);
 // The form offers categories only; the adviser picks the level, school and exact course in the consultation.
+// The Study English Online card shows the offer while it runs.
+const onlineOfferOn = ONLINE_ENGLISH.some((p) => !!activeOffer(p));
 // Below B2: an English course in Malta, or live English classes online.
 const ENGLISH_OPTIONS = ["English course", ONLINE_ENGLISH_COURSE];
 const genericTitle = (p: Programme) => AREAS.find((a) => a.key === p.area)?.name ?? p.area;
@@ -286,6 +288,7 @@ export function Apply() {
                       text={t("apply.onlineText")}
                       cta={t("apply.continue")}
                       accent="emerald"
+                      badge={onlineOfferOn ? t("apply.onlineOffer") : undefined}
                       onClick={() => choose("english", ONLINE_ENGLISH_COURSE)}
                     />
                   </div>
@@ -550,6 +553,7 @@ function PathButton({
   text,
   cta,
   accent,
+  badge,
   onClick,
 }: {
   icon: React.ReactNode;
@@ -557,6 +561,8 @@ function PathButton({
   text: string;
   cta: string;
   accent: "red" | "violet" | "emerald";
+  /** Highlighted line under the text, e.g. a running offer. */
+  badge?: string;
   onClick: () => void;
 }) {
   const color = accent === "red" ? "text-brand-red bg-brand-red/10" : accent === "emerald" ? "text-emerald-700 bg-emerald-100" : "text-brand bg-brand/10";
@@ -569,6 +575,7 @@ function PathButton({
       <span className={`grid h-11 w-11 place-items-center rounded-xl ${color}`}>{icon}</span>
       <span className="text-lg font-black text-navy">{title}</span>
       <span className="text-sm leading-relaxed text-slate-500">{text}</span>
+      {badge && <span className="rounded-full bg-rose-50 px-3 py-1 text-xs font-black text-rose-700 ring-1 ring-rose-200">🔥 {badge}</span>}
       <span className="mt-auto inline-flex items-center gap-1 text-sm font-extrabold text-brand">
         {cta} <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1 rtl:rotate-180 rtl:group-hover:-translate-x-1" />
       </span>
