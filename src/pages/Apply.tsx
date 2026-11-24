@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { ArrowLeft, ArrowRight, BookOpen, CheckCircle2, GraduationCap, Send } from "lucide-react";
+import { ArrowLeft, ArrowRight, BookOpen, CheckCircle2, GraduationCap, Laptop, Send } from "lucide-react";
 import { parsePhoneNumberFromString, type CountryCode } from "libphonenumber-js/max";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
@@ -8,7 +8,7 @@ import { getTracking } from "../lib/tracking";
 import { CountryPicker } from "../components/CountryPicker";
 import { countriesFor, countryByCode, detectCountry, fetchGeoCountry } from "../lib/countries";
 import { parseCourseParam, parsePathParam } from "../lib/options";
-import { AREAS, ENGLISH_COURSES, PARTNERS, PROGRAMMES, findBestMatch, type Programme } from "./sessions/data";
+import { AREAS, ENGLISH_COURSES, ONLINE_ENGLISH_COURSE, PARTNERS, PROGRAMMES, findBestMatch, type Programme } from "./sessions/data";
 import { Alert, Button, Card } from "../components/ui";
 import { EmailCode } from "../components/EmailCode";
 import { useI18n } from "../lib/i18n";
@@ -33,8 +33,8 @@ interface Draft {
 const DRAFT_KEY = "apply_draft_v1";
 const INELIGIBLE_COUNTRIES = new Set(["PK"]);
 // The form offers categories only; the adviser picks the level, school and exact course in the consultation.
-// Below B2 there is a single choice: an English course.
-const ENGLISH_OPTIONS = ["English course"];
+// Below B2: an English course in Malta, or live English classes online.
+const ENGLISH_OPTIONS = ["English course", ONLINE_ENGLISH_COURSE];
 const genericTitle = (p: Programme) => AREAS.find((a) => a.key === p.area)?.name ?? p.area;
 const CATEGORY_OPTIONS = AREAS.filter((a) => a.key !== "english" && PROGRAMMES.some((p) => p.area === a.key)).map((a) => a.name);
 const PROGRAMME_VALUES = new Set(CATEGORY_OPTIONS);
@@ -143,11 +143,11 @@ export function Apply() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  const choose = (path: Path) => {
+  const choose = (path: Path, course?: string) => {
     setD((x) => ({
       ...x,
       path,
-      course: path === "english" ? ENGLISH_OPTIONS[0] : PROGRAMME_VALUES.has(x.course) ? x.course : "",
+      course: course ?? (path === "english" ? ENGLISH_OPTIONS[0] : PROGRAMME_VALUES.has(x.course) ? x.course : ""),
     }));
     go("form");
   };
@@ -279,6 +279,16 @@ export function Apply() {
                     accent="violet"
                     onClick={() => choose("higher_education")}
                   />
+                  <div className="sm:col-span-2">
+                    <PathButton
+                      icon={<Laptop className="h-6 w-6" />}
+                      title={t("apply.onlineTitle")}
+                      text={t("apply.onlineText")}
+                      cta={t("apply.continue")}
+                      accent="emerald"
+                      onClick={() => choose("english", ONLINE_ENGLISH_COURSE)}
+                    />
+                  </div>
                 </div>
               </div>
             )}
@@ -546,10 +556,10 @@ function PathButton({
   title: string;
   text: string;
   cta: string;
-  accent: "red" | "violet";
+  accent: "red" | "violet" | "emerald";
   onClick: () => void;
 }) {
-  const color = accent === "red" ? "text-brand-red bg-brand-red/10" : "text-brand bg-brand/10";
+  const color = accent === "red" ? "text-brand-red bg-brand-red/10" : accent === "emerald" ? "text-emerald-700 bg-emerald-100" : "text-brand bg-brand/10";
   return (
     <button
       type="button"

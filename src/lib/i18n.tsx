@@ -29,6 +29,8 @@ const en = {
   "apply.belowTitle": "My level is below B2",
   "apply.belowText": "Start with an English course. We’ll guide you every step of the way.",
   "apply.aboveTitle": "I have B2 or above",
+  "apply.onlineTitle": "Study English Online",
+  "apply.onlineText": "Live English classes online with a London school — from home, at a time that suits you.",
   "apply.aboveText": "Continue directly to the programmes we offer and choose your course.",
   "apply.continue": "Continue",
   "apply.haveLevel": "You already have the required English level — these are the programmes we offer.",

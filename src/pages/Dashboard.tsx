@@ -14,7 +14,7 @@ import { COUNTRIES, detectCountry } from "../lib/countries";
 import type { TabItem } from "../components/TabBar";
 import { AppShell, Fab, StatStrip } from "../components/dash";
 import { AccountSettings } from "./Settings";
-import { AREAS, ENGLISH_PROVIDERS, LEVEL_STYLE, PROGRAMMES, SCHOLARSHIPS, findBestMatch } from "./sessions/data";
+import { AREAS, ENGLISH_PROVIDERS, LEVEL_STYLE, ONLINE_ENGLISH, ONLINE_ENGLISH_COURSE, PROGRAMMES, SCHOLARSHIPS, findBestMatch } from "./sessions/data";
 
 // Candidate-facing milestones (a subset of the CRM stages).
 const MILESTONES = ["new", "consultation_booked", "interviewed"];
@@ -149,7 +149,8 @@ export function ProgrammePage() {
   const [savingQuestions, setSavingQuestions] = useState(false);
   const [questionStatus, setQuestionStatus] = useState<"" | "saved" | "error">("");
   const selectedName = c.desired_course?.trim() || labelFor(STUDY_PATHS, c.study_path);
-  const isEnglishCourse = c.study_path === "english" || selectedName.toLowerCase().includes("english");
+  const isOnlineEnglish = selectedName === ONLINE_ENGLISH_COURSE;
+  const isEnglishCourse = !isOnlineEnglish && (c.study_path === "english" || selectedName.toLowerCase().includes("english"));
   const selectedEnglishCourse = isEnglishCourse
     ? ENGLISH_PROVIDERS.flatMap((provider) =>
         provider.rows.map((row) => ({ provider, row, value: `${row[0]} — ${row[1]} — ${row[2]} · ${provider.name}` })),
@@ -320,6 +321,8 @@ export function ProgrammePage() {
                     </p>
                   </section>
                 )}
+
+                {isOnlineEnglish && <OnlineEnglishProgrammes />}
 
                 {isEnglishCourse && (
                   <section>
@@ -982,5 +985,84 @@ export function InvitePage() {
         </div>
       </div>
     </Card>
+  );
+}
+
+/** "Study English Online": the live online programmes, with classes, weeks and offers for those that have them. */
+function OnlineEnglishProgrammes() {
+  const withDetails = ONLINE_ENGLISH.filter((p) => p.details);
+  return (
+    <section className="space-y-5">
+      <div>
+        <p className="text-xs font-black uppercase tracking-wider text-brand">Study English Online</p>
+        <h2 className="mt-1 text-xl font-black text-navy">Online English programmes</h2>
+        <p className="mt-1 text-sm text-slate-500">Live classes online with a London school. Your adviser will help you choose the right programme and level.</p>
+      </div>
+
+      <div className="mobile-scroll overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm" role="region" aria-label="Online English programmes" tabIndex={0}>
+        <table className="w-full min-w-[640px] text-left text-sm">
+          <thead className="bg-[#092553] text-xs text-white">
+            <tr>
+              {["Programme", "Duration", "Level", "Schedule", "Price"].map((h) => (
+                <th key={h} className="whitespace-nowrap px-4 py-3 font-bold">{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {ONLINE_ENGLISH.map((p, i) => (
+              <tr key={p.name} className={i % 2 ? "bg-slate-50" : "bg-white"}>
+                <td className="px-4 py-3 font-black text-navy">{p.name}</td>
+                <td className="whitespace-nowrap px-4 py-3 text-slate-700">{p.duration}</td>
+                <td className="whitespace-nowrap px-4 py-3 text-slate-700">{p.level ?? "All levels"}</td>
+                <td className="px-4 py-3 text-slate-600">{p.schedule ?? "—"}</td>
+                <td className="whitespace-nowrap px-4 py-3 font-bold text-slate-700">{p.price ?? "Ask your adviser"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {withDetails.map((p) => {
+        const d = p.details!;
+        const offerOn = d.offer && Date.now() < new Date(d.offer.until).getTime();
+        return (
+          <article key={p.name} className="space-y-4 rounded-2xl border-2 border-violet-200 bg-white p-5 shadow-sm">
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-wider text-brand">{p.duration}</p>
+              <h3 className="mt-1 text-lg font-black text-navy">{p.name}</h3>
+              {p.schedule && <p className="text-sm text-slate-500">{p.schedule}</p>}
+            </div>
+            <div>
+              <p className="text-xs font-black uppercase tracking-wider text-slate-400">Classes</p>
+              <ul className="mt-2 grid gap-2 sm:grid-cols-2">
+                {d.classes.map((cls) => (
+                  <li key={cls} className="rounded-xl bg-slate-50 px-3 py-2.5 text-sm font-semibold text-slate-700 ring-1 ring-slate-100">{cls}</li>
+                ))}
+              </ul>
+            </div>
+            <div>
+              <p className="text-xs font-black uppercase tracking-wider text-slate-400">Number of weeks</p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {d.weeks.map((w) => (
+                  <span key={w} className="rounded-full bg-violet-50 px-3.5 py-1.5 text-sm font-black text-brand ring-1 ring-violet-200">{w}w</span>
+                ))}
+              </div>
+              <p className="mt-2 text-xs text-slate-500">{d.weeksNote}</p>
+            </div>
+            {offerOn && d.offer && (
+              <div className="rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-900 ring-1 ring-rose-200">
+                <p className="text-[10px] font-black uppercase tracking-wider">Special offer</p>
+                <p className="mt-1 font-black">{d.offer.title}</p>
+                <p>{d.offer.text}</p>
+              </div>
+            )}
+          </article>
+        );
+      })}
+
+      <p className="rounded-xl bg-amber-50 px-4 py-3 text-xs leading-relaxed text-amber-900 ring-1 ring-amber-200">
+        Prices, schedules and availability are confirmed by your adviser before enrolment.
+      </p>
+    </section>
   );
 }

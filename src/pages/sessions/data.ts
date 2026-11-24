@@ -548,3 +548,48 @@ export const RECAP_DOCUMENTS = [
   "IELTS Certification (if available)",
   "300-word personal statement",
 ];
+
+/** "Study English Online" (apply form choice) — live online English programmes. Prices are added when confirmed. */
+export const ONLINE_ENGLISH_COURSE = "Study English Online";
+
+export interface OnlineEnglishProgramme {
+  name: string;
+  duration: string;
+  level?: string;
+  schedule?: string;
+  price?: string;
+  /** Extra detail shown under the table (classes, weeks, offers). */
+  details?: {
+    classes: string[];
+    weeks: number[];
+    weeksNote: string;
+    offer?: { title: string; text: string; until: string };
+  };
+}
+
+export const ONLINE_ENGLISH: OnlineEnglishProgramme[] = [
+  {
+    name: "Essential English Online",
+    duration: "2 to 50 weeks",
+    schedule: "2 live lessons a week (55 min each)",
+    details: {
+      classes: [
+        "Core English (A1–A2) · Mondays 17:00–18:55 London time",
+        "Impact English (B1–C1) · Tuesdays 17:00–18:55 London time",
+      ],
+      weeks: [2, 6, 12, 24, 50],
+      weeksNote: "The rate per week depends on how many weeks are booked in one go.",
+      offer: {
+        title: "Black Friday: pay 12 weeks, get 16",
+        text: "16 weeks of lessons: 12 paid + 4 extra weeks at no cost. Book by 27 November 2026, 23:59 UK time; start by 31 January 2027.",
+        until: "2026-11-27T23:59:00Z",
+      },
+    },
+  },
+  { name: "Workplace English", duration: "12 weeks", level: "B1–C1" },
+  { name: "FLY ME! — Aviation English", duration: "12 weeks", level: "A2–C2" },
+  { name: "Essential English + Aviation English", duration: "12 weeks" },
+  { name: "IELTS Preparation", duration: "2 to 50 weeks", schedule: "Mon, Wed & Fri 12:00–13:55 or 17:00–18:55" },
+  { name: "Global Explorers English", duration: "2 to 50 weeks", schedule: "Wed & Thu 16:00–16:55" },
+  { name: "One-to-One English", duration: "Flexible", schedule: "Times arranged with the teacher" },
+];
