@@ -552,8 +552,22 @@ export const RECAP_DOCUMENTS = [
 /** "Study English Online" (apply form choice) — live online English programmes. Prices are added when confirmed. */
 export const ONLINE_ENGLISH_COURSE = "Study English Online";
 
+export interface OnlineEnglishClass {
+  label: string;
+  /** Day of the week the class starts (0 = Sunday … 6 = Saturday), for the start-week list. */
+  day: number;
+}
+
 export interface OnlineEnglishProgramme {
   name: string;
+  /** How it's booked: per week (weeks picker), a fixed number of weeks, or per lesson (one-to-one). */
+  booking: "weeks" | "fixed" | "lessons";
+  classes?: OnlineEnglishClass[];
+  /** Price per week (GBP) by number of weeks booked in one go; missing = confirmed by the adviser. */
+  weeklyRates?: Record<number, number>;
+  /** Per-lesson price tiers (one-to-one): from this many lessons, this price per lesson. */
+  lessonTiers?: { from: number; price: number }[];
+  registrationFee?: number;
   duration: string;
   level?: string;
   schedule?: string;
@@ -567,17 +581,28 @@ export interface OnlineEnglishProgramme {
   };
 }
 
+export const ONLINE_ENGLISH_WEEKS = [2, 6, 12, 24, 50];
+export const ONE_TO_ONE_LESSONS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 15, 20, 25];
+
 export const ONLINE_ENGLISH: OnlineEnglishProgramme[] = [
   {
     name: "Essential English Online",
     duration: "2 to 50 weeks",
     schedule: "2 live lessons a week (55 min each)",
+    booking: "weeks",
+    classes: [
+      { label: "Core English (A1–A2) · Mondays 17:00–18:55 London time", day: 1 },
+      { label: "Impact English (B1–C1) · Tuesdays 17:00–18:55 London time", day: 2 },
+    ],
+    price: "£33/week for 12 weeks",
+    weeklyRates: { 12: 33 },
+    registrationFee: 25,
     details: {
       classes: [
         "Core English (A1–A2) · Mondays 17:00–18:55 London time",
         "Impact English (B1–C1) · Tuesdays 17:00–18:55 London time",
       ],
-      weeks: [2, 6, 12, 24, 50],
+      weeks: ONLINE_ENGLISH_WEEKS,
       weeksNote: "The rate per week depends on how many weeks are booked in one go.",
       offer: {
         title: "Black Friday: pay 12 weeks, get 16",
@@ -586,10 +611,37 @@ export const ONLINE_ENGLISH: OnlineEnglishProgramme[] = [
       },
     },
   },
-  { name: "Workplace English", duration: "12 weeks", level: "B1–C1" },
-  { name: "FLY ME! — Aviation English", duration: "12 weeks", level: "A2–C2" },
-  { name: "Essential English + Aviation English", duration: "12 weeks" },
-  { name: "IELTS Preparation", duration: "2 to 50 weeks", schedule: "Mon, Wed & Fri 12:00–13:55 or 17:00–18:55" },
-  { name: "Global Explorers English", duration: "2 to 50 weeks", schedule: "Wed & Thu 16:00–16:55" },
-  { name: "One-to-One English", duration: "Flexible", schedule: "Times arranged with the teacher" },
+  { name: "Workplace English", duration: "12 weeks", level: "B1–C1", booking: "fixed" },
+  { name: "FLY ME! — Aviation English", duration: "12 weeks", level: "A2–C2", booking: "fixed" },
+  { name: "Essential English + Aviation English", duration: "12 weeks", booking: "fixed" },
+  {
+    name: "IELTS Preparation",
+    duration: "2 to 50 weeks",
+    schedule: "Mon, Wed & Fri 12:00–13:55 or 17:00–18:55",
+    booking: "weeks",
+    classes: [
+      { label: "IELTS · Mon, Wed & Fri 12:00–13:55 London time", day: 1 },
+      { label: "IELTS · Mon, Wed & Fri 17:00–18:55 London time", day: 1 },
+    ],
+  },
+  { name: "Global Explorers English", duration: "2 to 50 weeks", schedule: "Wed & Thu 16:00–16:55", booking: "weeks" },
+  {
+    name: "One-to-One English",
+    duration: "Flexible",
+    schedule: "Times arranged with the teacher",
+    booking: "lessons",
+    price: "£55–£65 per lesson",
+    lessonTiers: [
+      { from: 1, price: 65 },
+      { from: 5, price: 60 },
+      { from: 10, price: 55 },
+    ],
+  },
 ];
+
+/** Price per lesson for a number of one-to-one lessons. */
+export const lessonPrice = (p: OnlineEnglishProgramme, lessons: number) =>
+  [...(p.lessonTiers ?? [])].reverse().find((t) => lessons >= t.from)?.price;
+
+/** The Black Friday-style offer of a programme, while it runs. */
+export const activeOffer = (p: OnlineEnglishProgramme) => (p.details?.offer && Date.now() < new Date(p.details.offer.until).getTime() ? p.details.offer : undefined);

@@ -24,6 +24,7 @@ import { COUNTRIES, countryByCode, timeZonesOf } from "../../lib/countries";
 import { AREAS, ENGLISH_COURSES, ENGLISH_PROVIDERS, PROGRAMMES, programmeValue } from "../sessions/data";
 import { BookingReminderButton, CallPanel, PickAnotherButton } from "./CallPanel";
 import { ReminderEditor } from "./ReminderEditor";
+import { readEnrolment } from "../OnlineEnrolment";
 import { candidateTime, cleanMeetLink, confirmWithMeet, googleApi, maltaTime, needsBooking, notifyCandidate, waitingWhatsApp } from "./calls";
 import { SessionPanel, sessionHref } from "./SessionPanel";
 import type { Consultation, DocumentRow, Status } from "../../lib/types";
@@ -895,6 +896,7 @@ function Detail({ c, all, onClose, onSaved, onNext }: { c: Row; all: Row[]; onCl
     ["Received", new Date(c.created_at).toLocaleString()],
     ["Referred by", referredBy ? `${referredBy.full_name} (${referredBy.email})` : c.tracking.ref ? `Code ${c.tracking.ref}` : null],
     ["Referrals", referrals.length ? `${referrals.length}: ${referrals.map((x) => x.full_name).join(", ")}` : null],
+    ...enrolmentRows(c),
   ];
 
   return (
@@ -1974,4 +1976,20 @@ function RemindAllNotBooked({ rows, cancelled = false, onDone }: { rows: Row[]; 
       {editing && <ReminderEditor kind={cancelled ? "rebook" : "book"} sample={rows[0]} onClose={() => setEditing(false)} />}
     </div>
   );
+}
+
+/** Study English Online enrolment request sent from the candidate's dashboard, for the Profile tab. */
+function enrolmentRows(c: Row): [string, string | null][] {
+  const e = readEnrolment(c);
+  if (!e) return [];
+  return [
+    ["Online enrolment", `${e.programme}${e.submitted_at ? ` · sent ${new Date(e.submitted_at).toLocaleDateString()}` : ""}`],
+    ["Class", e.class ?? null],
+    ["Weeks / lessons", e.weeks ? `${e.weeks} weeks${e.extra_weeks ? ` + ${e.extra_weeks} extra` : ""}` : e.lessons ? `${e.lessons} lessons` : null],
+    ["Start week", e.start_week],
+    ["Estimate", e.estimate ?? "To confirm"],
+    ["Date of birth", e.date_of_birth],
+    ["Nationality", e.nationality],
+    ["Phone (enrolment)", e.phone],
+  ];
 }

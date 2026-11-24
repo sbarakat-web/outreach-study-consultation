@@ -14,6 +14,7 @@ import { COUNTRIES, detectCountry } from "../lib/countries";
 import type { TabItem } from "../components/TabBar";
 import { AppShell, Fab, StatStrip } from "../components/dash";
 import { AccountSettings } from "./Settings";
+import { OnlineEnrolmentForm } from "./OnlineEnrolment";
 import { AREAS, ENGLISH_PROVIDERS, LEVEL_STYLE, ONLINE_ENGLISH, ONLINE_ENGLISH_COURSE, PROGRAMMES, SCHOLARSHIPS, findBestMatch } from "./sessions/data";
 
 // Candidate-facing milestones (a subset of the CRM stages).
@@ -322,7 +323,12 @@ export function ProgrammePage() {
                   </section>
                 )}
 
-                {isOnlineEnglish && <OnlineEnglishProgrammes />}
+                {isOnlineEnglish && (
+                  <>
+                    <OnlineEnglishProgrammes />
+                    <OnlineEnrolmentForm c={c} onSaved={reload} />
+                  </>
+                )}
 
                 {isEnglishCourse && (
                   <section>
