@@ -331,6 +331,7 @@ export function Requests({ mode = "all" }: { mode?: keyof typeof PAGE_TITLE }) {
                   <th className="hidden px-3 py-3 font-bold md:table-cell">Course</th>
                   <th className="hidden px-3 py-3 font-bold sm:table-cell">Call</th>
                   <th className="px-3 py-3 font-bold">Status</th>
+                  <th className="hidden px-3 py-3 font-bold md:table-cell">Comments</th>
                   <th className="hidden px-5 py-3 font-bold lg:table-cell">Received</th>
                 </tr>
               </thead>
@@ -369,6 +370,16 @@ export function Requests({ mode = "all" }: { mode?: keyof typeof PAGE_TITLE }) {
                         <div className="mt-1 max-w-[14rem] text-[11px] font-bold leading-snug text-brand-red">Reason: {c.not_interested_reason}</div>
                       )}
                       {c.session_outcome && <div className="mt-1 text-[11px] font-bold text-slate-500">Session: {SESSION_LABEL[c.session_outcome]}</div>}
+                    </td>
+                    <td className="hidden max-w-[16rem] px-3 py-3 md:table-cell">
+                      {c.admin_notes ? (
+                        <p title={c.admin_notes} className="line-clamp-2 whitespace-pre-line text-xs text-slate-600">
+                          <MessageSquare className="mr-1 inline h-3 w-3 text-brand" />
+                          {c.admin_notes}
+                        </p>
+                      ) : (
+                        <span className="text-xs text-slate-300">—</span>
+                      )}
                     </td>
                     <td className="hidden px-5 py-3 text-slate-500 lg:table-cell">{new Date(c.created_at).toLocaleDateString()}</td>
                   </tr>
