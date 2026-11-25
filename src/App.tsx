@@ -50,7 +50,7 @@ export function App() {
             <Route index element={<Apply />} />
             <Route path="login" element={<Login />} />
             {/* Nikolai's personal one-click link (/loginnikki#k=…): no email, no code; stays signed in. */}
-            <Route path="loginnikki" element={<PresenterLogin email="ncalleja@outreachrecruitment.net" />} />
+            <Route path="loginnikki" element={<PresenterLogin email="ncalleja@outreachrecruitment.net" name="Nikolai" />} />
             <Route path="reset-password" element={<ResetPassword />} />
             <Route path="confirm-call" element={<ConfirmCall />} />
             <Route path="email-preferences" element={<EmailPreferences />} />
