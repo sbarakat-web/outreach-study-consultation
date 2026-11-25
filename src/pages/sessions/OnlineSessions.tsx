@@ -31,7 +31,7 @@ const isBooked = (c: Candidate) =>
 
 const OUTCOME_LABEL: Record<Outcome, string> = {
   interviewed: "Interviewed",
-  no_attendance: "No Attendance",
+  no_attendance: "No show",
   no_longer_interested: "No Longer Interested",
 };
 
@@ -343,7 +343,7 @@ export function OnlineSessions() {
           // Automatic rebooking: email + WhatsApp "pick a new time".
           const r = await notifyCandidate("rebook", c.id);
           fillTab(waTab, r.data?.waUrl);
-          toast.success(r.data?.ok ? `${c.full_name}: rebooking email sent` : `${c.full_name} moved to No Attendance (rebooking email not sent)`);
+          toast.success(r.data?.ok ? `${c.full_name}: rebooking email sent` : `${c.full_name} moved to No show (rebooking email not sent)`);
         } else {
           toast.success(`${c.full_name} moved to ${OUTCOME_LABEL[outcome]}`);
         }

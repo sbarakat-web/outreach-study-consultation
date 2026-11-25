@@ -81,7 +81,7 @@ export function CompleteDialog({
             >
               <UserX className="h-5 w-5 shrink-0" />
               <span>
-                <span className="block font-black">No Attendance</span>
+                <span className="block font-black">No show</span>
                 <span className="text-xs">Candidate did not join</span>
               </span>
             </button>

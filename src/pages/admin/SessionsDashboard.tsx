@@ -103,7 +103,7 @@ export function SessionsDashboard() {
         items={[
           { icon: Presentation, label: "Sessions", value: stats.total, tone: "text-brand" },
           { icon: CheckCircle2, label: "Interviewed", value: stats.interviewed, tone: "text-emerald-600" },
-          { icon: UserX, label: "No-shows", value: stats.noShow, tone: "text-brand-red" },
+          { icon: UserX, label: "No shows", value: stats.noShow, tone: "text-brand-red" },
           { icon: Percent, label: "Show rate", value: stats.showRate },
           { icon: Star, label: "Avg. rating", value: stats.rating, tone: "text-amber-500" },
           { icon: FileCheck2, label: "No longer interested", value: stats.notInterested },
@@ -158,7 +158,7 @@ function BreakdownTable({
             <table className="w-full min-w-[640px] text-left text-sm">
               <thead className="text-xs uppercase tracking-wider text-slate-500">
                 <tr className="border-b border-slate-100">
-                  {["Name", "Sessions", "Interviewed", "No-shows", "Show rate", "Docs uploaded", "Not interested", ...(showRating ? ["Rating"] : [])].map((h) => (
+                  {["Name", "Sessions", "Interviewed", "No shows", "Show rate", "Docs uploaded", "Not interested", ...(showRating ? ["Rating"] : [])].map((h) => (
                     <th key={h} className="px-2 py-2 font-bold">
                       {h}
                     </th>

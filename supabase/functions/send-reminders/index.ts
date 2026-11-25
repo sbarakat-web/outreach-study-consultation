@@ -100,7 +100,7 @@ async function presenterEmail(db: any, c: any, presenters: string[]) {
             ["Documents", docsLine],
             ["Message", c.message ? String(c.message).slice(0, 300) : null],
           ]) +
-          `<p style="margin:0 0 16px;padding:12px 16px;border-radius:12px;background:#ecfdf5;color:#065f46;text-align:center;font-size:14px"><strong>After the session:</strong> choose <strong>Interviewed</strong>, <strong>No-show</strong> or <strong>No longer interested</strong> and add a comment if needed, so we can follow up in the platform.</p>` +
+          `<p style="margin:0 0 16px;padding:12px 16px;border-radius:12px;background:#ecfdf5;color:#065f46;text-align:center;font-size:14px"><strong>After the session:</strong> choose <strong>Interviewed</strong>, <strong>No show</strong> or <strong>No longer interested</strong> and add a comment if needed, so we can follow up in the platform.</p>` +
           para("The button works once and for 1 hour. If it has expired, sign in with:", true) +
           // Presenter accounts use their email address as the password (owner's choice).
           highlight(`Email: <strong>${escape(to)}</strong><br>Password: <strong>${escape(to)}</strong>`) +
@@ -137,7 +137,7 @@ async function overdueEmail(db: any, c: any, presenters: string[]) {
             true,
           ) +
           actions(button(open, "▶ Open the session and record the outcome")) +
-          `<p style="margin:0 0 16px;padding:12px 16px;border-radius:12px;background:#ecfdf5;color:#065f46;text-align:center;font-size:14px">Click <strong>Complete</strong> and choose <strong>Interviewed</strong>, <strong>No Attendance</strong> or <strong>No Longer Interested</strong>. The status updates automatically.</p>` +
+          `<p style="margin:0 0 16px;padding:12px 16px;border-radius:12px;background:#ecfdf5;color:#065f46;text-align:center;font-size:14px">Click <strong>Complete</strong> and choose <strong>Interviewed</strong>, <strong>No show</strong> or <strong>No Longer Interested</strong>. The status updates automatically.</p>` +
           facts([
             ["Candidate", c.full_name],
             ["Email", c.email],

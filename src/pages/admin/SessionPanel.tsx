@@ -10,7 +10,7 @@ const HIDDEN_ACTION = "hidden_from_presenter_queue";
 
 const OUTCOME = {
   interviewed: { label: "Interviewed", style: "bg-emerald-100 text-emerald-800" },
-  no_attendance: { label: "No attendance", style: "bg-amber-100 text-amber-800" },
+  no_attendance: { label: "No show", style: "bg-amber-100 text-amber-800" },
   no_longer_interested: { label: "No longer interested", style: "bg-rose-100 text-rose-800" },
 } as const;
 

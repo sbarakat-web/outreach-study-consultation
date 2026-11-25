@@ -492,7 +492,7 @@ export function Requests({ mode = "all" }: { mode?: keyof typeof PAGE_TITLE }) {
   );
 }
 
-const SESSION_LABEL = { interviewed: "Interviewed", no_attendance: "No attendance", no_longer_interested: "No longer interested" } as const;
+const SESSION_LABEL = { interviewed: "Interviewed", no_attendance: "No show", no_longer_interested: "No longer interested" } as const;
 
 const ALL_ZONES: string[] = (() => {
   try {
@@ -1866,7 +1866,7 @@ function OverdueIntro() {
       <div className="mt-4 grid gap-2 sm:grid-cols-3">
         {[
           ["✅ Interviewed", "Status becomes Interviewed and the document reminders start automatically."],
-          ["🚫 No Attendance", "The time is freed and the candidate can book a new call."],
+          ["🚫 No show", "The time is freed and the candidate can book a new call."],
           ["👋 No Longer Interested", "Status changes and the “our door is open” email goes out automatically."],
         ].map(([title, text]) => (
           <div key={title} className="rounded-2xl bg-white p-3 shadow-sm ring-1 ring-slate-100">

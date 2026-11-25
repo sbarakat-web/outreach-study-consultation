@@ -182,7 +182,7 @@ export const STATUSES: { value: Status; label: string }[] = [
   { value: "new", label: "New lead" },
   { value: "consultation_booked", label: "Consultation booked" },
   { value: "interviewed", label: "Interviewed" },
-  { value: "no_show", label: "No-show" },
+  { value: "no_show", label: "No show" },
   { value: "not_interested", label: "No longer interested" },
 ];
 

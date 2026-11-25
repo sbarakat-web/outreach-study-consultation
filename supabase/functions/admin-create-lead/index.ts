@@ -106,7 +106,7 @@ const statuses = {
     action: "Open your dashboard and upload the required documents for your chosen course.",
   },
   no_show: {
-    label: "No-show",
+    label: "No show",
     subject: "We missed you – choose another consultation time",
     message: "We recorded that your scheduled consultation was not attended.",
     action: "Open your dashboard to request another consultation time.",
