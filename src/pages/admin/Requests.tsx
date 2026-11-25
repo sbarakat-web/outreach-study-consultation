@@ -11,7 +11,6 @@ import {
   STUDY_PATHS,
   formatSlot,
   labelFor,
-  statusLabel,
   callStage,
   CALL_STAGE_LABELS,
   maltaDateTime,
@@ -28,7 +27,7 @@ import { readEnrolment } from "../OnlineEnrolment";
 import { candidateTime, cleanMeetLink, confirmWithMeet, googleApi, maltaTime, needsBooking, notifyCandidate, waitingWhatsApp } from "./calls";
 import { SessionPanel, sessionHref } from "./SessionPanel";
 import type { Consultation, DocumentRow, Status } from "../../lib/types";
-import { Alert, Button, Card, Spinner, StatusBadge } from "../../components/ui";
+import { Alert, Button, Card, Spinner } from "../../components/ui";
 import { MeetingCard, PageTitle, StatStrip } from "../../components/dash";
 
 type Row = Consultation & { documents?: { created_at: string; review_status: string; doc_type: string }[] };
@@ -422,21 +421,14 @@ export function Requests({ mode = "all" }: { mode?: keyof typeof PAGE_TITLE }) {
                       )}
                     </td>
                     <td className="px-3 py-3">
-                      <StatusBadge label={statusLabel(c.status)} muted={c.status === "not_interested"} />
+                      <StatusCell c={c} onSaved={load} onNeedsReason={() => setOpenId(c.id)} />
                       {c.status === "not_interested" && c.not_interested_reason && (
                         <div className="mt-1 max-w-[14rem] text-[11px] font-bold leading-snug text-brand-red">Reason: {c.not_interested_reason}</div>
                       )}
                       {c.session_outcome && <div className="mt-1 text-[11px] font-bold text-slate-500">Session: {SESSION_LABEL[c.session_outcome]}</div>}
                     </td>
-                    <td className="hidden max-w-[16rem] px-3 py-3 md:table-cell">
-                      {c.admin_notes ? (
-                        <p title={c.admin_notes} className="line-clamp-2 whitespace-pre-line text-xs text-slate-600">
-                          <MessageSquare className="mr-1 inline h-3 w-3 text-brand" />
-                          {c.admin_notes}
-                        </p>
-                      ) : (
-                        <span className="text-xs text-slate-300">—</span>
-                      )}
+                    <td className="hidden w-64 max-w-[16rem] px-3 py-3 md:table-cell" onClick={(e) => e.stopPropagation()}>
+                      <CommentCell c={c} onSaved={load} />
                     </td>
                     <td className="hidden px-5 py-3 text-slate-500 lg:table-cell">
                       {new Date(c.created_at).toLocaleDateString()}
@@ -808,44 +800,6 @@ function DocumentsTable({ rows, onOpen, onSaved }: { rows: Row[]; onOpen: (id: s
           })}
         </tbody>
       </table>
-    </div>
-  );
-}
-
-/** Inline staff comment on a lead (stored in admin_notes). */
-function CommentCell({ c, onSaved }: { c: Row; onSaved: () => void }) {
-  const [editing, setEditing] = useState(false);
-  const [text, setText] = useState(c.admin_notes ?? "");
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
-
-  const save = async () => {
-    setSaving(true);
-    const { error } = await supabase.from("consultations").update({ admin_notes: text.trim() || null }).eq("id", c.id);
-    setSaving(false);
-    if (error) return setError(error.message);
-    setEditing(false);
-    onSaved();
-  };
-
-  if (!editing)
-    return (
-      <button onClick={() => { setText(c.admin_notes ?? ""); setEditing(true); }} className="block w-full text-left">
-        {c.admin_notes ? (
-          <span className="line-clamp-3 whitespace-pre-line text-slate-600 hover:text-navy">{c.admin_notes}</span>
-        ) : (
-          <span className="text-xs font-bold text-brand hover:underline">+ Add comment</span>
-        )}
-      </button>
-    );
-  return (
-    <div className="space-y-2">
-      <textarea autoFocus rows={3} className="field text-sm" value={text} onChange={(e) => setText(e.target.value)} placeholder="Comment for the team…" />
-      {error && <p className="text-xs font-bold text-brand-red">{error}</p>}
-      <div className="flex gap-2">
-        <Button type="button" loading={saving} onClick={save} className="min-h-8 px-4 text-xs">Save</Button>
-        <button type="button" onClick={() => setEditing(false)} className="text-xs font-bold text-slate-500 hover:text-navy">Cancel</button>
-      </div>
     </div>
   );
 }
@@ -2065,4 +2019,103 @@ function enrolmentRows(c: Row): [string, string | null][] {
     ["Nationality", e.nationality],
     ["Phone (enrolment)", e.phone],
   ];
+}
+
+/** Status right in the table. "No longer interested" needs a reason, so it opens the lead instead. */
+function StatusCell({ c, onSaved, onNeedsReason }: { c: Row; onSaved: () => void; onNeedsReason: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const change = async (status: Status) => {
+    if (status === c.status) return;
+    if (status === "not_interested") return onNeedsReason();
+    setBusy(true);
+    const { error } = await supabase.from("consultations").update({ status }).eq("id", c.id);
+    setBusy(false);
+    if (error) return alert(error.message);
+    onSaved();
+  };
+  return (
+    <select
+      aria-label={`Status of ${c.full_name}`}
+      value={c.status}
+      disabled={busy}
+      onClick={(e) => e.stopPropagation()}
+      onChange={(e) => change(e.target.value as Status)}
+      className={`max-w-[11rem] cursor-pointer rounded-full border-0 py-1 pl-3 pr-7 text-xs font-bold ring-1 focus:ring-2 focus:ring-brand ${
+        c.status === "not_interested" ? "bg-slate-100 text-slate-500 ring-slate-200" : "bg-brand/5 text-navy ring-brand/20"
+      } ${busy ? "opacity-50" : ""}`}
+    >
+      {STATUSES.map((s) => (
+        <option key={s.value} value={s.value}>
+          {s.label}
+        </option>
+      ))}
+    </select>
+  );
+}
+
+/** Team comment right in the table: click to write or edit, Save (or Ctrl/⌘+Enter), Esc to cancel. */
+function CommentCell({ c, onSaved }: { c: Row; onSaved: () => void }) {
+  const [editing, setEditing] = useState(false);
+  const [text, setText] = useState(c.admin_notes ?? "");
+  const [saving, setSaving] = useState(false);
+  useEffect(() => {
+    if (!editing) setText(c.admin_notes ?? "");
+  }, [c.admin_notes, editing]);
+
+  const save = async () => {
+    const value = text.trim();
+    if (value === (c.admin_notes ?? "").trim()) return setEditing(false);
+    setSaving(true);
+    const { error } = await supabase.from("consultations").update({ admin_notes: value || null }).eq("id", c.id);
+    setSaving(false);
+    if (error) return alert(error.message);
+    setEditing(false);
+    onSaved();
+  };
+
+  if (editing) {
+    return (
+      <div className="space-y-1.5">
+        <textarea
+          autoFocus
+          rows={3}
+          value={text}
+          aria-label={`Comment for ${c.full_name}`}
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Escape") setEditing(false);
+            if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) save();
+          }}
+          placeholder="Call outcome, next steps…"
+          className="field min-h-0 py-1.5 text-xs"
+        />
+        <span className="flex items-center gap-1.5">
+          <button type="button" onClick={save} disabled={saving} className="rounded-full bg-brand px-3 py-1 text-[11px] font-bold text-white hover:bg-brand/90 disabled:opacity-60">
+            {saving ? "Saving…" : "Save"}
+          </button>
+          <button type="button" onClick={() => setEditing(false)} className="rounded-full px-2 py-1 text-[11px] font-bold text-slate-500 hover:text-navy">
+            Cancel
+          </button>
+        </span>
+      </div>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={() => setEditing(true)}
+      title={c.admin_notes ? `${c.admin_notes}\n\nClick to edit` : "Add a comment"}
+      className="group block w-full rounded-lg px-2 py-1 text-left hover:bg-white hover:ring-1 hover:ring-brand/30"
+    >
+      {c.admin_notes ? (
+        <span className="line-clamp-2 whitespace-pre-line text-xs text-slate-600">
+          <MessageSquare className="mr-1 inline h-3 w-3 text-brand" />
+          {c.admin_notes}
+        </span>
+      ) : (
+        <span className="text-xs text-slate-300 group-hover:text-brand">+ Add comment</span>
+      )}
+    </button>
+  );
 }
