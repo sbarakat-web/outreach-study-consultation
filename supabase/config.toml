@@ -412,3 +412,7 @@ verify_jwt = true
 
 [functions.admin-delete-lead]
 verify_jwt = true
+
+[functions.presenter-link]
+# Public: checks its own key (presenter_links). The app uses an sb_publishable key, which is not a JWT.
+verify_jwt = false
