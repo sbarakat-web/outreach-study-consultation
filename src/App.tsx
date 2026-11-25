@@ -48,6 +48,11 @@ export function App() {
           <Route element={<Layout />}>
             <Route index element={<Apply />} />
             <Route path="login" element={<Login />} />
+            {/* Short personal sign-in link for Nikolai (session presenter): email pre-filled, lands on the presenter queue. */}
+            <Route
+              path="loginnikki"
+              element={<Navigate to={`/login?email=${encodeURIComponent("ncalleja@outreachrecruitment.net")}&next=${encodeURIComponent("/onlinesessions?present=1")}`} replace />}
+            />
             <Route path="reset-password" element={<ResetPassword />} />
             <Route path="confirm-call" element={<ConfirmCall />} />
             <Route path="email-preferences" element={<EmailPreferences />} />
