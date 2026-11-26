@@ -93,9 +93,15 @@ textarea {
   letter-spacing: -0.01em;
 }
 
-/* ------------------------------------------------------------------ /hero landing (foundation)
-   Responsive building blocks for the cinematic page. Scenes fill the visible viewport
-   (svh = stable on mobile when the browser bar shows/hides). */
+/* ------------------------------------------------------------------ /hero landing
+   Cinematic Study in Malta page. Phone-first; scenes fill the visible viewport
+   (svh stays stable on phones when the browser bar shows/hides). */
+.hero-landing {
+  scroll-behavior: smooth;
+}
+@media (prefers-reduced-motion: reduce) {
+  .hero-landing { scroll-behavior: auto; }
+}
 .hero-landing .hero-container {
   width: 100%;
   max-width: 80rem;
@@ -103,12 +109,53 @@ textarea {
   padding-inline: max(1.25rem, env(safe-area-inset-left)); /* phone */
 }
 @media (min-width: 640px) {
-  .hero-landing .hero-container { padding-inline: 2rem; } /* tablet */
+  .hero-landing .hero-container { padding-inline: 2rem; } /* large phone */
+}
+@media (min-width: 768px) {
+  .hero-landing .hero-container { padding-inline: 4.5rem; } /* tablet: clear of the progress rail */
 }
 @media (min-width: 1024px) {
-  .hero-landing .hero-container { padding-inline: 3rem; } /* desktop */
+  .hero-landing .hero-container { padding-inline: 5rem; } /* desktop: room for the progress rail */
 }
 .hero-landing .hero-scene {
   min-height: 100vh;
   min-height: 100svh;
+}
+/* Phone: text sits low (portrait photos keep the subject up top); larger screens: centred. */
+.hero-landing .hero-scene-pad {
+  padding-top: 7rem;
+  padding-bottom: max(3.5rem, calc(env(safe-area-inset-bottom) + 2.5rem));
+}
+@media (min-width: 768px) {
+  .hero-landing .hero-scene-pad { padding-block: 7rem; }
+}
+.hero-landing .hero-title {
+  font-size: clamp(2.25rem, 8.5vw, 5.5rem);
+  line-height: 1.02;
+  letter-spacing: -0.03em;
+  text-wrap: balance;
+  text-shadow: 0 2px 30px rgba(20, 18, 58, 0.35);
+}
+.hero-landing .hero-accent {
+  background: linear-gradient(90deg, #ffffff, #c9c1ff);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.hero-landing .hero-photo { object-position: var(--pos-m); }
+@media (min-width: 768px) {
+  .hero-landing .hero-photo { object-position: var(--pos-d); }
+}
+/* Scrims: keep text readable on any photo. Phone = from the bottom; larger = from the text side. */
+.hero-landing .hero-scrim { background: linear-gradient(to top, rgba(20,18,58,.85) 0%, rgba(20,18,58,.35) 45%, rgba(20,18,58,.1) 100%); }
+@media (min-width: 768px) {
+  .hero-landing .hero-scrim--start { background: linear-gradient(to right, rgba(20,18,58,.8) 0%, rgba(20,18,58,.35) 50%, rgba(20,18,58,.05) 100%); }
+  .hero-landing .hero-scrim--end { background: linear-gradient(to left, rgba(20,18,58,.8) 0%, rgba(20,18,58,.35) 50%, rgba(20,18,58,.05) 100%); }
+  .hero-landing .hero-scrim--center { background: radial-gradient(ellipse at center, rgba(20,18,58,.7) 0%, rgba(20,18,58,.35) 70%); }
+}
+[dir="rtl"] .hero-landing .hero-scrim--start, .hero-landing[dir="rtl"] .hero-scrim--start { transform: scaleX(-1); }
+.hero-landing[dir="rtl"] .hero-scrim--end { transform: scaleX(-1); }
+.hero-landing .hero-placeholder-grain {
+  background-image: radial-gradient(rgba(255,255,255,.18) 1px, transparent 1px);
+  background-size: 3px 3px;
 }
