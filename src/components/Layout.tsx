@@ -1,16 +1,16 @@
 import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
-import { Globe, LogOut, MessageCircle } from "lucide-react";
+import { Globe, Languages, LogOut, MessageCircle } from "lucide-react";
 import { AdminSearch } from "./AdminSearch";
 import { useAuth } from "../lib/auth";
 import { waLink, whatsappNumber } from "../lib/options";
-import { useI18n } from "../lib/i18n";
+import { LANGS, useI18n, type Lang } from "../lib/i18n";
 
 const WEBSITE = "https://outreachstudy.eu";
 
 export function Layout() {
   const { session, isAdmin, signOut } = useAuth();
   const navigate = useNavigate();
-  const { t } = useI18n();
+  const { lang, setLang, t } = useI18n();
   // Inside the signed-in app (dashboard/admin): no footer, tab bar on phones.
   const inApp = /^\/(dashboard|admin)(\/|$)/.test(useLocation().pathname);
 
@@ -18,7 +18,7 @@ export function Layout() {
     `rounded-full px-4 py-2 text-sm font-bold transition ${isActive ? "bg-brand text-white shadow-sm" : "text-navy hover:bg-brand/5"}`;
 
   return (
-    <div className={`flex min-h-dvh flex-col ${inApp ? "app-ui" : ""}`}>
+    <div dir={isAdmin ? "ltr" : undefined} className={`flex min-h-dvh flex-col ${inApp ? "app-ui" : ""}`}>
       <header
         className={`sticky top-0 z-40 ${inApp ? "bg-white shadow-[0_2px_14px_rgba(20,18,58,0.07)]" : "border-b border-slate-200/70 bg-white/90 backdrop-blur"}`}
       >
@@ -29,6 +29,24 @@ export function Layout() {
           </Link>
           {inApp && isAdmin && <AdminSearch />}
           <nav className="flex items-center gap-1">
+            {!isAdmin && (
+              <label className="relative inline-flex min-h-10 items-center rounded-full px-2 text-sm font-bold text-slate-600 transition hover:bg-brand/5">
+                <Languages aria-hidden className="h-4 w-4 shrink-0" />
+                <span className="sr-only">{t("nav.language")}</span>
+                <select
+                  aria-label={t("nav.language")}
+                  value={lang}
+                  onChange={(event) => setLang(event.target.value as Lang)}
+                  className="max-w-[6.5rem] cursor-pointer appearance-none bg-transparent ps-1.5 pe-1 text-sm font-bold text-navy outline-none sm:max-w-none"
+                >
+                  {LANGS.map((language) => (
+                    <option key={language.code} value={language.code}>
+                      {language.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
             {session ? (
               <>
                 {!inApp &&
