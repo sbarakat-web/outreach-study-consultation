@@ -46,14 +46,16 @@ export const CHAPTERS: Chapter[] = [
     },
   },
   {
+    // Rendered by travel/TravelScene.tsx (airplane in JourneyOverlay); kept here for the progress rail and order.
     id: "travel",
     label: "Travel",
     title: ["Big Dreams", "Have No Borders."],
-    text: "One flight can change the direction of your life.",
-    align: "end",
-    placeholder: {
-      brief: "Aeroplane window or wing above the clouds, warm sunlight",
-      tint: "from-[#14123a] via-[#2b4c8c] to-[#9cc3e8]",
+    text: "Take the first step towards your international future.",
+    align: "start",
+    image: {
+      desktop: "/hero/travel-clouds.webp",
+      mobile: "/hero/travel-clouds-mobile.webp",
+      alt: "Sea of clouds at sunrise seen from an airplane",
     },
   },
   {
