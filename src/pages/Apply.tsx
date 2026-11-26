@@ -12,6 +12,7 @@ import { AREAS, ENGLISH_COURSES, ONLINE_ENGLISH, ONLINE_ENGLISH_COURSE, activeOf
 import { Alert, Button, Card } from "../components/ui";
 import { EmailCode } from "../components/EmailCode";
 import { useI18n } from "../lib/i18n";
+import { landingContent } from "../lib/landing";
 
 type Path = "english" | "higher_education";
 type Stage = "choose" | "form" | "done";
@@ -41,15 +42,6 @@ const genericTitle = (p: Programme) => AREAS.find((a) => a.key === p.area)?.name
 const CATEGORY_OPTIONS = AREAS.filter((a) => a.key !== "english" && PROGRAMMES.some((p) => p.area === a.key)).map((a) => a.name);
 const PROGRAMME_VALUES = new Set(CATEGORY_OPTIONS);
 const ENGLISH_COURSE_VALUES = new Set(ENGLISH_OPTIONS);
-const FAQS = [
-  ["What can I study in Malta?", "You can compare English-language courses and diploma, bachelor’s and master’s programmes in business, accountancy, health and social care, information technology, tourism and hospitality, and logistics."],
-  ["How much does it cost to study in Malta?", "Tuition depends on the institution, course and duration. The programme selector shows current guidance prices, and your adviser will confirm the final fee, payment schedule and any available scholarship before enrolment."],
-  ["Do I need IELTS to study in Malta?", "English requirements depend on the programme. Some courses accept a school assessment, while others require an IELTS score or equivalent evidence. Your adviser will check the requirement for the exact course you select."],
-  ["What documents are needed for an application?", "Typical documents include your passport bio page, an updated Europass CV, academic certificates and transcripts, IELTS if available, and a 300-word personal statement. Requirements can vary by institution."],
-  ["Can Outreach help with the Malta student visa process?", "Outreach provides document and process guidance, including access to the official student national visa checklist. Visa decisions are made only by the relevant Maltese authorities."],
-  ["How do I start?", "Choose your English level, select a course, submit the short form and book a free consultation from your personal dashboard."],
-] as const;
-
 function loadDraft(): Partial<Draft> {
   try {
     return JSON.parse(localStorage.getItem(DRAFT_KEY) ?? "{}");
@@ -93,7 +85,8 @@ function initialDraft(): Draft {
 
 export function Apply() {
   const { session } = useAuth();
-  const { lang, t } = useI18n();
+  const { lang, t, tv } = useI18n();
+  const content = landingContent(lang);
   const countries = useMemo(() => countriesFor(lang), [lang]);
   const localName = (code: string) => countries.find((c) => c.code === code)?.name ?? code;
   const navigate = useNavigate();
@@ -215,20 +208,20 @@ export function Apply() {
   return (
     <div className="mx-auto max-w-5xl space-y-12 pt-2 sm:space-y-16 sm:pt-4">
       <section className="px-2 py-5 text-center sm:py-8" aria-labelledby="study-in-malta-title">
-        <p className="text-xs font-extrabold uppercase tracking-[0.2em] text-brand">Free study consultation</p>
+        <p className="text-xs font-extrabold uppercase tracking-[0.2em] text-brand">{content.heroEyebrow}</p>
         <h1 id="study-in-malta-title" className="mx-auto mt-3 max-w-2xl text-3xl font-black leading-tight text-navy sm:text-5xl">
-          Study in Malta with clear, personal guidance
+          {content.heroTitle}
         </h1>
         <p className="mx-auto mt-4 max-w-2xl text-sm leading-relaxed text-slate-600 sm:text-lg">
-          Compare English courses, diploma, bachelor&apos;s and master&apos;s programmes, tuition fees and entry requirements. Our advisers help you choose the right route and prepare your next steps.
+          {content.heroText}
         </p>
         <div className="mt-6 flex justify-center">
           <a href="#apply" className="inline-flex min-h-12 items-center justify-center rounded-full bg-brand px-6 text-sm font-extrabold text-white shadow-lg shadow-brand/20 transition hover:-translate-y-0.5 hover:bg-brand/90">
-            Find my programme
+            {content.heroCta}
           </a>
         </div>
       </section>
-      <section id="apply" aria-label="Study in Malta application" className="mx-auto w-full max-w-3xl scroll-mt-24">
+      <section id="apply" aria-label={content.applicationLabel} className="mx-auto w-full max-w-3xl scroll-mt-24">
         <Card>
         <div className="px-5 pb-8 pt-6 sm:px-9 sm:pb-9 sm:pt-8">
           <div className="mb-7 text-center">
@@ -371,12 +364,12 @@ export function Apply() {
                     {d.path === "english"
                       ? ENGLISH_OPTIONS.map((title) => (
                           <option key={title} value={title}>
-                            {title}
+                            {tv(title)}
                           </option>
                         ))
                       : CATEGORY_OPTIONS.map((title) => (
                           <option key={title} value={title}>
-                            {title}
+                            {tv(title)}
                           </option>
                         ))}
                   </select>
@@ -421,15 +414,11 @@ export function Apply() {
 
       <section aria-labelledby="malta-study-support">
         <div className="text-center">
-          <p className="text-xs font-extrabold uppercase tracking-[0.18em] text-brand">Support from first choice to application</p>
-          <h2 id="malta-study-support" className="mt-2 text-2xl font-black text-navy sm:text-3xl">Plan your studies in Malta with confidence</h2>
+          <p className="text-xs font-extrabold uppercase tracking-[0.18em] text-brand">{content.supportEyebrow}</p>
+          <h2 id="malta-study-support" className="mt-2 text-2xl font-black text-navy sm:text-3xl">{content.supportTitle}</h2>
         </div>
         <div className="mt-6 grid gap-3 sm:grid-cols-3">
-        {[
-          ["Courses and fees", "Compare Malta programmes, providers, duration and tuition fees in one clear journey."],
-          ["Application support", "Get guidance on entry requirements, documents, intakes and your school application."],
-          ["Visa preparation", "Understand the Malta student visa checklist and prepare the required documents step by step."],
-        ].map(([title, text], index) => (
+        {content.supportCards.map(([title, text], index) => (
           <article key={title} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             <span className="grid h-9 w-9 place-items-center rounded-full bg-brand/10 text-sm font-black text-brand">{index + 1}</span>
             <h3 className="font-black text-navy">{title}</h3>
@@ -441,43 +430,38 @@ export function Apply() {
 
       <section aria-labelledby="study-programmes-title">
         <div className="max-w-2xl">
-          <p className="text-xs font-extrabold uppercase tracking-[0.18em] text-brand">Courses in Malta</p>
-          <h2 id="study-programmes-title" className="mt-2 text-2xl font-black text-navy sm:text-3xl">English and higher-education programmes</h2>
-          <p className="mt-3 text-sm leading-relaxed text-slate-600 sm:text-base">Compare course duration, institution, qualification, tuition fees and entry requirements before choosing. Final availability and admission are confirmed by the institution.</p>
+          <p className="text-xs font-extrabold uppercase tracking-[0.18em] text-brand">{content.coursesEyebrow}</p>
+          <h2 id="study-programmes-title" className="mt-2 text-2xl font-black text-navy sm:text-3xl">{content.coursesTitle}</h2>
+          <p className="mt-3 text-sm leading-relaxed text-slate-600 sm:text-base">{content.coursesText}</p>
         </div>
         <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <article className="rounded-2xl bg-[#092553] p-5 text-white sm:col-span-2">
-            <p className="text-xs font-black uppercase tracking-wider text-sky-200">English language</p>
-            <h3 className="mt-2 text-xl font-black">English courses in Malta and online</h3>
-            <p className="mt-2 text-sm leading-relaxed text-white/75">General English, academic English, business English, intensive and one-to-one options from multiple providers.</p>
-            <p className="mt-4 text-sm font-bold">{ENGLISH_COURSES.length} course options</p>
+            <p className="text-xs font-black uppercase tracking-wider text-sky-200">{content.englishLabel}</p>
+            <h3 className="mt-2 text-xl font-black">{content.englishTitle}</h3>
+            <p className="mt-2 text-sm leading-relaxed text-white/75">{content.englishText}</p>
+            <p className="mt-4 text-sm font-bold">{content.courseOptions(ENGLISH_COURSES.length)}</p>
           </article>
           {AREAS.filter((area) => area.key !== "english").map((area) => {
             const count = PROGRAMMES.filter((programme) => programme.area === area.key).length;
             return (
               <article key={area.key} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-                <h3 className="font-black text-navy">{area.name}</h3>
-                <p className="mt-2 text-sm text-slate-500">Diploma, bachelor&apos;s and master&apos;s options where available.</p>
-                <p className="mt-4 text-xs font-extrabold uppercase tracking-wider text-brand">{count} programme{count === 1 ? "" : "s"}</p>
+                <h3 className="font-black text-navy">{tv(area.name)}</h3>
+                <p className="mt-2 text-sm text-slate-500">{content.degreeOptions}</p>
+                <p className="mt-4 text-xs font-extrabold uppercase tracking-wider text-brand">{content.programmeCount(count)}</p>
               </article>
             );
           })}
         </div>
-        <div className="mt-5 text-center"><a href="#apply" className="text-sm font-extrabold text-brand hover:underline">Choose a programme and apply →</a></div>
+        <div className="mt-5 text-center"><a href="#apply" className="text-sm font-extrabold text-brand hover:underline">{content.chooseProgramme}</a></div>
       </section>
 
       <section aria-labelledby="why-malta-title" className="rounded-3xl bg-gradient-to-br from-[#092553] to-[#352081] px-5 py-8 text-white sm:px-9 sm:py-10">
         <div className="max-w-2xl">
-          <p className="text-xs font-extrabold uppercase tracking-[0.18em] text-sky-200">Why Malta?</p>
-          <h2 id="why-malta-title" className="mt-2 text-2xl font-black sm:text-3xl">An English-speaking study destination in Europe</h2>
+          <p className="text-xs font-extrabold uppercase tracking-[0.18em] text-sky-200">{content.whyEyebrow}</p>
+          <h2 id="why-malta-title" className="mt-2 text-2xl font-black sm:text-3xl">{content.whyTitle}</h2>
         </div>
         <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {[
-            ["English-speaking", "English is an official language and is widely used in education and daily life."],
-            ["European location", "Study in a Mediterranean country that is part of the European Union and Schengen Area."],
-            ["Different study levels", "Explore language study, diplomas, bachelor’s degrees and postgraduate programmes."],
-            ["Personal guidance", "Compare realistic options for your profile, budget, English level and preferred intake."],
-          ].map(([title, text]) => (
+          {content.whyCards.map(([title, text]) => (
             <article key={title} className="rounded-2xl bg-white/10 p-4 ring-1 ring-white/15">
               <h3 className="font-black">{title}</h3>
               <p className="mt-2 text-sm leading-relaxed text-white/70">{text}</p>
@@ -488,16 +472,11 @@ export function Apply() {
 
       <section aria-labelledby="application-process-title">
         <div className="text-center">
-          <p className="text-xs font-extrabold uppercase tracking-[0.18em] text-brand">How it works</p>
-          <h2 id="application-process-title" className="mt-2 text-2xl font-black text-navy sm:text-3xl">Your Malta study application journey</h2>
+          <p className="text-xs font-extrabold uppercase tracking-[0.18em] text-brand">{content.processEyebrow}</p>
+          <h2 id="application-process-title" className="mt-2 text-2xl font-black text-navy sm:text-3xl">{content.processTitle}</h2>
         </div>
         <ol className="mt-7 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {[
-            ["Choose", "Select your English level and the course that interests you."],
-            ["Consult", "Book a free call so an adviser can review your goals and eligibility."],
-            ["Prepare", "Upload the requested academic, identity and English-language documents."],
-            ["Apply", "Confirm the programme and continue with the institution and visa preparation steps."],
-          ].map(([title, text], index) => (
+          {content.processCards.map(([title, text], index) => (
             <li key={title} className="relative rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
               <span className="text-3xl font-black text-brand/20">0{index + 1}</span>
               <h3 className="mt-2 font-black text-navy">{title}</h3>
@@ -509,14 +488,14 @@ export function Apply() {
 
       <section aria-labelledby="partner-schools-title">
         <div className="text-center">
-          <p className="text-xs font-extrabold uppercase tracking-[0.18em] text-brand">Institutions and providers</p>
-          <h2 id="partner-schools-title" className="mt-2 text-2xl font-black text-navy sm:text-3xl">Explore study options from our listed partners</h2>
-          <p className="mx-auto mt-3 max-w-2xl text-sm text-slate-600">Programme availability depends on your profile, intake and current admissions conditions.</p>
+          <p className="text-xs font-extrabold uppercase tracking-[0.18em] text-brand">{content.partnersEyebrow}</p>
+          <h2 id="partner-schools-title" className="mt-2 text-2xl font-black text-navy sm:text-3xl">{content.partnersTitle}</h2>
+          <p className="mx-auto mt-3 max-w-2xl text-sm text-slate-600">{content.partnersText}</p>
         </div>
         <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
           {PARTNERS.map((partner) => (
             <article key={partner.name} className="flex min-h-28 flex-col items-center justify-center rounded-2xl border border-slate-200 bg-white p-3 text-center shadow-sm">
-              <img src={partner.logo} alt={`${partner.name} logo`} className="h-12 w-full object-contain" loading="lazy" />
+              <img src={partner.logo} alt={content.logoAlt(partner.name)} className="h-12 w-full object-contain" loading="lazy" />
               <h3 className="mt-3 text-xs font-bold leading-tight text-navy">{partner.name}</h3>
             </article>
           ))}
@@ -525,11 +504,11 @@ export function Apply() {
 
       <section aria-labelledby="study-malta-faq-title" className="mx-auto w-full max-w-3xl">
         <div className="text-center">
-          <p className="text-xs font-extrabold uppercase tracking-[0.18em] text-brand">Frequently asked questions</p>
-          <h2 id="study-malta-faq-title" className="mt-2 text-2xl font-black text-navy sm:text-3xl">Studying in Malta</h2>
+          <p className="text-xs font-extrabold uppercase tracking-[0.18em] text-brand">{content.faqEyebrow}</p>
+          <h2 id="study-malta-faq-title" className="mt-2 text-2xl font-black text-navy sm:text-3xl">{content.faqTitle}</h2>
         </div>
         <div className="mt-6 space-y-3">
-          {FAQS.map(([question, answer]) => (
+          {content.faqs.map(([question, answer]) => (
             <details key={question} className="group rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-sm">
               <summary className="cursor-pointer list-none pr-7 font-black text-navy marker:hidden">{question}<span aria-hidden className="float-right text-brand group-open:rotate-45">+</span></summary>
               <p className="mt-3 text-sm leading-relaxed text-slate-600">{answer}</p>
@@ -539,9 +518,9 @@ export function Apply() {
       </section>
 
       <section className="rounded-3xl bg-brand px-5 py-8 text-center text-white sm:px-10 sm:py-10">
-        <h2 className="text-2xl font-black sm:text-3xl">Ready to find your programme in Malta?</h2>
-        <p className="mx-auto mt-3 max-w-xl text-sm leading-relaxed text-white/75 sm:text-base">Start with your English level and course preference. Your personal dashboard will guide you through the consultation, documents and next steps.</p>
-        <a href="#apply" className="mt-6 inline-flex min-h-12 items-center justify-center rounded-full bg-white px-7 text-sm font-extrabold text-brand shadow-lg transition hover:-translate-y-0.5">Start my free consultation</a>
+        <h2 className="text-2xl font-black sm:text-3xl">{content.finalTitle}</h2>
+        <p className="mx-auto mt-3 max-w-xl text-sm leading-relaxed text-white/75 sm:text-base">{content.finalText}</p>
+        <a href="#apply" className="mt-6 inline-flex min-h-12 items-center justify-center rounded-full bg-white px-7 text-sm font-extrabold text-brand shadow-lg transition hover:-translate-y-0.5">{content.finalCta}</a>
       </section>
     </div>
   );
