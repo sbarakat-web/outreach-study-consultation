@@ -5,6 +5,7 @@ import { DreamScene } from "./dream/DreamScene";
 import { TravelScene } from "./travel/TravelScene";
 import { MaltaScene } from "./malta/MaltaScene";
 import { StudyScene } from "./study/StudyScene";
+import { GraduateScene } from "./graduate/GraduateScene";
 import { HeroHeader } from "./HeroHeader";
 import { JourneyOverlay } from "./JourneyOverlay";
 import { JourneyProgress } from "./JourneyProgress";
@@ -40,6 +41,8 @@ export function HeroLanding() {
             <MaltaScene key={c.id} index={i} total={CHAPTERS.length} />
           ) : c.id === "study" ? (
             <StudyScene key={c.id} index={i} total={CHAPTERS.length} />
+          ) : c.id === "graduate" ? (
+            <GraduateScene key={c.id} index={i} total={CHAPTERS.length} />
           ) : (
             <Scene key={c.id} chapter={c} index={i} total={CHAPTERS.length} />
           ),

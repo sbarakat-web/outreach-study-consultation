@@ -85,14 +85,16 @@ export const CHAPTERS: Chapter[] = [
     },
   },
   {
+    // Rendered by graduate/GraduateScene.tsx (photo, flying cap, diploma); kept here for the progress rail and order.
     id: "graduate",
     label: "Graduate",
     title: ["From Ambition", "to Achievement."],
-    text: "The day the dream becomes a diploma.",
+    text: "Celebrate your achievements and open the door to new opportunities.",
     align: "start",
-    placeholder: {
-      brief: "Graduates throwing caps in the air, Maltese limestone architecture behind",
-      tint: "from-[#14123a] via-[#5a3fb0] to-[#e3b86b]",
+    image: {
+      desktop: "/hero/graduate-1680.webp",
+      mobile: "/hero/graduate-mobile.webp",
+      alt: "International graduates throwing their caps into a clear blue sky",
     },
   },
   {

@@ -164,7 +164,8 @@ textarea {
 .hero-landing .dream-title,
 .hero-landing .travel-title,
 .hero-landing .malta-title,
-.hero-landing .study-title {
+.hero-landing .study-title,
+.hero-landing .grad-title {
   font-size: clamp(2.6rem, 10vw, 6.75rem);
   line-height: 0.98;
   letter-spacing: -0.035em;
@@ -178,7 +179,8 @@ textarea {
 .hero-landing .dream-word,
 .hero-landing .travel-word,
 .hero-landing .malta-word,
-.hero-landing .study-word {
+.hero-landing .study-word,
+.hero-landing .grad-word {
   display: inline-block;
   overflow: hidden;
   vertical-align: top;
@@ -189,7 +191,8 @@ textarea {
 .hero-landing .dream-word > span,
 .hero-landing .travel-word > span,
 .hero-landing .malta-word > span,
-.hero-landing .study-word > span { display: inline-block; }
+.hero-landing .study-word > span,
+.hero-landing .grad-word > span { display: inline-block; }
 /* Phone: portrait photo, text low → scrim from the bottom. Larger: from the left (bright sky side). */
 .hero-landing .dream-scrim {
   background: linear-gradient(to top, rgba(20,18,58,.92) 0%, rgba(20,18,58,.55) 45%, rgba(20,18,58,.05) 75%);
@@ -303,4 +306,43 @@ textarea {
 .hero-landing .prog-acc + * :focus-visible { outline: 2px solid #fff; outline-offset: 4px; border-radius: 6px; }
 @media (prefers-reduced-motion: reduce) {
   .hero-landing .prog-btn .prog-name { transition: none; }
+}
+
+/* ---- /hero · Graduate scene */
+.hero-landing .grad-title { font-size: clamp(2.4rem, 4.6vw, 4.5rem); }
+.hero-landing .grad-scrim {
+  background: linear-gradient(to top, rgba(20,18,58,.85) 0%, rgba(20,18,58,.35) 45%, rgba(20,18,58,0) 70%);
+}
+@media (min-width: 768px) {
+  .hero-landing .grad-scrim {
+    background:
+      linear-gradient(to right, rgba(20,18,58,.6) 0%, rgba(20,18,58,.2) 40%, rgba(20,18,58,0) 60%),
+      linear-gradient(to top, rgba(20,18,58,.65) 0%, rgba(20,18,58,0) 50%);
+  }
+}
+.hero-landing[dir="rtl"] .grad-scrim { transform: scaleX(-1); }
+.hero-landing .grad-serif { font-family: Georgia, "Times New Roman", serif; letter-spacing: 0.01em; }
+.hero-landing .grad-paper {
+  background:
+    radial-gradient(ellipse at 30% 0%, rgba(255,255,255,.9), rgba(255,255,255,0) 60%),
+    linear-gradient(160deg, #fdfaf2 0%, #f5eedd 55%, #ece2c8 100%);
+  transform-origin: 50% 0%;
+}
+.hero-landing .grad-seal {
+  background: radial-gradient(circle at 35% 30%, #f3d98c, #c9a24a 55%, #9a7a2e 100%);
+  box-shadow: 0 0 0 3px rgba(201,162,74,.35), 0 6px 14px rgba(107,83,32,.35);
+}
+.hero-landing .grad-seal::after {
+  content: "";
+  position: absolute;
+  inset: 5px;
+  border-radius: 999px;
+  border: 1px dashed rgba(107,83,32,.55);
+}
+.hero-landing .grad-shine { background: linear-gradient(90deg, rgba(255,255,255,0), rgba(255,255,255,.55), rgba(255,255,255,0)); }
+.hero-landing .grad-cap { filter: drop-shadow(0 18px 24px rgba(20,18,58,.35)); }
+/* Reduced motion: the cap rests in the sky, everything else visible. */
+@media (prefers-reduced-motion: reduce) {
+  .hero-landing .grad-cap { opacity: 1; left: 48%; top: 14%; transform: rotate(-12deg); }
+  .hero-landing .grad-shine { display: none; }
 }

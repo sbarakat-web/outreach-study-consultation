@@ -34,7 +34,7 @@ export function JourneyProgress({ chapters }: { chapters: Chapter[] }) {
               <li key={c.id}>
                 <a href={`#${c.id}`} className="group flex items-center justify-end gap-3" aria-current={i === active ? "step" : undefined}>
                   <span
-                    className={`hidden text-xs font-bold uppercase tracking-[0.2em] transition lg:inline ${
+                    className={`hidden text-xs font-bold uppercase tracking-[0.2em] transition xl:inline ${
                       i === active ? "text-white" : "text-white/0 group-hover:text-white/70"
                     }`}
                   >
