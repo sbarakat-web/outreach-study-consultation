@@ -17,6 +17,7 @@ const EmailPreferences = lazy(() => import("./pages/EmailPreferences").then((m) 
 const ConfirmCall = lazy(() => import("./pages/ConfirmCall").then((m) => ({ default: m.ConfirmCall })));
 const OnlineSessions = lazy(() => import("./pages/sessions/OnlineSessions").then((m) => ({ default: m.OnlineSessions })));
 const PresenterLogin = lazy(() => import("./pages/PresenterLogin").then((m) => ({ default: m.PresenterLogin })));
+const Hero = lazy(() => import("./pages/Hero").then((m) => ({ default: m.Hero })));
 const AdminLayout = lazy(() => import("./pages/admin/AdminLayout").then((m) => ({ default: m.AdminLayout })));
 const Requests = lazy(() => import("./pages/admin/Requests").then((m) => ({ default: m.Requests })));
 const CalendarPage = lazy(() => import("./pages/admin/CalendarPage").then((m) => ({ default: m.CalendarPage })));
@@ -49,6 +50,7 @@ export function App() {
           <Route element={<Layout />}>
             <Route index element={<Apply />} />
             <Route path="login" element={<Login />} />
+            <Route path="hero" element={<Hero />} />
             {/* Nikolai's personal one-click link (/loginnikki#k=…): no email, no code; stays signed in. */}
             <Route path="loginnikki" element={<PresenterLogin email="ncalleja@outreachrecruitment.net" name="Nikolai" />} />
             <Route path="reset-password" element={<ResetPassword />} />
