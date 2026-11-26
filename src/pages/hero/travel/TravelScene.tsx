@@ -61,6 +61,8 @@ export function TravelScene({ index, total }: { index: number; total: number }) 
               .to(".travel-content", { autoAlpha: 0, yPercent: -12, duration: 0.25 }, 0.62)
               // "Destination: Malta"
               .fromTo(".travel-dest", { autoAlpha: 0, y: 24, clipPath: "inset(0 100% 0 0 round 999px)" }, { autoAlpha: 1, y: 0, clipPath: "inset(0 0% 0 0 round 999px)", duration: 0.18, ease: "power2.out" }, 0.4)
+              .to(".travel-scrim", { opacity: 0, duration: 0.25 }, 0.62)
+              .to(".travel-fade-cloud", { opacity: 1, duration: 0.3 }, 0.7)
               .addLabel("towards-malta", 1);
           } else {
             gsap
@@ -104,8 +106,10 @@ export function TravelScene({ index, total }: { index: number; total: number }) 
 
       {/* Seamless joins: navy from the Dream scene above, navy into the next scene below. */}
       <div className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[30%] bg-gradient-to-b from-navy to-transparent" aria-hidden />
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 -z-10 h-[22%] bg-gradient-to-t from-navy to-transparent" aria-hidden />
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 -z-10 h-[22%] bg-gradient-to-t from-navy to-transparent md:hidden" aria-hidden />
       <div className="travel-scrim pointer-events-none absolute inset-0 -z-10" aria-hidden />
+      {/* Desktop: at the end of the pin the bottom turns to cloud, matching the start of the Malta scene. */}
+      <div className="travel-fade-cloud pointer-events-none absolute inset-x-0 bottom-0 -z-10 hidden h-[40%] bg-gradient-to-t from-[#f3eff6] via-[#f3eff6]/60 to-transparent opacity-0 md:block" aria-hidden />
 
       {/* Static airplane for reduced motion (the animated one lives in JourneyOverlay). */}
       <img src="/hero/airplane.webp" alt="" width={1055} height={268} className="travel-static-plane absolute right-[6%] top-[22%] hidden w-[min(52vw,640px)]" aria-hidden />

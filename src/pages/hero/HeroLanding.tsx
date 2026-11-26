@@ -3,6 +3,7 @@ import { CHAPTERS } from "./chapters";
 import { Scene } from "./Scene";
 import { DreamScene } from "./dream/DreamScene";
 import { TravelScene } from "./travel/TravelScene";
+import { MaltaScene } from "./malta/MaltaScene";
 import { HeroHeader } from "./HeroHeader";
 import { JourneyOverlay } from "./JourneyOverlay";
 import { JourneyProgress } from "./JourneyProgress";
@@ -34,6 +35,8 @@ export function HeroLanding() {
             <DreamScene key={c.id} total={CHAPTERS.length} />
           ) : c.id === "travel" ? (
             <TravelScene key={c.id} index={i} total={CHAPTERS.length} />
+          ) : c.id === "malta" ? (
+            <MaltaScene key={c.id} index={i} total={CHAPTERS.length} />
           ) : (
             <Scene key={c.id} chapter={c} index={i} total={CHAPTERS.length} />
           ),

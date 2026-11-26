@@ -4,20 +4,28 @@ import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { MotionPathPlugin } from "gsap/MotionPathPlugin";
 import { useGSAP } from "@gsap/react";
 import { SoftClouds, type Blob } from "./CloudBank";
-import { FLIGHT_PHASES, PLANE_NOSE_DEG, desktopPath, mobilePath } from "./flight";
+import { PLANE_NOSE_DEG, desktopFlight, mobileFlight, type Pt } from "./flight";
 
 gsap.registerPlugin(ScrollTrigger, MotionPathPlugin, useGSAP);
 
 const FRONT_CLOUDS: Blob[] = [[0, 30, 34, 80, 0.85], [28, 50, 26, 60, 0.6], [62, 35, 38, 85, 0.85], [92, 55, 26, 55, 0.6]];
 
+/** Position written by a scene on its [data-anchor] element (section-relative px = viewport px while pinned). */
+const readAnchor = (name: string): Pt | null => {
+  const a = document.querySelector<HTMLElement>(`[data-anchor='${name}']`);
+  return a && a.style.left ? { x: parseFloat(a.style.left), y: parseFloat(a.style.top) } : null;
+};
+
 /**
- * Shared, fixed layer above every scene: the journey's flight path (dotted trail), the airplane and
- * the front cloud layer that passes in front of it. One system for the whole page — later scenes
- * extend this timeline instead of adding their own airplane.
+ * Shared, fixed layer above every scene — the one animation system for the whole journey:
+ * the flight trail, the airplane, the front clouds and the journey line. One scrubbed timeline
+ * (ScrollTrigger id "flight") with labels per chapter:
+ *   takeoff → cruise → descent → arrival (Malta) → onwards (towards Study, Step 6)
+ * Scenes contribute anchors ([data-anchor='takeoff'], [data-anchor='malta']) and pins (ids
+ * "travel", "malta"); this component turns them into one continuous flight.
  *
- * Must render AFTER <main> so its ScrollTriggers are created after the scenes' pins (correct order).
- * Hidden entirely for prefers-reduced-motion (the Travel scene shows a static airplane instead).
- * Add ?debug=overlay to the URL to outline the layers.
+ * Must render AFTER <main> so its ScrollTrigger is created after the scenes' pins (correct order).
+ * Hidden entirely for prefers-reduced-motion. Add ?debug=overlay to outline the layers.
  */
 export function JourneyOverlay() {
   const root = useRef<HTMLDivElement>(null);
@@ -28,44 +36,50 @@ export function JourneyOverlay() {
     () => {
       const el = root.current!;
       const svg = el.querySelector<SVGSVGElement>("[data-layer='flight-path']")!;
-      const guide = el.querySelector<SVGPathElement>(".trail-guide")!;
+      const guides = [...el.querySelectorAll<SVGPathElement>(".trail-guide")];
       const dots = el.querySelector<SVGPathElement>(".trail-dots")!;
+      const line = el.querySelector<SVGPathElement>(".trail-line")!;
+      const next = el.querySelector<SVGPathElement>(".journey-next")!;
       const reveal = el.querySelector<SVGPathElement>(".trail-reveal")!;
       const mask = el.querySelector<SVGMaskElement>("#trail-mask")!;
       const plane = el.querySelector<HTMLElement>(".journey-plane")!;
       const travel = document.getElementById("travel");
       if (!travel) return;
 
-      let len = 0;
-      // (Re)build the path for the current viewport; runs before every refresh.
+      // Lengths: total trail, cumulative end of each leg, and the onward journey line.
+      let total = 0;
+      let cum = [0, 0, 0];
+      let nextLen = 0;
+
+      // (Re)build every path for the current viewport; runs before every refresh.
       const build = () => {
         const w = window.innerWidth;
         const h = window.innerHeight;
-        const mobile = w < 768;
-        const a = document.querySelector<HTMLElement>("[data-anchor='takeoff']");
-        const anchor = a && a.style.left ? { x: parseFloat(a.style.left), y: parseFloat(a.style.top) } : null;
-        const d = mobile ? mobilePath(w, h) : desktopPath(w, h, anchor);
+        const g = w < 768 ? mobileFlight(w, h) : desktopFlight(w, h, readAnchor("takeoff"), readAnchor("malta"));
         svg.setAttribute("viewBox", `0 0 ${w} ${h}`);
-        for (const p of [guide, dots, reveal]) p.setAttribute("d", d);
+        for (const p of [dots, line, reveal]) p.setAttribute("d", g.full);
+        g.legs.forEach((d, i) => guides[i].setAttribute("d", d));
+        next.setAttribute("d", g.next ?? "M 0 0");
         mask.setAttribute("width", String(w));
         mask.setAttribute("height", String(h));
-        len = guide.getTotalLength();
-        reveal.style.strokeDasharray = `${len}`;
+        total = reveal.getTotalLength();
+        let acc = 0;
+        cum = guides.map((p) => (acc += p.getTotalLength()));
+        reveal.style.strokeDasharray = `${total}`;
+        nextLen = g.next ? next.getTotalLength() : 0;
+        next.style.strokeDasharray = `${nextLen}`;
       };
       build();
       ScrollTrigger.addEventListener("refreshInit", build);
 
-      /** Airplane + trail move to `end` (fraction of the path) over `dur`. */
-      const leg = (tl: gsap.core.Timeline, start: number, end: number, dur: number, at: number, extra: gsap.TweenVars) => {
-        tl.to(
-          plane,
-          {
-            motionPath: { path: guide, align: guide, alignOrigin: [0.5, 0.5], autoRotate: PLANE_NOSE_DEG, start, end },
-            duration: dur,
-            ...extra,
-          },
+      /** Airplane follows leg `i`; the trail reveals up to the end of that leg. */
+      const leg = (tl: gsap.core.Timeline, i: number, dur: number, at: number, extra: gsap.TweenVars, rotate = PLANE_NOSE_DEG) => {
+        tl.to(plane, { motionPath: { path: guides[i], align: guides[i], alignOrigin: [0.5, 0.5], autoRotate: rotate }, duration: dur, ...extra }, at).fromTo(
+          reveal,
+          { strokeDashoffset: () => total - (i ? cum[i - 1] : 0) },
+          { strokeDashoffset: () => total - cum[i], duration: dur },
           at,
-        ).fromTo(reveal, { strokeDashoffset: () => len * (1 - start) }, { strokeDashoffset: () => len * (1 - end), duration: dur }, at);
+        );
       };
 
       const mm = gsap.matchMedia();
@@ -76,15 +90,19 @@ export function JourneyOverlay() {
         },
         (ctx) => {
           const { desktop } = ctx.conditions as { desktop: boolean };
-          const { takeoff, cruise } = FLIGHT_PHASES;
-          // Scroll distances of each phase (in viewport heights) → timeline durations, so speed feels even.
-          // Phones (no pin): the whole flight happens in the first ~85% of the scene's scroll, so the airplane has
-          // left the screen before the copy scrolls up through its path.
-          const D = desktop ? { takeoff: 1, cruise: 1.6, descent: 0.7 } : { takeoff: 0.35, cruise: 0.3, descent: 0.2 };
-          const pin = ScrollTrigger.getById("travel");
+          const travelPin = ScrollTrigger.getById("travel");
+          const maltaPin = ScrollTrigger.getById("malta");
+          // Scroll distance of each phase in viewport heights → timeline durations (speed feels even).
+          //  desktop: takeoff = Travel scrolling in · cruise = Travel pin · descent = Malta scrolling in ·
+          //           arrival = Malta pin · onwards = Malta scrolling out.
+          //  phones (no pins): the whole flight fits in the Travel scene's first ~85% of scroll.
+          const D = desktop
+            ? { takeoff: 1, cruise: 1.6, descent: 1, arrival: 1.5, onwards: 1 }
+            : { takeoff: 0.35, cruise: 0.3, descent: 0.2, arrival: 0, onwards: 0 };
 
           gsap.set(plane, { autoAlpha: 0, scale: desktop ? 0.12 : 0.5 });
           gsap.set(".journey-front-clouds", { autoAlpha: 0 });
+          gsap.set(line, { autoAlpha: 0 });
 
           const tl = gsap.timeline({
             defaults: { ease: "none" },
@@ -92,8 +110,10 @@ export function JourneyOverlay() {
               id: "flight",
               trigger: travel,
               start: "top bottom",
-              // desktop: through the Travel pin, plus the descent while the next scene scrolls in
-              end: desktop && pin ? () => pin.end + window.innerHeight * D.descent : "bottom top",
+              end:
+                desktop && travelPin
+                  ? () => (maltaPin ? maltaPin.end : travelPin.end + window.innerHeight * D.descent) + window.innerHeight * D.onwards
+                  : "bottom top",
               scrub: desktop ? 1 : 0.5,
               invalidateOnRefresh: true,
             },
@@ -101,13 +121,18 @@ export function JourneyOverlay() {
 
           const t1 = D.takeoff;
           const t2 = t1 + D.cruise;
+          const t3 = t2 + D.descent;
+          const t4 = t3 + D.arrival;
+
+          // --- takeoff
           tl.addLabel("takeoff", 0)
             .to(plane, { autoAlpha: 1, duration: t1 * 0.15 }, 0)
             .to(".journey-trail", { autoAlpha: 1, duration: t1 * 0.2 }, 0);
-          leg(tl, 0, takeoff, t1, 0, { scale: desktop ? 0.7 : 0.85 });
+          leg(tl, 0, t1, 0, { scale: desktop ? 0.7 : 0.85 });
+
+          // --- cruise
           tl.addLabel("cruise", t1);
-          leg(tl, takeoff, cruise, D.cruise, t1, { scale: desktop ? 0.85 : 1 });
-          // front clouds drift past the airplane (fastest parallax layer)
+          leg(tl, 1, D.cruise, t1, { scale: desktop ? 0.85 : 1 });
           tl.fromTo(
             ".journey-front-clouds",
             { xPercent: desktop ? 35 : 20, yPercent: 10 },
@@ -115,16 +140,28 @@ export function JourneyOverlay() {
             t1,
           )
             .to(".journey-front-clouds", { autoAlpha: desktop ? 0.9 : 0.7, duration: D.cruise * 0.25 }, t1)
-            .to(".journey-front-clouds", { autoAlpha: 0, duration: D.descent * 0.6 }, t2 + D.descent * 0.4);
-          // descent towards Malta (Step 5 continues from the "descent" label)
+            .to(".journey-front-clouds", { autoAlpha: 0, duration: D.descent * 0.5 }, t2 + D.descent * 0.5);
+
+          // --- descent (desktop: onto the Valletta marker; phones: off the right edge)
           tl.addLabel("descent", t2);
-          leg(tl, cruise, 1, D.descent, t2, { scale: desktop ? 0.45 : 0.6 });
-          tl.to([plane, ".journey-trail"], { autoAlpha: 0, duration: D.descent * 0.3 }, t2 + D.descent * 0.7);
+          leg(tl, 2, D.descent, t2, { scale: desktop ? 0.42 : 0.6 }, desktop ? 6 : PLANE_NOSE_DEG);
+
           if (!desktop) {
-            // phones: clear the trail as soon as the descent starts (the copy scrolls up through it)
             tl.to(".journey-trail", { autoAlpha: 0, duration: D.descent * 0.5 }, t2);
+            tl.to(plane, { autoAlpha: 0, duration: D.descent * 0.3 }, t2 + D.descent * 0.7);
             tl.to({}, { duration: 0.15 }); // rest of the scroll: nothing on screen
+            return;
           }
+
+          // --- arrival (Malta pinned): touch down, the trail becomes the journey line, the line continues
+          tl.addLabel("arrival", t3)
+            .to(plane, { scale: 0.14, autoAlpha: 0, duration: D.arrival * 0.3, ease: "power1.in" }, t3)
+            .to(dots, { autoAlpha: 0, duration: D.arrival * 0.2 }, t3 + D.arrival * 0.25)
+            .to(line, { autoAlpha: 1, duration: D.arrival * 0.2 }, t3 + D.arrival * 0.25)
+            .fromTo(next, { strokeDashoffset: () => nextLen }, { strokeDashoffset: 0, duration: D.arrival * 0.45 }, t3 + D.arrival * 0.5);
+
+          // --- onwards (Malta scrolls out): the line travels up with the page; Step 6 picks it up
+          tl.addLabel("onwards", t4).fromTo(svg, { y: 0 }, { y: () => -window.innerHeight, duration: D.onwards }, t4);
         },
       );
 
@@ -138,23 +175,19 @@ export function JourneyOverlay() {
 
   return (
     <div ref={root} className="journey-overlay pointer-events-none fixed inset-0 z-30 overflow-hidden" aria-hidden data-layer="journey-overlay">
-      {/* Dotted trail, revealed behind the airplane (mask grows along the same path). */}
+      {/* Trail (dotted while flying, solid journey line after arrival), revealed behind the airplane. */}
       <svg data-layer="flight-path" className={`journey-trail absolute inset-0 h-full w-full opacity-0 ${outline}`}>
         <defs>
           <mask id="trail-mask" maskUnits="userSpaceOnUse" x="0" y="0" width="100%" height="100%">
             <path className="trail-reveal" fill="none" stroke="#fff" strokeWidth="14" strokeLinecap="round" />
           </mask>
         </defs>
-        <path
-          className="trail-dots"
-          fill="none"
-          stroke="rgba(255,255,255,.9)"
-          strokeWidth="3.5"
-          strokeLinecap="round"
-          strokeDasharray="0 13"
-          mask="url(#trail-mask)"
-        />
-        <path className="trail-guide" fill="none" stroke={debug ? "rgba(255,200,0,.5)" : "none"} />
+        <path className="trail-dots" fill="none" stroke="rgba(255,255,255,.9)" strokeWidth="3.5" strokeLinecap="round" strokeDasharray="0 13" mask="url(#trail-mask)" />
+        <path className="trail-line" fill="none" stroke="rgba(255,255,255,.85)" strokeWidth="2.5" strokeLinecap="round" mask="url(#trail-mask)" />
+        <path className="journey-next" fill="none" stroke="rgba(255,255,255,.85)" strokeWidth="2.5" strokeLinecap="round" />
+        {[0, 1, 2].map((i) => (
+          <path key={i} className="trail-guide" fill="none" stroke={debug ? "rgba(255,200,0,.6)" : "none"} />
+        ))}
       </svg>
 
       <div data-layer="airplane" className={`absolute inset-0 ${outline}`}>

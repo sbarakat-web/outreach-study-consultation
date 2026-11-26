@@ -59,16 +59,16 @@ export const CHAPTERS: Chapter[] = [
     },
   },
   {
+    // Rendered by malta/MaltaScene.tsx (arrival of the JourneyOverlay flight); kept here for the progress rail and order.
     id: "malta",
     label: "Malta",
     title: ["A Small Island.", "A World of Opportunities."],
-    text: "English-speaking, European and 300 days of sunshine a year.",
+    text: "Discover Malta, your destination for international education, new experiences and future opportunities.",
     align: "start",
     image: {
-      desktop: "/onlinesessions/discover-malta-real.webp",
-      posDesktop: "50% 50%",
-      posMobile: "38% 50%",
-      alt: "Valletta skyline and a traditional Maltese luzzu boat at sunset",
+      desktop: "/hero/malta-1600.webp",
+      mobile: "/hero/malta-mobile.webp",
+      alt: "Aerial view of Valletta and the Grand Harbour, Malta",
     },
   },
   {
