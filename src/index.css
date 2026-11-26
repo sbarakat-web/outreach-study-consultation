@@ -159,3 +159,47 @@ textarea {
   background-image: radial-gradient(rgba(255,255,255,.18) 1px, transparent 1px);
   background-size: 3px 3px;
 }
+
+/* ---- /hero · Dream scene */
+.hero-landing .dream-title {
+  font-size: clamp(2.6rem, 10vw, 6.75rem);
+  line-height: 0.98;
+  letter-spacing: -0.035em;
+  text-shadow: 0 2px 40px rgba(20, 18, 58, 0.35);
+}
+/* Phone: leave room for the scroll cue under the CTA. */
+@media (max-width: 767px) {
+  .hero-landing .dream .hero-scene-pad { padding-bottom: max(6.5rem, calc(env(safe-area-inset-bottom) + 5.5rem)); }
+}
+/* Each word is a mask so it can rise into view. */
+.hero-landing .dream-word {
+  display: inline-block;
+  overflow: hidden;
+  vertical-align: top;
+  padding-bottom: 0.08em;
+  margin-bottom: -0.08em;
+  margin-inline-end: 0.22em;
+}
+.hero-landing .dream-word > span { display: inline-block; }
+/* Phone: portrait photo, text low → scrim from the bottom. Larger: from the left (bright sky side). */
+.hero-landing .dream-scrim {
+  background: linear-gradient(to top, rgba(20,18,58,.92) 0%, rgba(20,18,58,.55) 45%, rgba(20,18,58,.05) 75%);
+}
+@media (min-width: 768px) {
+  .hero-landing .dream-scrim {
+    background:
+      linear-gradient(to right, rgba(20,18,58,.85) 0%, rgba(20,18,58,.55) 38%, rgba(20,18,58,0) 70%),
+      linear-gradient(to top, rgba(20,18,58,.35), rgba(20,18,58,0) 40%);
+  }
+}
+.hero-landing[dir="rtl"] .dream-scrim { transform: scaleX(-1); }
+/* Clouds are hidden until the scroll timeline brings them in (stay hidden for reduced motion). */
+.hero-landing .dream-clouds { opacity: 0; }
+@keyframes dream-scroll-dot {
+  0% { transform: translateY(-100%); }
+  100% { transform: translateY(350%); }
+}
+.hero-landing .dream-scroll-dot { animation: dream-scroll-dot 1.8s cubic-bezier(.6,0,.4,1) infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .hero-landing .dream-scroll-dot { animation: none; transform: translateY(120%); }
+}

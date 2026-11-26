@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { CHAPTERS } from "./chapters";
 import { Scene } from "./Scene";
+import { DreamScene } from "./dream/DreamScene";
 import { HeroHeader } from "./HeroHeader";
 import { JourneyOverlay } from "./JourneyOverlay";
 import { JourneyProgress } from "./JourneyProgress";
@@ -28,9 +29,13 @@ export function HeroLanding() {
       <JourneyProgress chapters={CHAPTERS} />
       <JourneyOverlay />
       <main>
-        {CHAPTERS.map((c, i) => (
-          <Scene key={c.id} chapter={c} index={i} total={CHAPTERS.length} />
-        ))}
+        {CHAPTERS.map((c, i) =>
+          c.id === "dream" ? (
+            <DreamScene key={c.id} total={CHAPTERS.length} />
+          ) : (
+            <Scene key={c.id} chapter={c} index={i} total={CHAPTERS.length} />
+          ),
+        )}
       </main>
     </div>
   );

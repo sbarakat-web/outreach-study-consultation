@@ -33,14 +33,16 @@ export interface Chapter {
 
 export const CHAPTERS: Chapter[] = [
   {
+    // Rendered by dream/DreamScene.tsx (animated hero); kept here for the progress rail and order.
     id: "dream",
     label: "Dream",
     title: ["Every Great Future", "Starts with a Dream."],
-    text: "It begins with a question: what if?",
+    text: "Your journey to an international education and career begins in Malta.",
     align: "start",
-    placeholder: {
-      brief: "Young student at a window at golden hour, looking out, thinking about the future",
-      tint: "from-[#1d1a52] via-[#3a2a7a] to-[#c9704a]",
+    image: {
+      desktop: "/hero/dream-1600.webp",
+      mobile: "/hero/dream-mobile.webp",
+      alt: "Young international student with luggage in an airport terminal, looking at a passenger airplane",
     },
   },
   {
