@@ -163,7 +163,8 @@ textarea {
 /* ---- /hero · Dream scene */
 .hero-landing .dream-title,
 .hero-landing .travel-title,
-.hero-landing .malta-title {
+.hero-landing .malta-title,
+.hero-landing .study-title {
   font-size: clamp(2.6rem, 10vw, 6.75rem);
   line-height: 0.98;
   letter-spacing: -0.035em;
@@ -176,7 +177,8 @@ textarea {
 /* Each word is a mask so it can rise into view. */
 .hero-landing .dream-word,
 .hero-landing .travel-word,
-.hero-landing .malta-word {
+.hero-landing .malta-word,
+.hero-landing .study-word {
   display: inline-block;
   overflow: hidden;
   vertical-align: top;
@@ -186,7 +188,8 @@ textarea {
 }
 .hero-landing .dream-word > span,
 .hero-landing .travel-word > span,
-.hero-landing .malta-word > span { display: inline-block; }
+.hero-landing .malta-word > span,
+.hero-landing .study-word > span { display: inline-block; }
 /* Phone: portrait photo, text low → scrim from the bottom. Larger: from the left (bright sky side). */
 .hero-landing .dream-scrim {
   background: linear-gradient(to top, rgba(20,18,58,.92) 0%, rgba(20,18,58,.55) 45%, rgba(20,18,58,.05) 75%);
@@ -277,4 +280,27 @@ textarea {
   .hero-landing .malta-welcome { display: none; }
   .hero-landing .malta-scrim { opacity: 1; }
   .hero-landing .malta-pulse { animation: none; }
+}
+
+/* ---- /hero · Study scene */
+.hero-landing .study-scrim {
+  background: linear-gradient(to top, rgba(20,18,58,.88) 0%, rgba(20,18,58,.45) 40%, rgba(20,18,58,.05) 70%);
+}
+@media (min-width: 768px) {
+  .hero-landing .study-scrim {
+    background:
+      linear-gradient(to right, rgba(20,18,58,.75) 0%, rgba(20,18,58,.35) 40%, rgba(20,18,58,0) 62%),
+      linear-gradient(to top, rgba(20,18,58,.55) 0%, rgba(20,18,58,0) 45%);
+  }
+}
+.hero-landing[dir="rtl"] .study-scrim { transform: scaleX(-1); }
+.hero-landing .prog-btn .prog-name { transition: transform .35s cubic-bezier(.2,.7,.2,1); }
+.hero-landing .prog-btn:hover .prog-name,
+.hero-landing .prog-btn[aria-pressed="true"] .prog-name { transform: translateX(6px); }
+.hero-landing[dir="rtl"] .prog-btn:hover .prog-name,
+.hero-landing[dir="rtl"] .prog-btn[aria-pressed="true"] .prog-name { transform: translateX(-6px); }
+.hero-landing .prog-btn:focus-visible,
+.hero-landing .prog-acc + * :focus-visible { outline: 2px solid #fff; outline-offset: 4px; border-radius: 6px; }
+@media (prefers-reduced-motion: reduce) {
+  .hero-landing .prog-btn .prog-name { transition: none; }
 }

@@ -72,17 +72,16 @@ export const CHAPTERS: Chapter[] = [
     },
   },
   {
+    // Rendered by study/StudyScene.tsx (photo + programmes); kept here for the progress rail and order.
     id: "study",
     label: "Study",
     title: ["Learn Today.", "Lead Tomorrow."],
-    text: "Accredited English and higher-education programmes at Malta's leading schools.",
-    align: "end",
+    text: "Discover international education, develop your skills and prepare for your future career.",
+    align: "start",
     image: {
-      desktop: "/partners/kensington-campus.jpg",
-      mobile: "/partners/gbs-campus.jpg",
-      posDesktop: "50% 40%",
-      posMobile: "50% 30%",
-      alt: "Students working together on laptops",
+      desktop: "/hero/study-1408.webp",
+      mobile: "/hero/study-mobile.webp",
+      alt: "International student studying on a laptop in a bright university library",
     },
   },
   {
