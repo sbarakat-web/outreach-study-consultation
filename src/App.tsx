@@ -17,7 +17,7 @@ const EmailPreferences = lazy(() => import("./pages/EmailPreferences").then((m) 
 const ConfirmCall = lazy(() => import("./pages/ConfirmCall").then((m) => ({ default: m.ConfirmCall })));
 const OnlineSessions = lazy(() => import("./pages/sessions/OnlineSessions").then((m) => ({ default: m.OnlineSessions })));
 const PresenterLogin = lazy(() => import("./pages/PresenterLogin").then((m) => ({ default: m.PresenterLogin })));
-const Hero = lazy(() => import("./pages/Hero").then((m) => ({ default: m.Hero })));
+const HeroLanding = lazy(() => import("./pages/hero/HeroLanding").then((m) => ({ default: m.HeroLanding })));
 const AdminLayout = lazy(() => import("./pages/admin/AdminLayout").then((m) => ({ default: m.AdminLayout })));
 const Requests = lazy(() => import("./pages/admin/Requests").then((m) => ({ default: m.Requests })));
 const CalendarPage = lazy(() => import("./pages/admin/CalendarPage").then((m) => ({ default: m.CalendarPage })));
@@ -47,10 +47,11 @@ export function App() {
         <Suspense fallback={<Spinner />}>
         <Routes>
           <Route path="onlinesessions" element={<OnlineSessions />} />
+          {/* Cinematic Study in Malta landing (in development): full-bleed, outside Layout. */}
+          <Route path="hero" element={<HeroLanding />} />
           <Route element={<Layout />}>
             <Route index element={<Apply />} />
             <Route path="login" element={<Login />} />
-            <Route path="hero" element={<Hero />} />
             {/* Nikolai's personal one-click link (/loginnikki#k=…): no email, no code; stays signed in. */}
             <Route path="loginnikki" element={<PresenterLogin email="ncalleja@outreachrecruitment.net" name="Nikolai" />} />
             <Route path="reset-password" element={<ResetPassword />} />
