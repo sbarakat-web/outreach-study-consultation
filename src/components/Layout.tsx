@@ -1,5 +1,6 @@
+import { useEffect, useRef, useState } from "react";
 import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
-import { Globe, Languages, LogOut, MessageCircle } from "lucide-react";
+import { Check, ChevronDown, Globe, Languages, LogOut, MessageCircle } from "lucide-react";
 import { AdminSearch } from "./AdminSearch";
 import { useAuth } from "../lib/auth";
 import { waLink, whatsappNumber } from "../lib/options";
@@ -11,8 +12,20 @@ export function Layout() {
   const { session, isAdmin, signOut } = useAuth();
   const navigate = useNavigate();
   const { lang, setLang, t } = useI18n();
+  const [languageOpen, setLanguageOpen] = useState(false);
+  const languageMenuRef = useRef<HTMLDivElement>(null);
+  const activeLanguage = LANGS.find((language) => language.code === lang) ?? LANGS[0];
   // Inside the signed-in app (dashboard/admin): no footer, tab bar on phones.
   const inApp = /^\/(dashboard|admin)(\/|$)/.test(useLocation().pathname);
+
+  useEffect(() => {
+    if (!languageOpen) return;
+    const closeMenu = (event: MouseEvent) => {
+      if (!languageMenuRef.current?.contains(event.target as Node)) setLanguageOpen(false);
+    };
+    document.addEventListener("mousedown", closeMenu);
+    return () => document.removeEventListener("mousedown", closeMenu);
+  }, [languageOpen]);
 
   const navClass = ({ isActive }: { isActive: boolean }) =>
     `rounded-full px-4 py-2 text-sm font-bold transition ${isActive ? "bg-brand text-white shadow-sm" : "text-navy hover:bg-brand/5"}`;
@@ -30,22 +43,51 @@ export function Layout() {
           {inApp && isAdmin && <AdminSearch />}
           <nav className="flex items-center gap-1">
             {!isAdmin && (
-              <label className="relative inline-flex min-h-10 items-center rounded-full px-2 text-sm font-bold text-slate-600 transition hover:bg-brand/5">
-                <Languages aria-hidden className="h-4 w-4 shrink-0" />
-                <span className="sr-only">{t("nav.language")}</span>
-                <select
-                  aria-label={t("nav.language")}
-                  value={lang}
-                  onChange={(event) => setLang(event.target.value as Lang)}
-                  className="max-w-[6.5rem] cursor-pointer appearance-none bg-transparent ps-1.5 pe-1 text-sm font-bold text-navy outline-none sm:max-w-none"
+              <div ref={languageMenuRef} className="relative">
+                <button
+                  type="button"
+                  aria-label={`${t("nav.language")}: ${activeLanguage.label}`}
+                  aria-haspopup="menu"
+                  aria-expanded={languageOpen}
+                  onClick={() => setLanguageOpen((open) => !open)}
+                  className="group inline-flex h-10 items-center gap-2 rounded-full border border-slate-200 bg-white px-2.5 text-sm font-bold text-navy shadow-sm transition hover:border-brand/30 hover:bg-brand/[0.03] hover:shadow md:px-3"
                 >
-                  {LANGS.map((language) => (
-                    <option key={language.code} value={language.code}>
-                      {language.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
+                  <span aria-hidden className="text-xl leading-none">{activeLanguage.flag}</span>
+                  <span className="hidden sm:inline">{activeLanguage.label}</span>
+                  <ChevronDown aria-hidden className={`h-3.5 w-3.5 text-slate-400 transition-transform ${languageOpen ? "rotate-180" : ""}`} />
+                </button>
+
+                {languageOpen && (
+                  <div
+                    role="menu"
+                    aria-label={t("nav.language")}
+                    className="absolute end-0 top-[calc(100%+0.5rem)] z-50 w-48 overflow-hidden rounded-2xl border border-slate-200 bg-white p-1.5 shadow-[0_18px_45px_rgba(20,18,58,0.16)]"
+                  >
+                    <div className="flex items-center gap-2 px-3 pb-2 pt-1.5 text-[10px] font-extrabold uppercase tracking-[0.16em] text-slate-400">
+                      <Languages aria-hidden className="h-3.5 w-3.5" /> {t("nav.language")}
+                    </div>
+                    {LANGS.map((language) => (
+                      <button
+                        type="button"
+                        role="menuitemradio"
+                        aria-checked={language.code === lang}
+                        key={language.code}
+                        onClick={() => {
+                          setLang(language.code as Lang);
+                          setLanguageOpen(false);
+                        }}
+                        className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-start text-sm font-bold transition ${
+                          language.code === lang ? "bg-brand/10 text-brand" : "text-navy hover:bg-slate-50"
+                        }`}
+                      >
+                        <span aria-hidden className="text-xl leading-none">{language.flag}</span>
+                        <span className="flex-1">{language.label}</span>
+                        {language.code === lang && <Check aria-hidden className="h-4 w-4" />}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
             )}
             {session ? (
               <>

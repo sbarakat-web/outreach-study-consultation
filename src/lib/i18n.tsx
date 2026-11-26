@@ -3,11 +3,11 @@ import { createContext, useCallback, useContext, useEffect, useState, type React
 // Candidate-facing translations. The admin area stays in English.
 export type Lang = "en" | "fr" | "es" | "ar";
 
-export const LANGS: { code: Lang; label: string }[] = [
-  { code: "en", label: "English" },
-  { code: "fr", label: "Français" },
-  { code: "es", label: "Español" },
-  { code: "ar", label: "العربية" },
+export const LANGS: { code: Lang; label: string; flag: string }[] = [
+  { code: "en", label: "English", flag: "🇬🇧" },
+  { code: "fr", label: "Français", flag: "🇫🇷" },
+  { code: "es", label: "Español", flag: "🇪🇸" },
+  { code: "ar", label: "العربية", flag: "🇸🇦" },
 ];
 
 const en = {
