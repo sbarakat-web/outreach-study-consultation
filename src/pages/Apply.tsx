@@ -8,7 +8,7 @@ import { getTracking } from "../lib/tracking";
 import { CountryPicker } from "../components/CountryPicker";
 import { countriesFor, countryByCode, detectCountry, fetchGeoCountry } from "../lib/countries";
 import { parseCourseParam, parsePathParam } from "../lib/options";
-import { AREAS, ENGLISH_COURSES, ONLINE_ENGLISH, ONLINE_ENGLISH_COURSE, activeOffer, PARTNERS, PROGRAMMES, findBestMatch, programmeValue, type Level } from "./sessions/data";
+import { AREAS, ENGLISH_COURSES, ONLINE_ENGLISH, ONLINE_ENGLISH_COURSE, activeOffer, PARTNERS, PROGRAMMES, findBestMatch, type Level } from "./sessions/data";
 import { Alert, Button, Card } from "../components/ui";
 import { EmailCode } from "../components/EmailCode";
 import { useI18n } from "../lib/i18n";
@@ -46,7 +46,15 @@ const ACADEMIC_OPTIONS = [
   { value: "bachelor", legacyValue: "Bachelor's programmes", label: "apply.bachelor" },
   { value: "master", legacyValue: "Master's programmes", label: "apply.master" },
 ] as const;
-const PROGRAMME_VALUES = new Set(PROGRAMMES.map(programmeValue));
+const ACADEMIC_FIELDS = [
+  { key: "business", value: "Business Administration", label: "Business and Management" },
+  { key: "tourism", value: "Tourism & Hospitality", label: "Tourism and Hospitality" },
+  { key: "accountancy", value: "Accountancy & Finance", label: "Accounting and Finance" },
+  { key: "it", value: "Information Technology", label: "Information Technology" },
+  { key: "health", value: "Health & Social Care", label: "Health and Social Care" },
+  { key: "logistics", value: "Logistics", label: "Logistics and Supply Chain" },
+] as const;
+const ACADEMIC_FIELD_VALUES = new Set<string>(ACADEMIC_FIELDS.map((field) => field.value));
 const ENGLISH_COURSE_VALUES = new Set<string>(ENGLISH_OPTIONS.map((option) => option.value));
 const academicLevelFromLegacyValue = (value: string) => ACADEMIC_OPTIONS.find((option) => option.legacyValue === value)?.value ?? "";
 function loadDraft(): Partial<Draft> {
@@ -87,10 +95,14 @@ function initialDraft(): Draft {
     d.stage = "form";
     const linkedLevel: Level | undefined = rawPath === "diploma" || rawPath === "bachelor" || rawPath === "master" ? rawPath : linkedProgramme?.level;
     d.academicLevel = path === "higher_education" ? linkedLevel ?? d.academicLevel : "";
-    d.course = path === "english" ? MALTA_ENGLISH_COURSE : linkedProgramme ? programmeValue(linkedProgramme) : "";
+    d.course = path === "english" ? MALTA_ENGLISH_COURSE : linkedProgramme ? AREAS.find((area) => area.key === linkedProgramme.area)?.name ?? "" : "";
   }
-  if (d.path === "higher_education" && !PROGRAMME_VALUES.has(d.course)) {
-    d.course = "";
+  if (d.path === "higher_education" && !ACADEMIC_FIELD_VALUES.has(d.course)) {
+    const savedProgramme = findBestMatch(d.course);
+    if (savedProgramme) {
+      d.academicLevel ||= savedProgramme.level;
+      d.course = AREAS.find((area) => area.key === savedProgramme.area)?.name ?? "";
+    } else d.course = "";
     if (!d.academicLevel && !path) d.stage = "choose";
   }
   if (d.path === "english" && !ENGLISH_COURSE_VALUES.has(d.course)) d.course = MALTA_ENGLISH_COURSE;
@@ -111,11 +123,13 @@ export function Apply() {
   const [submitting, setSubmitting] = useState(false);
   const geoDone = useRef(false);
   const countryIneligible = INELIGIBLE_COUNTRIES.has(d.country);
-  const academicProgrammes = d.academicLevel ? PROGRAMMES.filter((programme) => programme.level === d.academicLevel) : [];
+  const academicFields = d.academicLevel
+    ? ACADEMIC_FIELDS.filter((field) => PROGRAMMES.some((programme) => programme.level === d.academicLevel && programme.area === field.key))
+    : [];
   const selectedCourseLabel = d.path === "english"
     ? t(ENGLISH_OPTIONS.find((option) => option.value === d.course)?.label ?? "apply.englishMalta")
     : d.course
-      ? findBestMatch(d.course)?.course ?? d.course
+      ? ACADEMIC_FIELDS.find((field) => field.value === d.course)?.label ?? d.course
       : t(ACADEMIC_OPTIONS.find((option) => option.value === d.academicLevel)?.label ?? "apply.diploma");
 
   const set = <K extends keyof Draft>(k: K, v: Draft[K]) => setD((x) => ({ ...x, [k]: v }));
@@ -370,9 +384,9 @@ export function Apply() {
                             {t(option.label)}
                           </option>
                         ))
-                      : academicProgrammes.map((programme) => (
-                          <option key={programme.id} value={programmeValue(programme)}>
-                            {programme.course} — {programme.school}
+                      : academicFields.map((field) => (
+                          <option key={field.key} value={field.value}>
+                            {field.label}
                           </option>
                         ))}
                   </select>
