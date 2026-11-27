@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { ArrowRight, ChevronDown, Sparkles } from "lucide-react";
+import { ArrowRight, ChevronDown } from "lucide-react";
 import { HERO_PROGRAMMES, levelLabel, type HeroProgramme } from "./programmes";
 
 /**
@@ -86,39 +86,13 @@ function Details({ p, compact }: { p: HeroProgramme; compact?: boolean }) {
         <div className="relative mb-6 aspect-[21/9] overflow-hidden rounded-2xl">
           <img src={p.campus.src} alt={p.campus.alt} loading="lazy" decoding="async" className="h-full w-full object-cover transition-transform duration-700 hover:scale-[1.04]" />
           <div className="absolute inset-0 bg-gradient-to-t from-navy/70 via-transparent to-transparent" />
-          <p className="absolute bottom-3 start-4 text-xs font-bold uppercase tracking-[0.25em] text-white/90">{p.schools.join(" · ")}</p>
         </div>
       )}
 
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        {p.fromFee && (
-          <p>
-            <span className="block text-xs font-bold uppercase tracking-[0.25em] text-white/50">From</span>
-            <span className="block text-4xl font-extrabold text-white sm:text-5xl">{p.fromFee}</span>
-            <span className="block text-sm text-white/60">{p.feeNote}</span>
-          </p>
-        )}
-        {p.scholarship && (
-          <p className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1.5 text-xs font-semibold text-white">
-            <Sparkles className="h-3.5 w-3.5 text-amber-200" aria-hidden /> Scholarships available on some programmes
-          </p>
-        )}
-      </div>
-
-      <dl className="mt-6 grid grid-cols-1 gap-x-8 text-sm sm:grid-cols-2">
-        <Fact label="Duration" value={p.durations} />
-        <Fact label="Qualifications" value={p.qualifications.join(", ")} />
-        <Fact label={p.schools.length > 1 ? "Schools" : "School"} value={p.schools.join(", ")} />
-        <Fact label="Intakes" value="Confirmed by your adviser and the school" />
-      </dl>
-
-      <ul className="mt-6 space-y-3">
+      <ul className={compact ? "space-y-3" : "mt-6 space-y-3"} aria-label={`${p.name} courses`}>
         {p.examples.slice(0, compact ? 3 : 4).map((e) => (
           <li key={e.course + e.school} className="prog-example border-s-2 border-brand/70 ps-4">
             <p className="font-bold leading-snug text-white">{e.course}</p>
-            <p className="text-xs leading-relaxed text-white/60 sm:text-sm">
-              {e.school} · {e.qualification} · {e.duration} · <span className="text-white/85">{e.fees}</span>
-            </p>
           </li>
         ))}
       </ul>
@@ -131,17 +105,7 @@ function Details({ p, compact }: { p: HeroProgramme; compact?: boolean }) {
           Discover Your Programme
           <ArrowRight className="h-5 w-5 transition group-hover:translate-x-1 rtl:rotate-180" aria-hidden />
         </Link>
-        <p className="text-xs leading-relaxed text-white/45">Fees are guidance and are reconfirmed by the school before enrolment.</p>
       </div>
-    </div>
-  );
-}
-
-function Fact({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="border-t border-white/10 py-3">
-      <dt className="text-[11px] font-bold uppercase tracking-[0.2em] text-white/45">{label}</dt>
-      <dd className="mt-1 text-white/90">{value}</dd>
     </div>
   );
 }
