@@ -98,14 +98,16 @@ export const CHAPTERS: Chapter[] = [
     },
   },
   {
+    // Rendered by career/CareerScene.tsx; kept here for the progress rail and order.
     id: "career",
     label: "Career",
     title: ["Your Journey Doesn't End Here.", "It Begins."],
-    text: "Work while you study, build experience and open doors across Europe.",
-    align: "end",
-    placeholder: {
-      brief: "Young professional in a bright modern office or on a rooftop with the city skyline",
-      tint: "from-[#0f1030] via-[#24306e] to-[#6fa0d8]",
+    text: "Turn your education into ambition, opportunity and a brighter professional future.",
+    align: "start",
+    image: {
+      desktop: "/hero/career-1680.webp",
+      mobile: "/hero/career-mobile.webp",
+      alt: "Young international professionals collaborating in a modern Malta workplace",
     },
   },
   {

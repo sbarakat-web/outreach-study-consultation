@@ -346,3 +346,41 @@ textarea {
   .hero-landing .grad-cap { opacity: 1; left: 48%; top: 14%; transform: rotate(-12deg); }
   .hero-landing .grad-shine { display: none; }
 }
+
+/* ---- /hero · Career scene */
+.hero-landing .career-title {
+  font-size: clamp(2.35rem, 4.55vw, 4.7rem);
+  line-height: .98;
+  letter-spacing: -.04em;
+  text-shadow: 0 2px 40px rgba(20,18,58,.48);
+}
+.hero-landing .career-word {
+  display: inline-block;
+  overflow: hidden;
+  vertical-align: top;
+  padding-bottom: .08em;
+  margin-bottom: -.08em;
+  margin-inline-end: .2em;
+}
+.hero-landing .career-word > span { display: inline-block; }
+.hero-landing .career-scrim {
+  background: linear-gradient(to top, rgba(20,18,58,.96) 0%, rgba(20,18,58,.54) 52%, rgba(20,18,58,.08) 82%);
+}
+.hero-landing .career-cap { filter: drop-shadow(0 18px 24px rgba(20,18,58,.35)); }
+@media (min-width: 768px) {
+  .hero-landing .career-scrim {
+    background:
+      linear-gradient(to right, rgba(20,18,58,.9) 0%, rgba(20,18,58,.54) 42%, rgba(20,18,58,.08) 72%),
+      linear-gradient(to top, rgba(20,18,58,.7) 0%, rgba(20,18,58,0) 55%);
+  }
+}
+.hero-landing[dir="rtl"] .career-scrim { transform: scaleX(-1); }
+@media (max-width: 767px) {
+  .hero-landing .career-stage { min-height: auto; padding-bottom: 4rem; }
+  .hero-landing .career-layout { min-height: 100svh; padding-top: 8.5rem; }
+  .hero-landing .career-pathway { min-height: 4.75rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hero-landing .career-cap { display: none; }
+  .hero-landing .career-next { opacity: 1; }
+}
