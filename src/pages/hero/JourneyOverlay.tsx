@@ -43,7 +43,8 @@ export function JourneyOverlay() {
       const mask = el.querySelector<SVGMaskElement>("#trail-mask")!;
       const plane = el.querySelector<HTMLElement>(".journey-plane")!;
       const travel = document.getElementById("travel");
-      if (!travel) return;
+      const malta = document.getElementById("malta");
+      if (!travel || !malta) return;
 
       // Lengths: total trail, cumulative end of each leg, and the onward journey line.
       let total = 0;
@@ -105,7 +106,9 @@ export function JourneyOverlay() {
             scrollTrigger: {
               id: "flight",
               trigger: travel,
-              endTrigger: desktop ? undefined : "#malta",
+              // Use the element, not a selector string: this GSAP context is scoped to the fixed
+              // overlay, while #malta lives outside it in <main>.
+              endTrigger: desktop ? undefined : malta,
               start: "top bottom",
               end:
                 desktop && travelPin
