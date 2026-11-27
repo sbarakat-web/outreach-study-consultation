@@ -8,7 +8,7 @@ import { getTracking } from "../lib/tracking";
 import { CountryPicker } from "../components/CountryPicker";
 import { countriesFor, countryByCode, detectCountry, fetchGeoCountry } from "../lib/countries";
 import { parseCourseParam, parsePathParam } from "../lib/options";
-import { AREAS, ENGLISH_COURSES, ONLINE_ENGLISH, ONLINE_ENGLISH_COURSE, activeOffer, PARTNERS, PROGRAMMES, findBestMatch, type Programme } from "./sessions/data";
+import { AREAS, ENGLISH_COURSES, ONLINE_ENGLISH, ONLINE_ENGLISH_COURSE, activeOffer, PARTNERS, PROGRAMMES, findBestMatch, programmeValue, type Level } from "./sessions/data";
 import { Alert, Button, Card } from "../components/ui";
 import { EmailCode } from "../components/EmailCode";
 import { useI18n } from "../lib/i18n";
@@ -25,6 +25,7 @@ interface Draft {
   country: string;
   dialCountry: string;
   phone: string;
+  academicLevel: Level | "";
   course: string;
   start: string;
   notes: string;
@@ -33,7 +34,7 @@ interface Draft {
 
 const DRAFT_KEY = "apply_draft_v1";
 const INELIGIBLE_COUNTRIES = new Set(["PK"]);
-// The first step chooses a route and delivery/academic level; the adviser confirms the exact course later.
+// The first step chooses a route and academic category; the form then shows its real courses.
 const onlineOfferOn = ONLINE_ENGLISH.some((p) => !!activeOffer(p));
 const MALTA_ENGLISH_COURSE = "English Language Course in Malta";
 const ENGLISH_OPTIONS = [
@@ -41,13 +42,13 @@ const ENGLISH_OPTIONS = [
   { value: ONLINE_ENGLISH_COURSE, label: "apply.englishOnline" },
 ] as const;
 const ACADEMIC_OPTIONS = [
-  { value: "Diploma programmes", label: "apply.diploma" },
-  { value: "Bachelor's programmes", label: "apply.bachelor" },
-  { value: "Master's programmes", label: "apply.master" },
+  { value: "diploma", legacyValue: "Diploma programmes", label: "apply.diploma" },
+  { value: "bachelor", legacyValue: "Bachelor's programmes", label: "apply.bachelor" },
+  { value: "master", legacyValue: "Master's programmes", label: "apply.master" },
 ] as const;
-const PROGRAMME_VALUES = new Set<string>(ACADEMIC_OPTIONS.map((option) => option.value));
+const PROGRAMME_VALUES = new Set(PROGRAMMES.map(programmeValue));
 const ENGLISH_COURSE_VALUES = new Set<string>(ENGLISH_OPTIONS.map((option) => option.value));
-const levelTitle = (programme: Programme) => ACADEMIC_OPTIONS.find((option) => option.value.toLowerCase().startsWith(programme.level))?.value;
+const academicLevelFromLegacyValue = (value: string) => ACADEMIC_OPTIONS.find((option) => option.legacyValue === value)?.value ?? "";
 function loadDraft(): Partial<Draft> {
   try {
     return JSON.parse(localStorage.getItem(DRAFT_KEY) ?? "{}");
@@ -68,6 +69,7 @@ function initialDraft(): Draft {
     country,
     dialCountry: saved.dialCountry ?? country,
     phone: saved.phone ?? "",
+    academicLevel: saved.academicLevel ?? academicLevelFromLegacyValue(saved.course ?? ""),
     course: saved.course ?? "",
     start: saved.start ?? "",
     notes: saved.notes ?? "",
@@ -83,12 +85,13 @@ function initialDraft(): Draft {
     const linkedProgramme = findBestMatch(course);
     d.path = path;
     d.stage = "form";
-    const linkedLevel = rawPath === "diploma" ? ACADEMIC_OPTIONS[0].value : rawPath === "bachelor" ? ACADEMIC_OPTIONS[1].value : rawPath === "master" ? ACADEMIC_OPTIONS[2].value : undefined;
-    d.course = path === "english" ? MALTA_ENGLISH_COURSE : linkedLevel ?? (linkedProgramme ? levelTitle(linkedProgramme) : d.course) ?? "";
+    const linkedLevel: Level | undefined = rawPath === "diploma" || rawPath === "bachelor" || rawPath === "master" ? rawPath : linkedProgramme?.level;
+    d.academicLevel = path === "higher_education" ? linkedLevel ?? d.academicLevel : "";
+    d.course = path === "english" ? MALTA_ENGLISH_COURSE : linkedProgramme ? programmeValue(linkedProgramme) : "";
   }
   if (d.path === "higher_education" && !PROGRAMME_VALUES.has(d.course)) {
     d.course = "";
-    if (!path) d.stage = "choose";
+    if (!d.academicLevel && !path) d.stage = "choose";
   }
   if (d.path === "english" && !ENGLISH_COURSE_VALUES.has(d.course)) d.course = MALTA_ENGLISH_COURSE;
   return d;
@@ -108,9 +111,12 @@ export function Apply() {
   const [submitting, setSubmitting] = useState(false);
   const geoDone = useRef(false);
   const countryIneligible = INELIGIBLE_COUNTRIES.has(d.country);
+  const academicProgrammes = d.academicLevel ? PROGRAMMES.filter((programme) => programme.level === d.academicLevel) : [];
   const selectedCourseLabel = d.path === "english"
     ? t(ENGLISH_OPTIONS.find((option) => option.value === d.course)?.label ?? "apply.englishMalta")
-    : t(ACADEMIC_OPTIONS.find((option) => option.value === d.course)?.label ?? "apply.diploma");
+    : d.course
+      ? findBestMatch(d.course)?.course ?? d.course
+      : t(ACADEMIC_OPTIONS.find((option) => option.value === d.academicLevel)?.label ?? "apply.diploma");
 
   const set = <K extends keyof Draft>(k: K, v: Draft[K]) => setD((x) => ({ ...x, [k]: v }));
 
@@ -156,8 +162,14 @@ export function Apply() {
     setD((x) => ({
       ...x,
       path,
-      course: course ?? (path === "english" ? MALTA_ENGLISH_COURSE : PROGRAMME_VALUES.has(x.course) ? x.course : ""),
+      academicLevel: path === "english" ? "" : x.academicLevel,
+      course: course ?? (path === "english" ? MALTA_ENGLISH_COURSE : ""),
     }));
+    go("form");
+  };
+
+  const chooseAcademic = (academicLevel: Level) => {
+    setD((x) => ({ ...x, path: "higher_education", academicLevel, course: "" }));
     go("form");
   };
 
@@ -276,7 +288,7 @@ export function Apply() {
                 </PathPanel>
                 <PathPanel icon={<GraduationCap className="h-6 w-6" />} title={t("apply.academicPathTitle")} text={t("apply.academicPathText")} accent="violet">
                   {ACADEMIC_OPTIONS.map((option) => (
-                    <PathChoice key={option.value} title={t(option.label)} onClick={() => choose("higher_education", option.value)} />
+                    <PathChoice key={option.value} title={t(option.label)} onClick={() => chooseAcademic(option.value)} />
                   ))}
                 </PathPanel>
               </div>
@@ -358,9 +370,9 @@ export function Apply() {
                             {t(option.label)}
                           </option>
                         ))
-                      : ACADEMIC_OPTIONS.map((option) => (
-                          <option key={option.value} value={option.value}>
-                            {t(option.label)}
+                      : academicProgrammes.map((programme) => (
+                          <option key={programme.id} value={programmeValue(programme)}>
+                            {programme.course} — {programme.school}
                           </option>
                         ))}
                   </select>
