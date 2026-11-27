@@ -78,13 +78,13 @@ export function DreamScene({ total }: { total: number }) {
           // --- Entrance (time-based, plays once on load) ---
           gsap
             .timeline({ defaults: { ease: "power3.out" } })
-            .from(".dream-bg", { autoAlpha: 0, duration: 1.4, ease: "power1.out" }, 0)
-            .from(".dream-bg", { scale: desktop ? 1.14 : 1.06, duration: desktop ? 3 : 2, ease: "power2.out" }, 0)
-            .from(".dream-eyebrow", { autoAlpha: 0, y: 16, duration: 0.7 }, 0.45)
-            .from(".dream-word > span", { yPercent: 110, duration: desktop ? 1.1 : 0.8, stagger: 0.07 }, 0.55)
-            .from(".dream-sub", { autoAlpha: 0, y: 24, duration: 0.8 }, desktop ? 1.25 : 1)
-            .from(".dream-cta", { autoAlpha: 0, y: 24, duration: 0.8 }, desktop ? 1.4 : 1.1)
-            .from(".dream-scroll", { autoAlpha: 0, duration: 0.8 }, desktop ? 1.9 : 1.5);
+            .from(".dream-bg", { autoAlpha: 0, duration: desktop ? 1.4 : 0.45, ease: "power1.out" }, 0)
+            .from(".dream-bg", { scale: desktop ? 1.14 : 1.04, duration: desktop ? 3 : 0.8, ease: "power2.out" }, 0)
+            .from(".dream-eyebrow", { autoAlpha: 0, y: desktop ? 16 : 10, duration: desktop ? 0.7 : 0.3 }, desktop ? 0.45 : 0.08)
+            .from(".dream-word > span", { yPercent: 110, duration: desktop ? 1.1 : 0.4, stagger: desktop ? 0.07 : 0.035 }, desktop ? 0.55 : 0.1)
+            .from(".dream-sub", { autoAlpha: 0, y: desktop ? 24 : 12, duration: desktop ? 0.8 : 0.3 }, desktop ? 1.25 : 0.22)
+            .from(".dream-cta", { autoAlpha: 0, y: desktop ? 24 : 12, duration: desktop ? 0.8 : 0.3 }, desktop ? 1.4 : 0.28)
+            .from(".dream-scroll", { autoAlpha: 0, duration: desktop ? 0.8 : 0.3 }, desktop ? 1.9 : 0.4);
 
           // --- Scroll (scrubbed → reverses on the way up) ---
           if (desktop) {

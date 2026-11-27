@@ -3,7 +3,7 @@ import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { useGSAP } from "@gsap/react";
 import { Diploma } from "./Diploma";
-import { JOURNEY_MEDIA, JOURNEY_PIN, JOURNEY_REFRESH, JOURNEY_SCRUB } from "../animation";
+import { JOURNEY_DESKTOP_MIN, JOURNEY_MEDIA, JOURNEY_PIN, JOURNEY_REFRESH, JOURNEY_SCRUB } from "../animation";
 
 
 const LQIP = "data:image/webp;base64,UklGRtwAAABXRUJQVlA4INAAAACQBQCdASogABIAPu1kqU2ppaOiMAgBMB2JbACxFIDHAAE/VnWDZ+5Yt27GYz6C3Rat3UFYgAD9EGyemOshQpgRbgb9ekvcSAzAmZfIjv5Y3UdVi/pDLst9VsvGFUEWO6pCvgY2xbRxXawEgaNOSys/dzpDHXgubgDnsocLFD2Ey8A2Yw6eRfEjEuUber1B5/Hl00HA5EUuOIrqHm/38IPWvxUhBsL3YLNx2s8apYGPbGCjzgMZwqjriGMj/dq+UbGB+Bo58ojSsC27E9zP+AAA";
@@ -44,7 +44,7 @@ export function GraduateScene({ index, total }: { index: number; total: number }
       let len = 0;
 
       const build = () => {
-        const desktop = window.innerWidth >= 768;
+        const desktop = window.innerWidth >= JOURNEY_DESKTOP_MIN;
         const W = el.offsetWidth;
         const H = el.offsetHeight;
         svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
@@ -204,7 +204,7 @@ export function GraduateScene({ index, total }: { index: number; total: number }
           <path fill="none" stroke="none" />
         </svg>
         {/* The flying cap (real cap cut out of the photo) */}
-        <img src="/hero/grad-cap.webp" alt="" width={153} height={231} className="grad-cap pointer-events-none absolute left-0 top-0 z-20 w-[22vw] max-w-[150px] opacity-0 md:w-[11vw] md:max-w-[190px]" aria-hidden />
+        <img src="/hero/grad-cap.webp" alt="" width={153} height={231} loading="lazy" decoding="async" className="grad-cap pointer-events-none absolute left-0 top-0 z-20 w-[22vw] max-w-[150px] opacity-0 md:w-[11vw] md:max-w-[190px]" aria-hidden />
       </div>
 
       {/* Diploma — phones: below the photo */}

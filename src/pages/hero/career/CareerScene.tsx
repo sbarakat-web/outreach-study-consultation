@@ -4,7 +4,7 @@ import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { useGSAP } from "@gsap/react";
 import { CAREER_PATHWAYS } from "./pathways";
-import { JOURNEY_MEDIA, JOURNEY_PIN, JOURNEY_REFRESH, JOURNEY_SCRUB } from "../animation";
+import { JOURNEY_DESKTOP_MIN, JOURNEY_MEDIA, JOURNEY_PIN, JOURNEY_REFRESH, JOURNEY_SCRUB } from "../animation";
 
 
 const HEADLINE = [["Your", "Journey", "Doesn't"], ["End", "Here."], ["It", "Begins."]];
@@ -29,7 +29,7 @@ export function CareerScene({ index, total }: { index: number; total: number }) 
       let lineLength = 0;
 
       const measure = () => {
-        const desktop = window.innerWidth >= 768;
+        const desktop = window.innerWidth >= JOURNEY_DESKTOP_MIN;
         const width = stage.offsetWidth;
         const height = stage.offsetHeight;
         lineSvg.setAttribute("viewBox", `0 0 ${width} ${height}`);
@@ -146,7 +146,7 @@ export function CareerScene({ index, total }: { index: number; total: number }) 
         </div>
 
         <svg className="career-cap-guide pointer-events-none absolute inset-0 h-full w-full" aria-hidden><path fill="none" stroke="none" /></svg>
-        <img src="/hero/grad-cap.webp" alt="" width={153} height={231} className="career-cap pointer-events-none absolute left-0 top-0 z-20 w-[18vw] max-w-[130px] opacity-0 md:w-[9vw] md:max-w-[160px]" aria-hidden />
+        <img src="/hero/grad-cap.webp" alt="" width={153} height={231} loading="lazy" decoding="async" className="career-cap pointer-events-none absolute left-0 top-0 z-20 w-[18vw] max-w-[130px] opacity-0 md:w-[9vw] md:max-w-[160px]" aria-hidden />
         <svg className="career-line pointer-events-none absolute inset-0 z-[5] h-full w-full" aria-hidden><path fill="none" stroke="rgba(255,255,255,.8)" strokeWidth="2.5" strokeLinecap="round" /></svg>
         <div className="career-next pointer-events-none absolute bottom-5 left-1/2 z-20 hidden -translate-x-1/2 flex-col items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.25em] text-white/60 opacity-0 md:flex" aria-hidden>
           <span>Your next step</span><ArrowDown className="h-4 w-4" />

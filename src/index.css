@@ -98,6 +98,10 @@ textarea {
    (svh stays stable on phones when the browser bar shows/hides). */
 .hero-landing {
   scroll-behavior: smooth;
+  padding-bottom: max(5.25rem, calc(env(safe-area-inset-bottom) + 4.5rem));
+}
+@media (min-width: 1024px) {
+  .hero-landing { padding-bottom: 0; }
 }
 @media (prefers-reduced-motion: reduce) {
   .hero-landing { scroll-behavior: auto; }
@@ -112,7 +116,7 @@ textarea {
   .hero-landing .hero-container { padding-inline: 2rem; } /* large phone */
 }
 @media (min-width: 768px) {
-  .hero-landing .hero-container { padding-inline: 4.5rem; } /* tablet: clear of the progress rail */
+  .hero-landing .hero-container { padding-inline: max(2.5rem, env(safe-area-inset-left)); }
 }
 @media (min-width: 1024px) {
   .hero-landing .hero-container { padding-inline: 5rem; } /* desktop: room for the progress rail */
@@ -120,6 +124,9 @@ textarea {
 .hero-landing .hero-scene {
   min-height: 100vh;
   min-height: 100svh;
+}
+@media (max-width: 1023px) and (orientation: landscape) {
+  .hero-landing .hero-scene { min-height: max(32rem, 100dvh); }
 }
 /* Phone: text sits low (portrait photos keep the subject up top); larger screens: centred. */
 .hero-landing .hero-scene-pad {
@@ -243,8 +250,11 @@ textarea {
 /* Reduced motion: no flight overlay; Travel shows a static airplane and its label. */
 @media (prefers-reduced-motion: reduce) {
   .hero-landing .journey-overlay { display: none; }
-  .hero-landing .travel-static-plane { display: block; }
+  .hero-landing .travel-static-plane { display: block; background-image: url('/hero/airplane.webp'); }
   .hero-landing .travel-dest-ping { animation: none; }
+}
+@media (max-width: 1023px) and (prefers-reduced-motion: reduce) {
+  .hero-landing .travel-static-plane { background-image: url('/hero/airplane-mobile.webp'); }
 }
 
 /* ---- /hero · Malta scene */
@@ -375,10 +385,16 @@ textarea {
   }
 }
 .hero-landing[dir="rtl"] .career-scrim { transform: scaleX(-1); }
-@media (max-width: 767px) {
+@media (max-width: 1023px) {
   .hero-landing .career-stage { min-height: auto; padding-bottom: 4rem; }
-  .hero-landing .career-layout { min-height: 100svh; padding-top: 8.5rem; }
+  .hero-landing .career-layout { min-height: 100svh; min-height: 100dvh; padding-top: 8.5rem; }
   .hero-landing .career-pathway { min-height: 4.75rem; }
+  .hero-landing .career-pathway { -webkit-backdrop-filter: none; backdrop-filter: none; background-color: rgba(20,18,58,.72); }
+  .hero-landing .journey-plane { width: min(62vw, 360px); }
+  .hero-landing .dream-clouds-back { display: none; }
+  .hero-landing .mobile-apply-bar {
+    background: linear-gradient(to top, rgba(20,18,58,.92), rgba(20,18,58,0));
+  }
 }
 @media (prefers-reduced-motion: reduce) {
   .hero-landing .career-cap { display: none; }

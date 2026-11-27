@@ -13,7 +13,7 @@ export function JourneyProgress({ chapters }: { chapters: Chapter[] }) {
   return (
     <>
       {/* Tablet / desktop: right-hand rail. */}
-      <nav aria-label="Journey" className="fixed end-4 top-1/2 z-40 hidden -translate-y-1/2 md:block lg:end-8">
+      <nav aria-label="Journey" className="fixed end-4 top-1/2 z-40 hidden -translate-y-1/2 lg:block lg:end-8">
         <div className="relative">
           <div className="absolute end-[7px] top-2 bottom-2 w-px bg-white/20" />
           <div className="absolute end-[7px] top-2 w-px bg-white transition-all duration-500" style={{ height: `calc(${pct}% - ${pct / 100}rem)` }} />
@@ -41,7 +41,7 @@ export function JourneyProgress({ chapters }: { chapters: Chapter[] }) {
       </nav>
 
       {/* Phone: slim bar under the header. */}
-      <nav aria-label="Journey" className="fixed inset-x-0 top-[calc(env(safe-area-inset-top)+4rem)] z-40 md:hidden">
+      <nav aria-label="Journey" className="fixed inset-x-0 top-[calc(env(safe-area-inset-top)+4rem)] z-40 lg:hidden">
         <div className="h-0.5 bg-white/15">
           <div className="h-full bg-white transition-all duration-500" style={{ width: `${((active + 1) / chapters.length) * 100}%` }} />
         </div>

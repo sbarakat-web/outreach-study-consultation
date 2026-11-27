@@ -9,7 +9,7 @@ export function HeroHeader() {
           <img src="/logo.png" alt="Outreach — Study in Malta" width={1102} height={180} className="h-7 w-auto brightness-0 invert sm:h-9" />
         </Link>
         <a
-          href="#apply"
+          href="/#apply"
           className="inline-flex min-h-11 items-center rounded-full bg-white px-4 text-sm font-bold text-navy transition hover:bg-white/90 sm:px-5"
         >
           Free consultation

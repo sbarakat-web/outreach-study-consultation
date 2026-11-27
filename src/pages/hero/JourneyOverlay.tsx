@@ -4,7 +4,7 @@ import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { useGSAP } from "@gsap/react";
 import { SoftClouds, type Blob } from "./CloudBank";
 import { PLANE_NOSE_DEG, desktopFlight, mobileFlight, type Pt } from "./flight";
-import { JOURNEY_MEDIA, JOURNEY_PIN, JOURNEY_REFRESH, JOURNEY_SCRUB } from "./animation";
+import { JOURNEY_DESKTOP_MIN, JOURNEY_MEDIA, JOURNEY_PIN, JOURNEY_REFRESH, JOURNEY_SCRUB } from "./animation";
 
 
 const FRONT_CLOUDS: Blob[] = [[0, 30, 34, 80, 0.85], [28, 50, 26, 60, 0.6], [62, 35, 38, 85, 0.85], [92, 55, 26, 55, 0.6]];
@@ -54,7 +54,7 @@ export function JourneyOverlay() {
       const build = () => {
         const w = window.innerWidth;
         const h = window.innerHeight;
-        const g = w < 768 ? mobileFlight(w, h) : desktopFlight(w, h, readAnchor("takeoff"), readAnchor("malta"));
+        const g = w < JOURNEY_DESKTOP_MIN ? mobileFlight(w, h) : desktopFlight(w, h, readAnchor("takeoff"), readAnchor("malta"));
         svg.setAttribute("viewBox", `0 0 ${w} ${h}`);
         for (const p of [dots, line, reveal]) p.setAttribute("d", g.full);
         g.legs.forEach((d, i) => guides[i].setAttribute("d", d));
@@ -91,10 +91,10 @@ export function JourneyOverlay() {
           // Scroll distance of each phase in viewport heights → timeline durations (speed feels even).
           //  desktop: takeoff = Travel scrolling in · cruise = Travel pin · descent = Malta scrolling in ·
           //           arrival = Malta pin · onwards = Malta scrolling out.
-          //  phones (no pins): the whole flight fits in the Travel scene's first ~85% of scroll.
+          //  compact layouts (no pins): the flight spans Travel and Malta, using native scrolling.
           const D = desktop
             ? { takeoff: 1, cruise: JOURNEY_PIN.travel / 100, descent: 1, arrival: JOURNEY_PIN.malta / 100, onwards: 1 }
-            : { takeoff: 0.35, cruise: 0.3, descent: 0.2, arrival: 0, onwards: 0 };
+            : { takeoff: 0.28, cruise: 0.32, descent: 0.32, arrival: 0, onwards: 0 };
 
           gsap.set(plane, { autoAlpha: 0, scale: desktop ? 0.12 : 0.5 });
           gsap.set(".journey-front-clouds", { autoAlpha: 0 });
@@ -105,6 +105,7 @@ export function JourneyOverlay() {
             scrollTrigger: {
               id: "flight",
               trigger: travel,
+              endTrigger: desktop ? undefined : "#malta",
               start: "top bottom",
               end:
                 desktop && travelPin
@@ -144,9 +145,9 @@ export function JourneyOverlay() {
           leg(tl, 2, D.descent, t2, { scale: desktop ? 0.42 : 0.6 }, desktop ? 6 : PLANE_NOSE_DEG);
 
           if (!desktop) {
-            tl.to(".journey-trail", { autoAlpha: 0, duration: D.descent * 0.5 }, t2);
+            tl.to(".journey-trail", { autoAlpha: 0, duration: D.descent * 0.35 }, t2 + D.descent * 0.65);
             tl.to(plane, { autoAlpha: 0, duration: D.descent * 0.3 }, t2 + D.descent * 0.7);
-            tl.to({}, { duration: 0.15 }); // rest of the scroll: nothing on screen
+            tl.to({}, { duration: 0.08 });
             return;
           }
 
@@ -190,7 +191,7 @@ export function JourneyOverlay() {
       <div data-layer="airplane" className={`absolute inset-0 ${outline}`}>
         <div className="journey-plane absolute left-0 top-0 opacity-0 will-change-transform">
           <picture>
-            <source media="(max-width: 767px)" srcSet="/hero/airplane-mobile.webp" type="image/webp" />
+            <source media="(max-width: 1023px)" srcSet="/hero/airplane-mobile.webp" type="image/webp" />
             <img src="/hero/airplane.webp" alt="" width={1055} height={268} decoding="async" className="block h-auto w-full drop-shadow-[0_18px_30px_rgba(20,18,58,0.25)]" />
           </picture>
         </div>

@@ -108,7 +108,7 @@ export function TravelScene({ index, total }: { index: number; total: number }) 
       <div className="travel-fade-cloud pointer-events-none absolute inset-x-0 bottom-0 -z-10 hidden h-[40%] bg-gradient-to-t from-[#f3eff6] via-[#f3eff6]/60 to-transparent opacity-0 md:block" aria-hidden />
 
       {/* Static airplane for reduced motion (the animated one lives in JourneyOverlay). */}
-      <img src="/hero/airplane.webp" alt="" width={1055} height={268} className="travel-static-plane absolute right-[6%] top-[22%] hidden w-[min(52vw,640px)]" aria-hidden />
+      <div className="travel-static-plane absolute right-[6%] top-[22%] hidden aspect-[1055/268] w-[min(52vw,640px)] bg-contain bg-center bg-no-repeat" aria-hidden />
 
       <div className="travel-content hero-container hero-scene-pad relative z-10 flex w-full items-end md:pb-[16vh]">
         <div className="max-w-[44rem] lg:max-w-[52rem]">

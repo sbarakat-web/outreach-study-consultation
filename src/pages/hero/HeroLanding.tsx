@@ -11,6 +11,7 @@ import { HeroHeader } from "./HeroHeader";
 import { JourneyOverlay } from "./JourneyOverlay";
 import { JourneyProgress } from "./JourneyProgress";
 import { JourneyController } from "./JourneyController";
+import { MobileApplyBar } from "./MobileApplyBar";
 import { useI18n } from "../../lib/i18n";
 
 /**
@@ -54,6 +55,7 @@ export function HeroLanding() {
       </main>
       {/* After <main>: its flight ScrollTrigger must be created after the scenes' pins. */}
       <JourneyOverlay />
+      <MobileApplyBar />
     </JourneyController>
   );
 }

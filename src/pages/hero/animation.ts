@@ -6,9 +6,11 @@ import { useGSAP } from "@gsap/react";
 gsap.registerPlugin(ScrollTrigger, MotionPathPlugin, useGSAP);
 
 export const JOURNEY_MEDIA = {
-  desktop: "(min-width: 768px) and (prefers-reduced-motion: no-preference)",
-  mobile: "(max-width: 767px) and (prefers-reduced-motion: no-preference)",
+  desktop: "(min-width: 1024px) and (prefers-reduced-motion: no-preference)",
+  mobile: "(max-width: 1023px) and (prefers-reduced-motion: no-preference)",
 } as const;
+
+export const JOURNEY_DESKTOP_MIN = 1024;
 
 /** Viewport-height scroll distances used by both section pins and cross-scene motion. */
 export const JOURNEY_PIN = {
