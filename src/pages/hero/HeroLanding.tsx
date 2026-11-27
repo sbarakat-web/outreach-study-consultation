@@ -10,6 +10,7 @@ import { CareerScene } from "./career/CareerScene";
 import { HeroHeader } from "./HeroHeader";
 import { JourneyOverlay } from "./JourneyOverlay";
 import { JourneyProgress } from "./JourneyProgress";
+import { JourneyController } from "./JourneyController";
 import { useI18n } from "../../lib/i18n";
 
 /**
@@ -29,7 +30,7 @@ export function HeroLanding() {
   }, []);
 
   return (
-    <div className="hero-landing relative bg-navy text-white" dir={lang === "ar" ? "rtl" : "ltr"}>
+    <JourneyController chapters={CHAPTERS} dir={lang === "ar" ? "rtl" : "ltr"}>
       <HeroHeader />
       <JourneyProgress chapters={CHAPTERS} />
       <main>
@@ -53,6 +54,6 @@ export function HeroLanding() {
       </main>
       {/* After <main>: its flight ScrollTrigger must be created after the scenes' pins. */}
       <JourneyOverlay />
-    </div>
+    </JourneyController>
   );
 }

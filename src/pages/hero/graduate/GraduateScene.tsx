@@ -1,11 +1,10 @@
 import { useRef } from "react";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
-import { MotionPathPlugin } from "gsap/MotionPathPlugin";
 import { useGSAP } from "@gsap/react";
 import { Diploma } from "./Diploma";
+import { JOURNEY_MEDIA, JOURNEY_PIN, JOURNEY_REFRESH, JOURNEY_SCRUB } from "../animation";
 
-gsap.registerPlugin(ScrollTrigger, MotionPathPlugin, useGSAP);
 
 const LQIP = "data:image/webp;base64,UklGRtwAAABXRUJQVlA4INAAAACQBQCdASogABIAPu1kqU2ppaOiMAgBMB2JbACxFIDHAAE/VnWDZ+5Yt27GYz6C3Rat3UFYgAD9EGyemOshQpgRbgb9ekvcSAzAmZfIjv5Y3UdVi/pDLst9VsvGFUEWO6pCvgY2xbRxXawEgaNOSys/dzpDHXgubgDnsocLFD2Ey8A2Yw6eRfEjEuUber1B5/Hl00HA5EUuOIrqHm/38IPWvxUhBsL3YLNx2s8apYGPbGCjzgMZwqjriGMj/dq+UbGB+Bo58ojSsC27E9zP+AAA";
 const HEADLINE = [["From", "Ambition"], ["to", "Achievement."]];
@@ -60,10 +59,7 @@ export function GraduateScene({ index, total }: { index: number; total: number }
 
       const mm = gsap.matchMedia();
       mm.add(
-        {
-          desktop: "(min-width: 768px) and (prefers-reduced-motion: no-preference)",
-          mobile: "(max-width: 767px) and (prefers-reduced-motion: no-preference)",
-        },
+        JOURNEY_MEDIA,
         (ctx) => {
           const { desktop } = ctx.conditions as { desktop: boolean };
 
@@ -82,7 +78,7 @@ export function GraduateScene({ index, total }: { index: number; total: number }
           if (desktop) {
             const tl = gsap.timeline({
               defaults: { ease: "none" },
-              scrollTrigger: { id: "graduate", trigger: el, start: "top top", end: "+=140%", pin: true, scrub: 0.8, anticipatePin: 1, invalidateOnRefresh: true },
+              scrollTrigger: { id: "graduate", trigger: el, start: "top top", end: `+=${JOURNEY_PIN.graduate}%`, pin: true, scrub: JOURNEY_SCRUB.desktop, anticipatePin: 1, invalidateOnRefresh: true, refreshPriority: JOURNEY_REFRESH.graduate },
             });
             tl.addLabel("throw", 0)
               // the cap: thrown up, spinning, coming towards the camera then away

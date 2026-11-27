@@ -5,10 +5,8 @@ import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { useGSAP } from "@gsap/react";
 import { DreamClouds } from "./DreamClouds";
+import { JOURNEY_MEDIA, JOURNEY_PIN, JOURNEY_REFRESH, JOURNEY_SCRUB } from "../animation";
 
-gsap.registerPlugin(ScrollTrigger, useGSAP);
-// Phones: don't recalculate when the browser bar shows/hides (prevents jumps on iOS Safari / Android Chrome).
-ScrollTrigger.config({ ignoreMobileResize: true });
 
 /** Photo (1600×839) and the airplane's position in it (fractions), used for the camera target + takeoff anchor. */
 const PHOTO = { w: 1600, h: 839, plane: { x: 0.41, y: 0.65 } };
@@ -73,10 +71,7 @@ export function DreamScene({ total }: { total: number }) {
 
       const mm = gsap.matchMedia();
       mm.add(
-        {
-          desktop: "(min-width: 768px) and (prefers-reduced-motion: no-preference)",
-          mobile: "(max-width: 767px) and (prefers-reduced-motion: no-preference)",
-        },
+        JOURNEY_MEDIA,
         (ctx) => {
           const { desktop } = ctx.conditions as { desktop: boolean; mobile: boolean };
 
@@ -100,11 +95,12 @@ export function DreamScene({ total }: { total: number }) {
                   id: "dream",
                   trigger: el,
                   start: "top top",
-                  end: "+=110%",
+                  end: `+=${JOURNEY_PIN.dream}%`,
                   pin: true,
-                  scrub: 0.8,
+                  scrub: JOURNEY_SCRUB.desktop,
                   anticipatePin: 1,
                   invalidateOnRefresh: true,
+                  refreshPriority: JOURNEY_REFRESH.dream,
                 },
               })
               .addLabel("start")
@@ -126,7 +122,7 @@ export function DreamScene({ total }: { total: number }) {
             gsap
               .timeline({
                 defaults: { ease: "none" },
-                scrollTrigger: { id: "dream", trigger: el, start: "top top", end: "bottom top", scrub: 0.4 },
+                scrollTrigger: { id: "dream", trigger: el, start: "top top", end: "bottom top", scrub: JOURNEY_SCRUB.mobile, refreshPriority: JOURNEY_REFRESH.dream },
               })
               .to(cam, { scale: 1.12, duration: 1 }, 0)
               .to(".dream-content", { y: -60, autoAlpha: 0, duration: 0.55 }, 0)

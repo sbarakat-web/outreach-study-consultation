@@ -5,8 +5,8 @@ import { useGSAP } from "@gsap/react";
 import { SoftClouds, type Blob } from "../CloudBank";
 import { coverPoint } from "../cover";
 import { MaltaFlag } from "./MaltaFlag";
+import { JOURNEY_MEDIA, JOURNEY_PIN, JOURNEY_REFRESH, JOURNEY_SCRUB } from "../animation";
 
-gsap.registerPlugin(ScrollTrigger, useGSAP);
 
 /**
  * Aerial photo of Valletta & the Grand Harbour (2048×1089) and the arrival point (fractions of the full photo):
@@ -67,18 +67,15 @@ export function MaltaScene({ index, total }: { index: number; total: number }) {
 
       const mm = gsap.matchMedia();
       mm.add(
-        {
-          desktop: "(min-width: 768px) and (prefers-reduced-motion: no-preference)",
-          mobile: "(max-width: 767px) and (prefers-reduced-motion: no-preference)",
-        },
+        JOURNEY_MEDIA,
         (ctx) => {
           const { desktop } = ctx.conditions as { desktop: boolean };
 
           const tl = gsap.timeline({
             defaults: { ease: "none" },
             scrollTrigger: desktop
-              ? { id: "malta", trigger: el, start: "top top", end: "+=150%", pin: true, scrub: 0.8, anticipatePin: 1 }
-              : { trigger: el, start: "top 85%", end: "bottom 20%", scrub: 0.4 },
+              ? { id: "malta", trigger: el, start: "top top", end: `+=${JOURNEY_PIN.malta}%`, pin: true, scrub: JOURNEY_SCRUB.desktop, anticipatePin: 1, invalidateOnRefresh: true, refreshPriority: JOURNEY_REFRESH.malta }
+              : { trigger: el, start: "top 85%", end: "bottom 20%", scrub: JOURNEY_SCRUB.mobile },
           });
 
           // Aerial camera: from close above Valletta, pulling back to reveal the harbour.

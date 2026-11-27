@@ -1,24 +1,12 @@
-import { useEffect, useState } from "react";
 import type { Chapter } from "./chapters";
+import { useJourneyState } from "./JourneyController";
 
 /**
  * Journey progress: vertical rail with labels on tablet/desktop, compact bar + chapter name on phones.
- * Tracks the scene in view with IntersectionObserver; each stop is a link to its scene.
+ * Reads the shared GSAP journey controller, so pinned scenes and the visible chapter stay aligned.
  */
 export function JourneyProgress({ chapters }: { chapters: Chapter[] }) {
-  const [active, setActive] = useState(0);
-
-  useEffect(() => {
-    const els = chapters.map((c) => document.getElementById(c.id)).filter(Boolean) as HTMLElement[];
-    const io = new IntersectionObserver(
-      (entries) => {
-        for (const e of entries) if (e.isIntersecting) setActive(els.indexOf(e.target as HTMLElement));
-      },
-      { rootMargin: "-45% 0px -45% 0px" },
-    );
-    els.forEach((el) => io.observe(el));
-    return () => io.disconnect();
-  }, [chapters]);
+  const { active } = useJourneyState();
 
   const pct = chapters.length > 1 ? (active / (chapters.length - 1)) * 100 : 0;
 

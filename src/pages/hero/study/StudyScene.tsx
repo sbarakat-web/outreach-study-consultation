@@ -3,8 +3,8 @@ import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { useGSAP } from "@gsap/react";
 import { ProgrammeExplorer } from "./ProgrammeExplorer";
+import "../animation";
 
-gsap.registerPlugin(ScrollTrigger, useGSAP);
 
 const LQIP = "data:image/webp;base64,UklGRt4AAABXRUJQVlA4INIAAAAQBgCdASogABEAPu1mrE+ppSQiMBgIATAdiWIAv2qAuAFJCgzXxGgAG5gP9Or8KS/H9OyvwzYmlLIA/ug3tEDbk4p5tlsVDWHXtL2kzNoOiYr8Jvv7t2YHqyjEH0/Rtss63J48IWQx8iIqNbbQjNWmd8lyBMVpmOq/Rq3kwp0Sx+j9yqq6L3r1Vb57hwomzs8DH42N7Dv2+xjhA2S0QITabXd7L074NxAp/xr/Mn61tUay2/GI7atBtefg1XyCwqUG6KvpFJMzR8HxVNQFOycAAAA=";
 const HEADLINE = [["Learn", "Today."], ["Lead", "Tomorrow."]];

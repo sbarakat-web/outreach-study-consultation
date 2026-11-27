@@ -1,11 +1,10 @@
 import { useRef } from "react";
 import { MapPin } from "lucide-react";
 import gsap from "gsap";
-import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { useGSAP } from "@gsap/react";
 import { SoftClouds, type Blob } from "../CloudBank";
+import { JOURNEY_MEDIA, JOURNEY_PIN, JOURNEY_REFRESH, JOURNEY_SCRUB } from "../animation";
 
-gsap.registerPlugin(ScrollTrigger, useGSAP);
 
 const BACK_CLOUDS: Blob[] = [[-5, 30, 34, 50, 0.45], [24, 40, 30, 40, 0.35], [52, 28, 36, 52, 0.42], [82, 38, 30, 44, 0.38]];
 const MID_CLOUDS: Blob[] = [[-8, 35, 40, 70, 0.75], [30, 50, 34, 60, 0.6], [62, 30, 44, 75, 0.8], [96, 45, 30, 60, 0.6]];
@@ -30,10 +29,7 @@ export function TravelScene({ index, total }: { index: number; total: number }) 
       const el = root.current!;
       const mm = gsap.matchMedia();
       mm.add(
-        {
-          desktop: "(min-width: 768px) and (prefers-reduced-motion: no-preference)",
-          mobile: "(max-width: 767px) and (prefers-reduced-motion: no-preference)",
-        },
+        JOURNEY_MEDIA,
         (ctx) => {
           const { desktop } = ctx.conditions as { desktop: boolean };
 
@@ -48,7 +44,7 @@ export function TravelScene({ index, total }: { index: number; total: number }) 
             gsap
               .timeline({
                 defaults: { ease: "none" },
-                scrollTrigger: { id: "travel", trigger: el, start: "top top", end: "+=160%", pin: true, scrub: 0.8, anticipatePin: 1 },
+                scrollTrigger: { id: "travel", trigger: el, start: "top top", end: `+=${JOURNEY_PIN.travel}%`, pin: true, scrub: JOURNEY_SCRUB.desktop, anticipatePin: 1, invalidateOnRefresh: true, refreshPriority: JOURNEY_REFRESH.travel },
               })
               // camera: slow drift and settle
               .fromTo(".travel-cam", { scale: 1.1, yPercent: 2 }, { scale: 1, yPercent: -2, duration: 1 }, 0)

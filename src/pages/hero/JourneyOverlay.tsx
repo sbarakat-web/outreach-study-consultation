@@ -1,12 +1,11 @@
 import { useRef } from "react";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
-import { MotionPathPlugin } from "gsap/MotionPathPlugin";
 import { useGSAP } from "@gsap/react";
 import { SoftClouds, type Blob } from "./CloudBank";
 import { PLANE_NOSE_DEG, desktopFlight, mobileFlight, type Pt } from "./flight";
+import { JOURNEY_MEDIA, JOURNEY_PIN, JOURNEY_REFRESH, JOURNEY_SCRUB } from "./animation";
 
-gsap.registerPlugin(ScrollTrigger, MotionPathPlugin, useGSAP);
 
 const FRONT_CLOUDS: Blob[] = [[0, 30, 34, 80, 0.85], [28, 50, 26, 60, 0.6], [62, 35, 38, 85, 0.85], [92, 55, 26, 55, 0.6]];
 
@@ -84,10 +83,7 @@ export function JourneyOverlay() {
 
       const mm = gsap.matchMedia();
       mm.add(
-        {
-          desktop: "(min-width: 768px) and (prefers-reduced-motion: no-preference)",
-          mobile: "(max-width: 767px) and (prefers-reduced-motion: no-preference)",
-        },
+        JOURNEY_MEDIA,
         (ctx) => {
           const { desktop } = ctx.conditions as { desktop: boolean };
           const travelPin = ScrollTrigger.getById("travel");
@@ -97,7 +93,7 @@ export function JourneyOverlay() {
           //           arrival = Malta pin · onwards = Malta scrolling out.
           //  phones (no pins): the whole flight fits in the Travel scene's first ~85% of scroll.
           const D = desktop
-            ? { takeoff: 1, cruise: 1.6, descent: 1, arrival: 1.5, onwards: 1 }
+            ? { takeoff: 1, cruise: JOURNEY_PIN.travel / 100, descent: 1, arrival: JOURNEY_PIN.malta / 100, onwards: 1 }
             : { takeoff: 0.35, cruise: 0.3, descent: 0.2, arrival: 0, onwards: 0 };
 
           gsap.set(plane, { autoAlpha: 0, scale: desktop ? 0.12 : 0.5 });
@@ -114,8 +110,9 @@ export function JourneyOverlay() {
                 desktop && travelPin
                   ? () => (maltaPin ? maltaPin.end : travelPin.end + window.innerHeight * D.descent) + window.innerHeight * D.onwards
                   : "bottom top",
-              scrub: desktop ? 1 : 0.5,
+              scrub: desktop ? JOURNEY_SCRUB.overlayDesktop : JOURNEY_SCRUB.overlayMobile,
               invalidateOnRefresh: true,
+              refreshPriority: JOURNEY_REFRESH.overlay,
             },
           });
 

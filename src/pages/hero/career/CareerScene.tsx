@@ -2,11 +2,10 @@ import { useRef } from "react";
 import { ArrowDown } from "lucide-react";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
-import { MotionPathPlugin } from "gsap/MotionPathPlugin";
 import { useGSAP } from "@gsap/react";
 import { CAREER_PATHWAYS } from "./pathways";
+import { JOURNEY_MEDIA, JOURNEY_PIN, JOURNEY_REFRESH, JOURNEY_SCRUB } from "../animation";
 
-gsap.registerPlugin(ScrollTrigger, MotionPathPlugin, useGSAP);
 
 const HEADLINE = [["Your", "Journey", "Doesn't"], ["End", "Here."], ["It", "Begins."]];
 const capPath = (w: number, h: number) =>
@@ -46,10 +45,7 @@ export function CareerScene({ index, total }: { index: number; total: number }) 
 
       const mm = gsap.matchMedia();
       mm.add(
-        {
-          desktop: "(min-width: 768px) and (prefers-reduced-motion: no-preference)",
-          mobile: "(max-width: 767px) and (prefers-reduced-motion: no-preference)",
-        },
+        JOURNEY_MEDIA,
         (context) => {
           const { desktop } = context.conditions as { desktop: boolean };
 
@@ -64,7 +60,7 @@ export function CareerScene({ index, total }: { index: number; total: number }) 
             gsap
               .timeline({
                 defaults: { ease: "none" },
-                scrollTrigger: { id: "career", trigger: el, start: "top top", end: "+=145%", pin: true, scrub: 0.75, anticipatePin: 1, invalidateOnRefresh: true },
+                scrollTrigger: { id: "career", trigger: el, start: "top top", end: `+=${JOURNEY_PIN.career}%`, pin: true, scrub: JOURNEY_SCRUB.desktop, anticipatePin: 1, invalidateOnRefresh: true, refreshPriority: JOURNEY_REFRESH.career },
               })
               .fromTo(".career-camera", { yPercent: -5, scale: 1.16 }, { yPercent: 4, scale: 1.03, duration: 1 }, 0)
               .fromTo(".career-parallax", { xPercent: -4, yPercent: 5 }, { xPercent: 5, yPercent: -4, duration: 1 }, 0)
