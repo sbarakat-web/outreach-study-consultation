@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { ArrowLeft, ArrowRight, BookOpen, CheckCircle2, GraduationCap, Laptop, Send } from "lucide-react";
+import { ArrowLeft, ArrowRight, BookOpen, CheckCircle2, GraduationCap, Laptop, MapPin, Send } from "lucide-react";
 import { parsePhoneNumberFromString, type CountryCode } from "libphonenumber-js/max";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
@@ -33,15 +33,21 @@ interface Draft {
 
 const DRAFT_KEY = "apply_draft_v1";
 const INELIGIBLE_COUNTRIES = new Set(["PK"]);
-// The form offers categories only; the adviser picks the level, school and exact course in the consultation.
-// The Study English Online card shows the offer while it runs.
+// The first step chooses a route and delivery/academic level; the adviser confirms the exact course later.
 const onlineOfferOn = ONLINE_ENGLISH.some((p) => !!activeOffer(p));
-// Below B2: an English course in Malta, or live English classes online.
-const ENGLISH_OPTIONS = ["English course", ONLINE_ENGLISH_COURSE];
-const genericTitle = (p: Programme) => AREAS.find((a) => a.key === p.area)?.name ?? p.area;
-const CATEGORY_OPTIONS = AREAS.filter((a) => a.key !== "english" && PROGRAMMES.some((p) => p.area === a.key)).map((a) => a.name);
-const PROGRAMME_VALUES = new Set(CATEGORY_OPTIONS);
-const ENGLISH_COURSE_VALUES = new Set(ENGLISH_OPTIONS);
+const MALTA_ENGLISH_COURSE = "English Language Course in Malta";
+const ENGLISH_OPTIONS = [
+  { value: MALTA_ENGLISH_COURSE, label: "apply.englishMalta" },
+  { value: ONLINE_ENGLISH_COURSE, label: "apply.englishOnline" },
+] as const;
+const ACADEMIC_OPTIONS = [
+  { value: "Diploma programmes", label: "apply.diploma" },
+  { value: "Bachelor's programmes", label: "apply.bachelor" },
+  { value: "Master's programmes", label: "apply.master" },
+] as const;
+const PROGRAMME_VALUES = new Set<string>(ACADEMIC_OPTIONS.map((option) => option.value));
+const ENGLISH_COURSE_VALUES = new Set<string>(ENGLISH_OPTIONS.map((option) => option.value));
+const levelTitle = (programme: Programme) => ACADEMIC_OPTIONS.find((option) => option.value.toLowerCase().startsWith(programme.level))?.value;
 function loadDraft(): Partial<Draft> {
   try {
     return JSON.parse(localStorage.getItem(DRAFT_KEY) ?? "{}");
@@ -50,7 +56,7 @@ function loadDraft(): Partial<Draft> {
   }
 }
 
-// Initial state: saved draft, then pre-filled link (?path=b2&course=IT) on top.
+// Initial state: saved draft, then a pre-filled path/course link on top.
 function initialDraft(): Draft {
   const saved = loadDraft();
   const country = saved.country ?? detectCountry();
@@ -68,6 +74,7 @@ function initialDraft(): Draft {
     countryTouched: saved.countryTouched ?? false,
   };
   const params = new URLSearchParams(window.location.search);
+  const rawPath = params.get("path")?.trim().toLowerCase();
   const course = parseCourseParam(params.get("course"));
   const path = parsePathParam(params.get("path")) ?? (course ? "higher_education" : undefined);
   const linkedEmail = params.get("email")?.trim().toLowerCase();
@@ -76,10 +83,14 @@ function initialDraft(): Draft {
     const linkedProgramme = findBestMatch(course);
     d.path = path;
     d.stage = "form";
-    d.course = path === "english" ? ENGLISH_OPTIONS[0] : linkedProgramme ? genericTitle(linkedProgramme) : d.course;
+    const linkedLevel = rawPath === "diploma" ? ACADEMIC_OPTIONS[0].value : rawPath === "bachelor" ? ACADEMIC_OPTIONS[1].value : rawPath === "master" ? ACADEMIC_OPTIONS[2].value : undefined;
+    d.course = path === "english" ? MALTA_ENGLISH_COURSE : linkedLevel ?? (linkedProgramme ? levelTitle(linkedProgramme) : d.course) ?? "";
   }
-  if (d.path === "higher_education" && !PROGRAMME_VALUES.has(d.course)) d.course = "";
-  if (d.path === "english" && !ENGLISH_COURSE_VALUES.has(d.course)) d.course = ENGLISH_OPTIONS[0];
+  if (d.path === "higher_education" && !PROGRAMME_VALUES.has(d.course)) {
+    d.course = "";
+    if (!path) d.stage = "choose";
+  }
+  if (d.path === "english" && !ENGLISH_COURSE_VALUES.has(d.course)) d.course = MALTA_ENGLISH_COURSE;
   return d;
 }
 
@@ -97,6 +108,9 @@ export function Apply() {
   const [submitting, setSubmitting] = useState(false);
   const geoDone = useRef(false);
   const countryIneligible = INELIGIBLE_COUNTRIES.has(d.country);
+  const selectedCourseLabel = d.path === "english"
+    ? t(ENGLISH_OPTIONS.find((option) => option.value === d.course)?.label ?? "apply.englishMalta")
+    : t(ACADEMIC_OPTIONS.find((option) => option.value === d.course)?.label ?? "apply.diploma");
 
   const set = <K extends keyof Draft>(k: K, v: Draft[K]) => setD((x) => ({ ...x, [k]: v }));
 
@@ -142,7 +156,7 @@ export function Apply() {
     setD((x) => ({
       ...x,
       path,
-      course: course ?? (path === "english" ? ENGLISH_OPTIONS[0] : PROGRAMME_VALUES.has(x.course) ? x.course : ""),
+      course: course ?? (path === "english" ? MALTA_ENGLISH_COURSE : PROGRAMME_VALUES.has(x.course) ? x.course : ""),
     }));
     go("form");
   };
@@ -172,7 +186,7 @@ export function Apply() {
       p_country: countryByCode(d.country)?.name ?? d.country,
       p_age: null,
       p_study_path: d.path,
-      p_english_level: d.path === "english" ? "below_b2" : "b2_plus",
+      p_english_level: null,
       p_desired_course: d.course,
       p_start_date: d.start || null,
       p_budget: null,
@@ -233,7 +247,7 @@ export function Apply() {
               {d.stage === "choose" ? t("apply.chooseSub") : t("apply.formSub")}
             </p>
             <ol className="mx-auto mt-5 grid max-w-xs grid-cols-2 gap-2">
-              {[t("apply.stepLevel"), t("apply.stepDetails")].map((label, i) => (
+              {[t("apply.stepPath"), t("apply.stepDetails")].map((label, i) => (
                 <li key={label} className="space-y-1">
                   <span className={`block h-1.5 rounded-full transition-colors ${i <= stepIndex ? "bg-brand" : "bg-slate-200"}`} />
                   <span
@@ -249,53 +263,30 @@ export function Apply() {
 
           <div key={d.stage} className="step-in min-h-[300px]">
             {d.stage === "choose" && (
-              <div className="space-y-4">
-                <div className="rounded-2xl bg-mist p-5 text-center sm:p-6">
-                  <span className="inline-grid h-12 w-12 place-items-center rounded-full bg-brand text-lg font-black text-white">B2</span>
-                  <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-slate-600 sm:text-base">
-                    {t("apply.b2Before")} <strong className="text-navy">{t("apply.b2Strong")}</strong>
-                    {t("apply.b2After")}
-                  </p>
-                </div>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <PathButton
-                    icon={<BookOpen className="h-6 w-6" />}
-                    title={t("apply.belowTitle")}
-                    text={t("apply.belowText")}
-                    cta={t("apply.continue")}
-                    accent="red"
-                    onClick={() => choose("english")}
+              <div className="grid gap-4 sm:grid-cols-2">
+                <PathPanel icon={<BookOpen className="h-6 w-6" />} title={t("apply.englishPathTitle")} text={t("apply.englishPathText")} accent="red">
+                  <PathChoice icon={<MapPin className="h-4 w-4" />} title={t("apply.englishMalta")} text={t("apply.englishMaltaText")} onClick={() => choose("english", MALTA_ENGLISH_COURSE)} />
+                  <PathChoice
+                    icon={<Laptop className="h-4 w-4" />}
+                    title={t("apply.englishOnline")}
+                    text={t("apply.englishOnlineText")}
+                    badge={onlineOfferOn ? t("apply.onlineOffer") : undefined}
+                    onClick={() => choose("english", ONLINE_ENGLISH_COURSE)}
                   />
-                  <PathButton
-                    icon={<GraduationCap className="h-6 w-6" />}
-                    title={t("apply.aboveTitle")}
-                    text={t("apply.aboveText")}
-                    cta={t("apply.continue")}
-                    accent="violet"
-                    onClick={() => choose("higher_education")}
-                  />
-                  <div className="sm:col-span-2">
-                    <PathButton
-                      icon={<Laptop className="h-6 w-6" />}
-                      title={t("apply.onlineTitle")}
-                      text={t("apply.onlineText")}
-                      cta={t("apply.continue")}
-                      accent="emerald"
-                      badge={onlineOfferOn ? t("apply.onlineOffer") : undefined}
-                      onClick={() => choose("english", ONLINE_ENGLISH_COURSE)}
-                    />
-                  </div>
-                </div>
+                </PathPanel>
+                <PathPanel icon={<GraduationCap className="h-6 w-6" />} title={t("apply.academicPathTitle")} text={t("apply.academicPathText")} accent="violet">
+                  {ACADEMIC_OPTIONS.map((option) => (
+                    <PathChoice key={option.value} title={t(option.label)} onClick={() => choose("higher_education", option.value)} />
+                  ))}
+                </PathPanel>
               </div>
             )}
 
             {d.stage === "form" && (
               <form onSubmit={submit} className="space-y-4">
-                {d.path === "higher_education" && (
-                  <div className="rounded-xl border border-brand/20 bg-brand/5 p-4 text-sm font-medium leading-relaxed sm:text-base">
-                    {t("apply.haveLevel")}
-                  </div>
-                )}
+                <div className="rounded-xl border border-brand/20 bg-brand/5 p-4 text-sm font-medium leading-relaxed sm:text-base">
+                  {t("apply.selectedChoice", { course: selectedCourseLabel })}
+                </div>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <Field label={t("apply.fullName")} id="name">
                     <input id="name" required autoComplete="name" className="field" value={d.name} onChange={(e) => set("name", e.target.value)} />
@@ -362,14 +353,14 @@ export function Apply() {
                   <select id="course" required className="field" value={d.course} onChange={(e) => set("course", e.target.value)}>
                     <option value="">{t("apply.selectProgramme")}</option>
                     {d.path === "english"
-                      ? ENGLISH_OPTIONS.map((title) => (
-                          <option key={title} value={title}>
-                            {tv(title)}
+                      ? ENGLISH_OPTIONS.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {t(option.label)}
                           </option>
                         ))
-                      : CATEGORY_OPTIONS.map((title) => (
-                          <option key={title} value={title}>
-                            {tv(title)}
+                      : ACADEMIC_OPTIONS.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {t(option.label)}
                           </option>
                         ))}
                   </select>
@@ -526,38 +517,40 @@ export function Apply() {
   );
 }
 
-function PathButton({
-  icon,
-  title,
-  text,
-  cta,
-  accent,
-  badge,
-  onClick,
-}: {
+function PathPanel({ icon, title, text, accent, children }: {
   icon: React.ReactNode;
   title: string;
   text: string;
-  cta: string;
-  accent: "red" | "violet" | "emerald";
-  /** Highlighted line under the text, e.g. a running offer. */
+  accent: "red" | "violet";
+  children: React.ReactNode;
+}) {
+  const color = accent === "red" ? "text-brand-red bg-brand-red/10" : "text-brand bg-brand/10";
+  return (
+    <article className="flex h-full flex-col rounded-2xl border-2 border-slate-100 bg-white p-5 shadow-sm">
+      <span className={`grid h-11 w-11 place-items-center rounded-xl ${color}`}>{icon}</span>
+      <h3 className="mt-3 text-lg font-black text-navy">{title}</h3>
+      <p className="mt-1 text-sm leading-relaxed text-slate-500">{text}</p>
+      <div className="mt-5 grid gap-2">{children}</div>
+    </article>
+  );
+}
+
+function PathChoice({ icon, title, text, badge, onClick }: {
+  icon?: React.ReactNode;
+  title: string;
+  text?: string;
   badge?: string;
   onClick: () => void;
 }) {
-  const color = accent === "red" ? "text-brand-red bg-brand-red/10" : accent === "emerald" ? "text-emerald-700 bg-emerald-100" : "text-brand bg-brand/10";
   return (
     <button
       type="button"
       onClick={onClick}
-      className="group flex h-full flex-col items-start gap-3 rounded-2xl border-2 border-slate-100 bg-white p-5 text-start shadow-sm transition outline-none hover:-translate-y-0.5 hover:border-brand hover:shadow-lg focus-visible:ring-2 focus-visible:ring-brand"
+      className="group flex min-h-12 w-full items-center gap-3 rounded-xl border border-slate-200 bg-mist/50 px-3 py-2.5 text-start transition outline-none hover:border-brand hover:bg-brand/5 focus-visible:ring-2 focus-visible:ring-brand"
     >
-      <span className={`grid h-11 w-11 place-items-center rounded-xl ${color}`}>{icon}</span>
-      <span className="text-lg font-black text-navy">{title}</span>
-      <span className="text-sm leading-relaxed text-slate-500">{text}</span>
-      {badge && <span className="rounded-full bg-rose-50 px-3 py-1 text-xs font-black text-rose-700 ring-1 ring-rose-200">🔥 {badge}</span>}
-      <span className="mt-auto inline-flex items-center gap-1 text-sm font-extrabold text-brand">
-        {cta} <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1 rtl:rotate-180 rtl:group-hover:-translate-x-1" />
-      </span>
+      {icon && <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-white text-brand shadow-sm">{icon}</span>}
+      <span className="min-w-0 flex-1"><span className="block text-sm font-extrabold text-navy">{title}</span>{text && <span className="mt-0.5 block text-xs leading-relaxed text-slate-500">{text}</span>}{badge && <span className="mt-1.5 inline-block rounded-full bg-rose-50 px-2 py-0.5 text-[10px] font-black text-rose-700 ring-1 ring-rose-200">{badge}</span>}</span>
+      <ArrowRight className="h-4 w-4 shrink-0 text-brand transition-transform group-hover:translate-x-1 rtl:rotate-180 rtl:group-hover:-translate-x-1" />
     </button>
   );
 }
